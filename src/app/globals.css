@@ -1,26 +1,356 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ============================================================
+   ReadyUs design system
+   Warm, appetite-forward hyperlocal marketplace.
+   ============================================================ */
+
+@theme {
+  /* ---- Brand: vermillion ---- */
+  --color-brand-50:  #fff4f0;
+  --color-brand-100: #ffe6dd;
+  --color-brand-200: #ffc8b4;
+  --color-brand-300: #ffa184;
+  --color-brand-400: #ff7a52;
+  --color-brand-500: #ff4d1c;
+  --color-brand-600: #e63a0b;
+  --color-brand-700: #bf2e08;
+  --color-brand-800: #94240a;
+  --color-brand-900: #731e0c;
+
+  /* ---- Accent: saffron ---- */
+  --color-saffron-50:  #fffaeb;
+  --color-saffron-100: #fff2cc;
+  --color-saffron-200: #ffe199;
+  --color-saffron-300: #ffcc5c;
+  --color-saffron-400: #ffb020;
+  --color-saffron-500: #f59300;
+  --color-saffron-600: #cc7000;
+  --color-saffron-700: #a35400;
+
+  /* ---- Warm ink neutrals ---- */
+  --color-ink-50:  #faf8f7;
+  --color-ink-100: #f4efec;
+  --color-ink-200: #ede6e1;
+  --color-ink-300: #ddd2cb;
+  --color-ink-400: #b5a79f;
+  --color-ink-500: #8d7d74;
+  --color-ink-600: #7a6e68;
+  --color-ink-700: #574c47;
+  --color-ink-800: #342c28;
+  --color-ink-900: #1c1614;
+  --color-ink-950: #0a0807;
+
+  /* ---- Semantic ---- */
+  --color-success: #13a463;
+  --color-success-soft: #e6f7ef;
+  --color-danger: #e11d48;
+  --color-danger-soft: #fdeaef;
+  --color-warning: #d97706;
+  --color-warning-soft: #fff6e2;
+  --color-info: #6366f1;
+  --color-info-soft: #eef0fe;
+
+  /* ---- Typography ---- */
+  --font-display: var(--font-bricolage), "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --text-display-xl: 4.25rem;
+  --text-display-xl--line-height: 0.9;
+  --text-display-xl--letter-spacing: -0.055em;
+  --text-display-xl--font-weight: 800;
+
+  --text-display: 2.75rem;
+  --text-display--line-height: 0.98;
+  --text-display--letter-spacing: -0.045em;
+  --text-display--font-weight: 800;
+
+  --text-title: 1.6rem;
+  --text-title--line-height: 1.12;
+  --text-title--letter-spacing: -0.035em;
+  --text-title--font-weight: 800;
+
+  --text-eyebrow: 0.68rem;
+  --text-eyebrow--line-height: 1;
+  --text-eyebrow--letter-spacing: 0.18em;
+  --text-eyebrow--font-weight: 800;
+
+  /* ---- Radii ---- */
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 26px;
+  --radius-2xl: 34px;
+
+  /* ---- Warm-tinted elevation ---- */
+  --shadow-xs: 0 1px 2px rgb(28 22 20 / 0.06);
+  --shadow-sm: 0 1px 2px rgb(28 22 20 / 0.06), 0 2px 6px rgb(28 22 20 / 0.04);
+  --shadow-md: 0 2px 4px rgb(28 22 20 / 0.05), 0 8px 20px rgb(28 22 20 / 0.07);
+  --shadow-lg: 0 4px 10px rgb(28 22 20 / 0.06), 0 18px 44px rgb(28 22 20 / 0.10);
+  --shadow-xl: 0 8px 18px rgb(28 22 20 / 0.08), 0 32px 72px rgb(28 22 20 / 0.14);
+  --shadow-ember: 0 8px 26px rgb(255 77 28 / 0.32);
+
+  /* ---- Motion ---- */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-rise: rise 0.42s var(--ease-smooth) both;
+  --animate-fade: fade 0.42s var(--ease-smooth) both;
+  --animate-pop: pop 0.28s var(--ease-spring) both;
+  --animate-shimmer: shimmer 1.3s linear infinite;
+  --animate-float: float 8s ease-in-out infinite;
+  --animate-ping-ring: ping-ring 2.4s var(--ease-smooth) infinite;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+@keyframes rise {
+  from { opacity: 0; transform: translate3d(0, 18px, 0); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes pop {
+  0%   { opacity: 0; transform: scale(0.92); }
+  60%  { transform: scale(1.02); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes shimmer {
+  from { background-position: -140% 0; }
+  to   { background-position: 240% 0; }
+}
+@keyframes float {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50%      { transform: translate3d(0, -10px, 0); }
+}
+@keyframes ping-ring {
+  0%   { box-shadow: 0 0 0 0 rgb(255 77 28 / 0.38); }
+  100% { box-shadow: 0 0 0 16px rgb(255 77 28 / 0); }
 }
 
-@media (prefers-color-scheme: dark) {
+/* ============================================================
+   Base layer
+   ============================================================ */
+
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --surface: var(--color-white);
+    --surface-subtle: var(--color-ink-50);
+    --page: #fbf8f6;
+    /* Landing surfaces: the paper behind sections, the tile artwork sits on,
+       and the soft green wash. Each is redefined for dark below. */
+    --paper: var(--color-cream-50);
+    --tile: var(--color-cream-100);
+    --tile-soft: var(--color-cream-50);
+    --leaf-soft: var(--color-leaf-50);
+    /* Leaf used as type (eyebrows, links, labels). The 700 is unreadable on
+       the dark surface, so it lightens there rather than darkening. */
+    --leaf-ink: var(--color-leaf-700);
+    --line: var(--color-ink-200);
+    --text: var(--color-ink-900);
+    --text-muted: var(--color-ink-600);
+    --glass: rgb(255 255 255 / 0.72);
+    --glass-line: rgb(255 255 255 / 0.55);
+    color-scheme: light;
+  }
+
+  [data-theme="dark"] {
+    --surface: #161210;
+    --surface-subtle: #1f1917;
+    --page: var(--color-ink-950);
+    --paper: #100d0c;
+    --tile: #221b18;
+    --tile-soft: #1a1513;
+    --leaf-soft: rgb(47 127 82 / 0.16);
+    --leaf-ink: var(--color-leaf-300);
+    --line: #2a221e;
+    --text: #f7f3f1;
+    --text-muted: #a89d97;
+    --glass: rgb(22 18 16 / 0.72);
+    --glass-line: rgb(255 255 255 / 0.09);
+    color-scheme: dark;
+  }
+
+  * {
+    border-color: var(--line);
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    min-height: 100dvh;
+    background: var(--page);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.035em;
+    line-height: 1.08;
+  }
+
+  ::selection {
+    background: var(--color-brand-100);
+    color: var(--color-brand-800);
+  }
+
+  :focus-visible {
+    outline: 3px solid rgb(255 77 28 / 0.4);
+    outline-offset: 2px;
+  }
+
+  /* Hide scrollbars on horizontal rails without losing scrollability. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@layer components {
+  /* Frosted chrome used by the app header and bottom navigation. */
+  .glass {
+    background: var(--glass);
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+  }
+
+  /* Loading placeholder for images and text blocks. */
+  .skeleton {
+    background: linear-gradient(
+      100deg,
+      var(--surface-subtle) 28%,
+      color-mix(in srgb, var(--color-brand-500) 7%, var(--surface-subtle)) 48%,
+      var(--surface-subtle) 68%
+    );
+    background-size: 220% 100%;
+    animation: var(--animate-shimmer);
+  }
+
+  /* Warm mesh used behind hero sections. */
+  .mesh-brand {
+    background-image:
+      radial-gradient(ellipse 62% 48% at 84% 6%, rgb(255 176 32 / 0.62) 0%, transparent 58%),
+      radial-gradient(ellipse 70% 52% at 6% 94%, rgb(255 45 111 / 0.46) 0%, transparent 62%),
+      linear-gradient(152deg, var(--color-brand-400) 0%, var(--color-brand-500) 46%, var(--color-brand-600) 100%);
+  }
+
+  /* Fine grain so large gradients never band. */
+  .grain::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.22;
+    background-image: radial-gradient(#fff 0.6px, transparent 0.6px);
+    background-size: 15px 15px;
+    mask-image: radial-gradient(ellipse 80% 80% at 40% 40%, #000 10%, transparent 76%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* ============================================================
+   Marketplace landing — "fresh market" layer
+   Deep leaf green for structure and trust, the existing
+   vermillion kept for price and order actions.
+   ============================================================ */
+
+@theme {
+  --color-leaf-50:  #eff7f1;
+  --color-leaf-100: #d7ecdd;
+  --color-leaf-200: #aed8bd;
+  --color-leaf-300: #7cbd96;
+  --color-leaf-400: #4f9e70;
+  --color-leaf-500: #2f7f52;
+  --color-leaf-600: #246540;
+  --color-leaf-700: #1d5134;
+  --color-leaf-800: #17402a;
+  --color-leaf-900: #0f2c1d;
+
+  --color-cream-50: #fdfcf8;
+  --color-cream-100: #f7f4ec;
+  --color-cream-200: #efe9dc;
+
+  --animate-marquee: marquee 38s linear infinite;
+  --animate-spin-slow: spin 28s linear infinite;
+  --animate-steam: steam 3.4s ease-in-out infinite;
+  --animate-sway: sway 9s ease-in-out infinite;
+}
+
+@keyframes marquee {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(-50%, 0, 0); }
+}
+@keyframes steam {
+  0%   { opacity: 0; transform: translate3d(0, 2px, 0) scaleX(0.9); }
+  40%  { opacity: 0.55; }
+  100% { opacity: 0; transform: translate3d(0, -16px, 0) scaleX(1.25); }
+}
+@keyframes sway {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+  50%      { transform: translate3d(0, -12px, 0) rotate(2.5deg); }
+}
+
+@layer components {
+  /* Scroll reveal. Only armed once the inline script in the root layout marks
+     the document as scripted, so a visitor without JS still sees everything.
+     The element starts shifted and un-painted; the observer in <Reveal> adds
+     .is-in once it enters the viewport. */
+  .js .reveal {
+    opacity: 0;
+    transform: translate3d(0, 26px, 0);
+    transition:
+      opacity 0.72s var(--ease-smooth) var(--reveal-delay, 0ms),
+      transform 0.72s var(--ease-smooth) var(--reveal-delay, 0ms);
+    will-change: opacity, transform;
+  }
+  .js .reveal.is-in {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Photo tile: clips its art so hover can scale it without moving the frame. */
+  .tile {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .tile > .tile-art {
+    transition: transform 0.65s var(--ease-smooth);
+  }
+  .tile:hover > .tile-art,
+  .group:hover .tile > .tile-art {
+    transform: scale(1.06);
+  }
+
+  /* The warm paper the landing sections sit on. */
+  .paper {
+    background:
+      radial-gradient(ellipse 60% 50% at 88% 0%, rgb(255 176 32 / 0.10) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 40% at 4% 18%, rgb(47 127 82 / 0.07) 0%, transparent 62%),
+      var(--paper);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .js .reveal {
+    opacity: 1;
+    transform: none;
+  }
 }
