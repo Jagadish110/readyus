@@ -1,12 +1,16 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { PinIcon } from '@/components/shell/icons';
+import { loose } from '@/lib/business/db';
 import { cn } from '@/lib/utils';
+
+const PHOTO_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+const PHOTO_MAX_BYTES = 5 * 1024 * 1024;
 
 type Mode = 'food' | 'items';
 type Pin = { lat: number; lng: number } | null;
@@ -49,6 +53,28 @@ export function ApplyForm() {
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
   const [step, setStep] = useState<1 | 2>(1);
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoUrl, setPhotoUrl] = useState('');
+  const [photoMissed, setPhotoMissed] = useState(false);
+
+  // The preview is a blob URL, which has to be released when it is replaced.
+  useEffect(() => {
+    if (!photo) {
+      setPhotoUrl('');
+      return;
+    }
+    const url = URL.createObjectURL(photo);
+    setPhotoUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [photo]);
+
+  function choosePhoto(file: File | undefined) {
+    if (!file) return;
+    if (!PHOTO_TYPES[file.type]) return setError('The photo must be a JPG, PNG or WebP.');
+    if (file.size > PHOTO_MAX_BYTES) return setError('The photo must be under 5 MB.');
+    setError('');
+    setPhoto(file);
+  }
 
   function usePosition() {
     setError('');
@@ -132,6 +158,24 @@ export function ApplyForm() {
       return setError('Your application was saved, but the map pin was not: ' + pinError.message);
     }
 
+    // The photo is optional and goes up last, into the shop's own folder, so
+    // a failed upload never costs the applicant their application.
+    if (photo) {
+      const bucket = loose(supabase).storage.from('product-images');
+      const path = sellerId + '/shop-' + crypto.randomUUID() + '.' + PHOTO_TYPES[photo.type];
+      const { error: uploadError } = await bucket.upload(path, photo, { contentType: photo.type, upsert: false });
+      if (uploadError) {
+        setPhotoMissed(true);
+      } else {
+        const url = bucket.getPublicUrl(path).data.publicUrl;
+        const { error: photoError } = await client
+          .from('sellers')
+          .update({ photo_url: url, banner_url: url })
+          .eq('id', sellerId);
+        if (photoError) setPhotoMissed(true);
+      }
+    }
+
     setDone(true);
     router.refresh();
   }
@@ -146,6 +190,11 @@ export function ApplyForm() {
         <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
           We review every shop before it goes live, and we will notify you the moment it is approved.
         </p>
+        {photoMissed && (
+          <p className="mt-3 text-sm leading-relaxed text-[var(--text-muted)]">
+            Your shop photo could not be uploaded. Everything else was saved.
+          </p>
+        )}
       </section>
     );
   }
@@ -198,6 +247,36 @@ export function ApplyForm() {
                 {value === 'food' ? 'Food & drinks' : 'Everyday items'}
               </button>
             ))}
+          </div>
+
+          <div className="grid gap-1.5">
+            <span className="text-[0.82rem] font-bold">Restaurant or shop photo</span>
+            <label className="group relative flex aspect-[16/9] cursor-pointer items-center justify-center overflow-hidden rounded-[22px] border-[1.5px] border-dashed border-leaf-300 bg-[var(--leaf-soft)] text-center text-sm font-bold text-[var(--leaf-ink)] focus-within:ring-4 focus-within:ring-leaf-500/20">
+              {photoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={photoUrl} alt="Your shop" className="absolute inset-0 size-full object-cover" />
+              ) : (
+                <span className="grid gap-1 px-6">
+                  <span className="text-2xl leading-none">+</span>
+                  Add a photo of your shop or best dish
+                  <span className="text-xs font-medium text-[var(--text-muted)]">Optional · JPG, PNG or WebP · 5 MB</span>
+                </span>
+              )}
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="sr-only"
+                onChange={(event) => {
+                  choosePhoto(event.target.files?.[0]);
+                  event.target.value = '';
+                }}
+              />
+              {photoUrl && (
+                <span className="absolute right-3 bottom-3 rounded-full bg-black/60 px-3 py-1.5 text-xs font-bold text-white">
+                  Change photo
+                </span>
+              )}
+            </label>
           </div>
 
           <Field label="Shop name" value={shopName} onChange={setShopName} placeholder="Sri Lakshmi Tiffin House" autoComplete="organization" />

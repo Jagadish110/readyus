@@ -70,6 +70,7 @@ export function ProductForm({
   const [vegType, setVegType] = useState(product?.veg_type ?? '');
   const [spice, setSpice] = useState(product?.spice_level ?? '');
   const [prep, setPrep] = useState(product?.prep_minutes != null ? String(product.prep_minutes) : '');
+  const [quantity, setQuantity] = useState(product && product.stock > 0 && product.stock < 999 ? String(product.stock) : '20');
   const [inStock, setInStock] = useState(product ? product.available && product.stock > 0 : true);
   const [images, setImages] = useState<string[]>(product?.images ?? []);
   const [uploading, setUploading] = useState(false);
@@ -128,6 +129,11 @@ export function ProductForm({
       const m = Number(mrp);
       if (!Number.isFinite(m) || m < p) return 'MRP cannot be lower than the price.';
     }
+    if (mode === 'items') {
+      const q = Number(quantity);
+      if (!Number.isInteger(q) || q < 0) return 'Quantity in stock must be a whole number, 0 or more.';
+      if (!unit.trim()) return 'Choose how it is sold, like 1 kg or 1 pack.';
+    }
     if (prep !== '' && (!Number.isInteger(Number(prep)) || Number(prep) < 0)) {
       return 'Preparation time must be whole minutes.';
     }
@@ -150,7 +156,7 @@ export function ProductForm({
       unit: unit.trim(),
       // No counting: the in-stock switch is all a kitchen needs. Customers see
       // sold out at 0 and can order freely above it.
-      stock: inStock ? 999 : 0,
+      stock: mode === 'items' ? Number(quantity) : inStock ? 999 : 0,
       images,
       veg_type: mode === 'food' ? vegType : '',
       spice_level: mode === 'food' ? spice : '',
@@ -334,6 +340,20 @@ export function ProductForm({
             </Field>
           </div>
         )}
+        {!food && (
+          <Field label="Quantity in stock" hint="Counts down as customers order. At 0 it shows as sold out; add more any time.">
+            <input
+              className={fieldClass}
+              type="number"
+              inputMode="numeric"
+              min={0}
+              step={1}
+              value={quantity}
+              onChange={(e) => setQuantity(e.target.value)}
+            />
+          </Field>
+        )}
+        {food && (
         <label className="flex items-center justify-between gap-4 rounded-[18px] bg-[var(--tile)] p-4 text-sm font-bold">
           <span>
             In stock
@@ -348,6 +368,7 @@ export function ProductForm({
             className="size-6 accent-[var(--color-leaf-600)]"
           />
         </label>
+        )}
       </Card>
 
       {error && (

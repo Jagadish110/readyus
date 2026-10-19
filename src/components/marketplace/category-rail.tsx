@@ -31,7 +31,6 @@ export function CategoryRail({
         <Chip
           key={category.category_key}
           label={category.name}
-          count={Number(category.product_count)}
           active={active === category.category_key}
           onClick={() => select(category.category_key)}
         />
@@ -42,12 +41,10 @@ export function CategoryRail({
 
 function Chip({
   label,
-  count,
   active,
   onClick
 }: {
   label: string;
-  count?: number;
   active: boolean;
   onClick: () => void;
 }) {
@@ -65,11 +62,6 @@ function Chip({
       )}
     >
       {label}
-      {typeof count === 'number' && (
-        <span className={cn('text-xs font-semibold', active ? 'text-white/75' : 'text-ink-400')}>
-          {count}
-        </span>
-      )}
     </button>
   );
 }

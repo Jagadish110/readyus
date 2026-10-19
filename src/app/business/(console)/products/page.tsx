@@ -100,7 +100,22 @@ export default async function ProductsPage() {
                   </div>
                 </Link>
                 <div className="flex items-center justify-between gap-2 px-4 pt-2 pb-4">
-                  <StockToggle productId={product.id} inStock={inStock} />
+                  {product.listing_mode === 'items' ? (
+                    <span
+                      className={cn(
+                        'inline-flex h-9 items-center rounded-full px-3.5 text-xs font-extrabold ring-1 ring-[var(--line)]',
+                        product.stock === 0
+                          ? 'bg-[var(--tile)] text-[var(--text-muted)]'
+                          : product.stock <= 5
+                            ? 'bg-warning/12 text-[var(--text)]'
+                            : 'bg-[var(--leaf-soft)] text-[var(--leaf-ink)]'
+                      )}
+                    >
+                      {product.stock === 0 ? 'Sold out' : product.stock <= 5 ? 'Low: ' + product.stock + ' left' : product.stock + ' in stock'}
+                    </span>
+                  ) : (
+                    <StockToggle productId={product.id} inStock={inStock} />
+                  )}
                   {product.approval_status !== 'approved' && (
                     <Badge tone={STATUS_TONE[product.approval_status]}>
                       {STATUS_LABEL[product.approval_status]}

@@ -1,50 +1,126 @@
 'use client';
 
-import { useMemo, useState } from 'react';
-import Link from 'next/link';
-import { useCart } from '@/lib/state/cart';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useCart, type CartLine } from '@/lib/state/cart';
 import { useLocation } from '@/lib/state/location';
+import { createClient } from '@/lib/supabase/client';
+import { friendlyError } from '@/lib/orders/errors';
+import { ordersDb, rows } from '@/lib/orders/db';
+import { parsePoint } from '@/lib/orders/geo';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/card';
 import { Dish } from '@/components/art/dish-photo';
+import { AddressForm, ADDRESS_COLUMNS, type AddressRow } from './address-form';
 import { cn, formatRupees } from '@/lib/utils';
 
-const PLATFORM_FEE = 5;
-const DELIVERY_FEE = 25;
-
+// No delivery or platform charge for now; the database enforces the same
+// (place_order ignores fees). Nothing here adds to the total.
 type PayChoice = 'cod' | 'online';
+type Who = { id: string } | null;
 
 export function CheckoutView() {
-  const { groups, ready, subtotal, clear } = useCart();
+  const router = useRouter();
+  const { groups, ready, subtotal, setQuantity } = useCart();
   const { location } = useLocation();
+  const [who, setWho] = useState<Who | undefined>(undefined);
+  const [addresses, setAddresses] = useState<AddressRow[] | null>(null);
+  const [addressId, setAddressId] = useState('');
+  const [adding, setAdding] = useState(false);
   const [pay, setPay] = useState<PayChoice>('cod');
-  const [placed, setPlaced] = useState(false);
   const [note, setNote] = useState('');
+  const [placing, setPlacing] = useState(false);
+  const [problems, setProblems] = useState<string[]>([]);
 
-  const totals = useMemo(() => {
-    const delivery = groups.length * DELIVERY_FEE;
-    const platform = groups.length * PLATFORM_FEE;
-    return { delivery, platform, total: subtotal + delivery + platform };
-  }, [groups.length, subtotal]);
+  useEffect(() => {
+    const supabase = createClient();
+    if (!supabase) {
+      setWho(null);
+      return;
+    }
+    supabase.auth.getUser().then(({ data }) => setWho(data.user ? { id: data.user.id } : null));
+  }, []);
 
-  if (!ready) return <div className="skeleton h-72 rounded-[26px]" />;
+  const loadAddresses = useCallback(async (select?: string) => {
+    const supabase = createClient();
+    if (!supabase) return;
+    const result = await ordersDb(supabase)
+      .from('addresses')
+      .select(ADDRESS_COLUMNS)
+      .order('is_default', { ascending: false });
+    const list = rows<AddressRow>(result);
+    setAddresses(list);
+    setAddressId((current) => select ?? (list.some((a) => a.id === current) ? current : (list[0]?.id ?? '')));
+    if (!list.length) setAdding(true);
+  }, []);
 
-  if (placed) {
-    return (
-      <div className="animate-rise mx-auto mt-8 max-w-md rounded-[30px] bg-[var(--surface)] p-9 text-center shadow-lg ring-1 ring-[var(--line)]">
-        <span className="mx-auto grid size-16 place-items-center rounded-full bg-[var(--leaf-soft)] text-3xl text-[var(--leaf-ink)] ring-1 ring-[var(--line)]">
-          &#10003;
-        </span>
-        <h1 className="mt-5 font-display text-2xl font-extrabold tracking-[-0.035em]">Order placed</h1>
-        <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-          Each shop now has five minutes to accept. You will be notified the moment they do.
-        </p>
-        <ButtonLink href="/orders" variant="leaf" size="lg" fullWidth className="mt-6">
-          Track your orders
-        </ButtonLink>
-      </div>
-    );
+  useEffect(() => {
+    if (who) loadAddresses();
+  }, [who, loadAddresses]);
+
+  const startPin = useMemo(
+    () => (location ? { lat: location.lat, lng: location.lng } : null),
+    [location]
+  );
+
+  async function placeAll() {
+    const supabase = createClient();
+    if (!supabase || !who || !addressId) return;
+    const db = ordersDb(supabase);
+
+    setPlacing(true);
+    setProblems([]);
+
+    const placed: string[] = [];
+    const failed: string[] = [];
+
+    // Each shop is its own order; one failing never undoes the others.
+    for (const group of groups) {
+      // The database prices from its own cart table, so mirror this shop's lines into it.
+      await db.from('cart_items').delete().eq('user_id', who.id).eq('seller_id', group.sellerId);
+      const lines = await db.from('cart_items').insert(
+        group.lines.map((line: CartLine) => ({
+          user_id: who.id,
+          product_id: line.productId,
+          seller_id: line.sellerId,
+          variant_id: '',
+          quantity: line.quantity
+        }))
+      );
+      if (lines.error) {
+        failed.push(`${group.sellerName}: ${friendlyError(lines.error.message)}`);
+        continue;
+      }
+
+      const result = await db.rpc('place_order', {
+        p_address_id: addressId,
+        p_seller_id: group.sellerId,
+        p_pay_online: pay === 'online',
+        p_note: note.trim()
+      });
+
+      if (result.error || typeof result.data !== 'string') {
+        await db.from('cart_items').delete().eq('user_id', who.id).eq('seller_id', group.sellerId);
+        failed.push(`${group.sellerName}: ${friendlyError(result.error?.message)}`);
+        continue;
+      }
+
+      placed.push(result.data);
+      for (const line of group.lines) setQuantity(line.productId, 0);
+    }
+
+    setPlacing(false);
+    setProblems(failed);
+
+    if (placed.length && !failed.length) {
+      router.push(placed.length === 1 ? `/orders/${placed[0]}` : '/orders');
+    } else if (placed.length) {
+      // Some shops went through; the rest stay in the cart with their reasons shown.
+      setProblems([...failed, `${placed.length} order${placed.length > 1 ? 's were' : ' was'} placed. See Orders.`]);
+    }
   }
+
+  if (!ready || who === undefined) return <div className="skeleton h-72 rounded-[26px]" />;
 
   if (!groups.length) {
     return (
@@ -58,12 +134,33 @@ export function CheckoutView() {
         <h1 className="mt-4 font-display text-2xl font-extrabold tracking-[-0.035em]">
           Nothing to check out
         </h1>
-        <ButtonLink href="/browse" variant="leaf" size="lg" className="mt-6">
-          Browse shops
+        <div className="mt-6 flex flex-wrap justify-center gap-2.5">
+          <ButtonLink href="/browse" variant="leaf" size="lg">
+            Browse shops
+          </ButtonLink>
+          <ButtonLink href="/orders" variant="leaf-outline" size="lg">
+            Your orders
+          </ButtonLink>
+        </div>
+      </div>
+    );
+  }
+
+  if (!who) {
+    return (
+      <div className="animate-rise mx-auto mt-8 max-w-md rounded-[30px] bg-[var(--surface)] p-9 text-center shadow-sm ring-1 ring-[var(--line)]">
+        <h1 className="font-display text-2xl font-extrabold tracking-[-0.035em]">Sign in to order</h1>
+        <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+          You can browse and fill a cart as a guest. An account lets the shop and your rider reach you.
+        </p>
+        <ButtonLink href="/sign-in?next=/checkout" variant="leaf" size="lg" fullWidth className="mt-6">
+          Sign in
         </ButtonLink>
       </div>
     );
   }
+
+  const canPlace = Boolean(addressId) && !adding && !placing;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_340px] lg:items-start">
@@ -77,16 +174,77 @@ export function CheckoutView() {
 
         <section className="animate-rise rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)] [animation-delay:60ms]">
           <h2 className="font-display text-base font-extrabold tracking-[-0.025em]">Delivering to</h2>
-          <p className="mt-2 text-sm font-semibold">{location?.label ?? 'No location set'}</p>
-          <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Within {location?.radiusKm ?? 5} km &middot; every shop below can reach this address
-          </p>
-          <Link
-            href="/location"
-            className="mt-3 inline-block rounded-full bg-[var(--leaf-soft)] px-4 py-2 text-sm font-bold text-[var(--leaf-ink)] transition-colors hover:bg-[var(--leaf-soft)]0/15"
-          >
-            Change
-          </Link>
+
+          {addresses === null ? (
+            <div className="skeleton mt-3 h-20 rounded-[18px]" />
+          ) : (
+            <>
+              {addresses.length > 0 && (
+                <div className="mt-3 grid gap-2.5" role="radiogroup" aria-label="Delivery address">
+                  {addresses.map((address) => {
+                    const active = address.id === addressId && !adding;
+                    return (
+                      <button
+                        key={address.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        onClick={() => {
+                          setAddressId(address.id);
+                          setAdding(false);
+                        }}
+                        className={cn(
+                          'flex items-start gap-3 rounded-[18px] border-[1.5px] p-3.5 text-left transition-all duration-200',
+                          active
+                            ? 'border-leaf-500 bg-[var(--leaf-soft)]'
+                            : 'border-[var(--line)] hover:border-leaf-300 hover:bg-[var(--tile)]'
+                        )}
+                      >
+                        <Radio active={active} />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-bold">
+                            {address.label}
+                            {address.recipient && (
+                              <span className="font-medium text-[var(--text-muted)]"> &middot; {address.recipient}</span>
+                            )}
+                          </span>
+                          <span className="block text-xs leading-relaxed text-[var(--text-muted)]">
+                            {[address.line1, address.line2, address.landmark, address.city, address.pincode]
+                              .filter(Boolean)
+                              .join(', ')}
+                          </span>
+                          {!parsePoint(address.location) && (
+                            <span className="block text-xs font-semibold text-danger">No map pin on this address</span>
+                          )}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {adding ? (
+                <AddressForm
+                  userId={who.id}
+                  startPin={startPin}
+                  makeDefault={addresses.length === 0}
+                  onSaved={(saved) => {
+                    setAdding(false);
+                    loadAddresses(saved.id);
+                  }}
+                  onCancel={addresses.length ? () => setAdding(false) : undefined}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setAdding(true)}
+                  className="mt-3 rounded-full bg-[var(--leaf-soft)] px-4 py-2 text-sm font-bold text-[var(--leaf-ink)] transition-colors hover:brightness-95"
+                >
+                  + Add a new address
+                </button>
+              )}
+            </>
+          )}
         </section>
 
         <section className="animate-rise rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)] [animation-delay:100ms]">
@@ -104,7 +262,7 @@ export function CheckoutView() {
               active={pay === 'online'}
               onSelect={setPay}
               title="Pay online by UPI"
-              body="Pay the shop's UPI ID now; they confirm before preparing."
+              body="Pay the shop's UPI ID after you order; they confirm before preparing."
             />
           </div>
 
@@ -114,6 +272,9 @@ export function CheckoutView() {
               they confirm receipt.
             </p>
           )}
+          <p className="mt-3 text-xs text-[var(--text-muted)]">
+            Shops that only take online payment will ask for UPI even if you pick cash.
+          </p>
         </section>
 
         <section className="animate-rise rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)] [animation-delay:140ms]">
@@ -146,31 +307,34 @@ export function CheckoutView() {
 
         <dl className="grid gap-2 border-t border-[var(--line)] pt-3 text-sm">
           <Row label="Items" value={formatRupees(subtotal)} />
-          <Row label={'Delivery (' + groups.length + ')'} value={formatRupees(totals.delivery)} />
-          <Row label="Platform fee" value={formatRupees(totals.platform)} />
+          <Row label="Delivery" value="Free" />
         </dl>
 
         <div className="flex items-baseline justify-between border-t border-[var(--line)] pt-3">
-          <span className="font-bold">{pay === 'cod' ? 'Pay on delivery' : 'Pay now'}</span>
+          <span className="font-bold">{pay === 'cod' ? 'Pay on delivery' : 'Pay online'}</span>
           <span className="font-display text-xl font-extrabold tabular-nums text-brand-600">
-            {formatRupees(totals.total)}
+            {formatRupees(subtotal)}
           </span>
         </div>
 
-        <Button
-          size="lg"
-          fullWidth
-          onClick={() => {
-            clear();
-            setPlaced(true);
-          }}
-        >
+        {problems.length > 0 && (
+          <ul role="alert" className="grid gap-1.5 rounded-[16px] bg-danger/10 px-4 py-3 text-xs font-medium ring-1 ring-danger/30">
+            {problems.map((problem) => (
+              <li key={problem}>{problem}</li>
+            ))}
+          </ul>
+        )}
+
+        <Button size="lg" fullWidth onClick={placeAll} disabled={!canPlace} loading={placing}>
           Place {groups.length > 1 ? groups.length + ' orders' : 'order'}
         </Button>
 
-        <p className="text-center text-xs text-[var(--text-muted)]">
-          Connect Supabase to place real orders. This runs the full UI flow.
-        </p>
+        {!addressId && !adding && (
+          <p className="text-center text-xs text-[var(--text-muted)]">Add a delivery address to continue.</p>
+        )}
+        {adding && (
+          <p className="text-center text-xs text-[var(--text-muted)]">Save your address to continue.</p>
+        )}
       </aside>
     </div>
   );
@@ -182,6 +346,19 @@ function Row({ label, value }: { label: string; value: string }) {
       <dt className="text-[var(--text-muted)]">{label}</dt>
       <dd className="font-bold tabular-nums">{value}</dd>
     </div>
+  );
+}
+
+function Radio({ active }: { active: boolean }) {
+  return (
+    <span
+      className={cn(
+        'mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border-[1.5px]',
+        active ? 'border-leaf-600 bg-leaf-600' : 'border-[var(--line)]'
+      )}
+    >
+      {active && <span className="size-1.5 rounded-full bg-white" />}
+    </span>
   );
 }
 
@@ -210,14 +387,7 @@ function PayOption({
           : 'border-[var(--line)] hover:border-leaf-300 hover:bg-[var(--tile)]'
       )}
     >
-      <span
-        className={cn(
-          'mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border-[1.5px]',
-          active ? 'border-leaf-600 bg-leaf-600' : 'border-[var(--line)]'
-        )}
-      >
-        {active && <span className="size-1.5 rounded-full bg-white" />}
-      </span>
+      <Radio active={active} />
       <span>
         <span className="block text-sm font-bold">{title}</span>
         <span className="block text-xs leading-relaxed text-[var(--text-muted)]">{body}</span>

@@ -48,7 +48,10 @@ async function BrowseContent({ mode, category, diet }: { mode: ListingMode; cate
   // Veg / non-veg is a property of each dish, so it narrows the menu, not the shops.
   const products = diet ? allProducts.filter((product) => product.veg_type === diet) : allProducts;
 
-  const nothingNearby = !shops.length && !products.length;
+  // Picking a category or diet means the customer wants a dish, so the shop
+  // list steps aside and only matching dishes remain.
+  const focused = Boolean(category || diet);
+  const nothingNearby = focused ? false : !shops.length && !products.length;
 
   return (
     <div className="grid min-w-0 gap-7">
@@ -92,7 +95,7 @@ async function BrowseContent({ mode, category, diet }: { mode: ListingMode; cate
         <EmptyRadius radiusKm={location.radiusKm} />
       ) : (
         <>
-          {shops.length > 0 && (
+          {!focused && shops.length > 0 && (
             <section className="animate-rise grid gap-5 [animation-delay:140ms]">
               <SectionTitle>{mode === 'food' ? 'Kitchens near you' : 'Shops near you'}</SectionTitle>
               <div className="grid gap-4 sm:grid-cols-2">
@@ -103,15 +106,15 @@ async function BrowseContent({ mode, category, diet }: { mode: ListingMode; cate
             </section>
           )}
 
-          {products.length === 0 && !diet && (
+          {products.length === 0 && !focused && (
             <p className="animate-rise rounded-[18px] bg-[var(--tile)] px-4 py-3 text-sm text-[var(--text-muted)]">
               These shops have not listed any food for ordering yet. It will appear here as soon as they do.
             </p>
           )}
 
-          {diet && products.length === 0 && (
+          {focused && products.length === 0 && (
             <p className="animate-rise rounded-[18px] bg-[var(--tile)] px-4 py-3 text-sm text-[var(--text-muted)]">
-              No dishes match that filter nearby. Tap it again to see everything.
+              Nothing matches that nearby. Tap All to see everything.
             </p>
           )}
 

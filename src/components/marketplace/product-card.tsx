@@ -66,6 +66,11 @@ export function ProductCard({ product }: { product: NearbyProduct }) {
             <StarIcon className="size-3.5 text-saffron-500" />
             {product.rating.toFixed(1)}
           </span>
+          {!soldOut && product.listing_mode === 'items' && product.stock <= 5 && (
+            <span className="absolute inset-x-0 bottom-0 bg-ink-900/80 py-1.5 text-center text-xs font-bold text-white">
+              Only {product.stock} left
+            </span>
+          )}
           {soldOut && (
             <span className="absolute inset-x-0 bottom-0 bg-ink-900/80 py-1.5 text-center text-xs font-bold text-white">
               Sold out
