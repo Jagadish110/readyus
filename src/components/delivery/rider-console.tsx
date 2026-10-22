@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { api } from '@/lib/api/client';
 import { friendlyError } from '@/lib/orders/errors';
-import { ordersDb, rows } from '@/lib/orders/db';
 import { mapsLink, type LatLng } from '@/lib/orders/geo';
 import type { MapInfo } from '@/lib/orders/load';
 import { timeAgo } from '@/lib/orders/status';
@@ -58,33 +57,15 @@ export function RiderConsole({ name, fleetNames }: { name: string; fleetNames: s
   const [geoError, setGeoError] = useState('');
 
   const refresh = useCallback(async () => {
-    const supabase = createClient();
-    if (!supabase) return;
-    const db = ordersDb(supabase);
-
-    const [open, mine] = await Promise.all([
-      db.rpc('available_deliveries'),
-      db
-        .from('delivery_assignments')
-        .select(
-          'order_id, status, cash_due_paise, order:orders(order_code, delivery_address, seller:sellers(shop_name, address, phone))'
-        )
-        .in('status', ['claimed', 'picked_up'])
-    ]);
-
-    const mineRows = rows<Active>(mine);
-    setAvailable(rows<Available>(open));
-    setActive(mineRows);
-
-    // Coordinates for the route come from the same function the customer's map uses.
-    const entries = await Promise.all(
-      mineRows.map(async (assignment) => {
-        const result = await db.rpc('order_map', { p_order: assignment.order_id });
-        const info = Array.isArray(result.data) ? (result.data[0] as MapInfo | undefined) : undefined;
-        return [assignment.order_id, info] as const;
-      })
+    const result = await api<{ available: Available[]; active: Active[]; maps: Record<string, MapInfo> }>(
+      'GET',
+      '/v1/rider/deliveries'
     );
-    setMaps(Object.fromEntries(entries.filter((entry): entry is [string, MapInfo] => Boolean(entry[1]))));
+    if (result.ok) {
+      setAvailable(result.data.available);
+      setActive(result.data.active);
+      setMaps(result.data.maps);
+    }
     setLoaded(true);
   }, []);
 
@@ -106,9 +87,6 @@ export function RiderConsole({ name, fleetNames }: { name: string; fleetNames: s
       setGeoError('This browser cannot share location, so customers cannot follow you on the map.');
       return;
     }
-    const supabase = createClient();
-    if (!supabase) return;
-
     const watch = navigator.geolocation.watchPosition(
       (fix) => {
         const point = { lat: fix.coords.latitude, lng: fix.coords.longitude };
@@ -123,8 +101,8 @@ export function RiderConsole({ name, fleetNames }: { name: string; fleetNames: s
     const send = async () => {
       const point = position.current;
       if (!point) return;
-      const result = await ordersDb(supabase).rpc('report_agent_location', { p_lat: point.lat, p_lng: point.lng });
-      if (!result.error) setLastSent(new Date().toISOString());
+      const result = await api('POST', '/v1/rider/location', { lat: point.lat, lng: point.lng });
+      if (result.ok) setLastSent(new Date().toISOString());
     };
     const first = window.setTimeout(send, 2_000);
     const timer = window.setInterval(send, REPORT_EVERY_MS);
@@ -141,23 +119,20 @@ export function RiderConsole({ name, fleetNames }: { name: string; fleetNames: s
     return () => window.clearInterval(timer);
   }, []);
 
-  async function act(key: string, call: () => PromiseLike<{ error: { message: string } | null }>) {
+  async function act(key: string, call: () => Promise<{ ok: boolean; error?: string }>) {
     setBusy(key);
     setError('');
     const result = await call();
     setBusy('');
-    if (result.error) setError(friendlyError(result.error.message));
+    if (!result.ok && result.error) setError(friendlyError(result.error));
     await refresh();
   }
 
-  const rpc = (fn: string, args: Record<string, unknown>) => {
-    const supabase = createClient();
-    return supabase ? ordersDb(supabase).rpc(fn, args) : Promise.resolve({ error: { message: 'offline' } });
-  };
+  const post = (path: string, body?: Record<string, unknown>) => api('POST', path, body);
 
   async function join(event: React.FormEvent) {
     event.preventDefault();
-    await act('join', () => rpc('redeem_delivery_invite', { p_code: invite }));
+    await act('join', () => post('/v1/rider/join', { code: invite }));
     setInvite('');
     // The team list is server-rendered, so re-run the page to pick up the new shop.
     router.refresh();
@@ -290,7 +265,7 @@ export function RiderConsole({ name, fleetNames }: { name: string; fleetNames: s
                 variant="leaf"
                 size="lg"
                 loading={busy === `pick-${assignment.order_id}`}
-                onClick={() => act(`pick-${assignment.order_id}`, () => rpc('pickup_delivery', { p_order: assignment.order_id }))}
+                onClick={() => act(`pick-${assignment.order_id}`, () => post(`/v1/rider/deliveries/${assignment.order_id}/pickup`))}
               >
                 I have picked it up
               </Button>
@@ -300,9 +275,8 @@ export function RiderConsole({ name, fleetNames }: { name: string; fleetNames: s
                 onSubmit={(event) => {
                   event.preventDefault();
                   act(`done-${assignment.order_id}`, () =>
-                    rpc('complete_delivery', {
-                      p_order: assignment.order_id,
-                      p_code: (codes[assignment.order_id] ?? '').trim()
+                    post(`/v1/rider/deliveries/${assignment.order_id}/complete`, {
+                      code: (codes[assignment.order_id] ?? '').trim()
                     })
                   );
                 }}
@@ -370,7 +344,7 @@ export function RiderConsole({ name, fleetNames }: { name: string; fleetNames: s
                   variant="leaf"
                   loading={busy === `claim-${order.order_id}`}
                   disabled={active.length > 0}
-                  onClick={() => act(`claim-${order.order_id}`, () => rpc('claim_delivery', { p_order: order.order_id }))}
+                  onClick={() => act(`claim-${order.order_id}`, () => post(`/v1/rider/deliveries/${order.order_id}/claim`))}
                 >
                   {active.length > 0 ? 'Finish your current delivery first' : 'Take this delivery'}
                 </Button>

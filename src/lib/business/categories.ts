@@ -1,13 +1,9 @@
-import { loose } from './db';
+import { serverApi } from '@/lib/api/server';
 
 export type Category = { mode: 'food' | 'items'; key: string; name: string };
 
-/** Enabled categories, in display order. RLS already hides disabled ones. */
-export async function loadCategories(supabase: object): Promise<Category[]> {
-  const { data } = await loose(supabase)
-    .from('categories')
-    .select('mode, key, name')
-    .eq('enabled', 'true')
-    .order('sort', { ascending: true });
-  return (data as Category[] | null) ?? [];
+/** Enabled categories, in display order. */
+export async function loadCategories(): Promise<Category[]> {
+  const result = await serverApi<{ categories: Category[] }>('/v1/seller/categories');
+  return result.ok ? result.data.categories : [];
 }

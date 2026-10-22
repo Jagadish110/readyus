@@ -2,16 +2,16 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useCart, type CartLine } from '@/lib/state/cart';
+import { useCart } from '@/lib/state/cart';
 import { useLocation } from '@/lib/state/location';
 import { createClient } from '@/lib/supabase/client';
+import { api } from '@/lib/api/client';
 import { friendlyError } from '@/lib/orders/errors';
-import { ordersDb, rows } from '@/lib/orders/db';
 import { parsePoint } from '@/lib/orders/geo';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/card';
 import { Dish } from '@/components/art/dish-photo';
-import { AddressForm, ADDRESS_COLUMNS, type AddressRow } from './address-form';
+import { AddressForm, type AddressRow } from './address-form';
 import { cn, formatRupees } from '@/lib/utils';
 
 // No delivery or platform charge for now; the database enforces the same
@@ -30,6 +30,7 @@ export function CheckoutView() {
   const [pay, setPay] = useState<PayChoice>('cod');
   const [note, setNote] = useState('');
   const [placing, setPlacing] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const [problems, setProblems] = useState<string[]>([]);
 
   useEffect(() => {
@@ -42,13 +43,13 @@ export function CheckoutView() {
   }, []);
 
   const loadAddresses = useCallback(async (select?: string) => {
-    const supabase = createClient();
-    if (!supabase) return;
-    const result = await ordersDb(supabase)
-      .from('addresses')
-      .select(ADDRESS_COLUMNS)
-      .order('is_default', { ascending: false });
-    const list = rows<AddressRow>(result);
+    const result = await api<{ addresses: AddressRow[] }>('GET', '/v1/addresses');
+    if (!result.ok) {
+      setAddresses([]);
+      setProblems([result.error]);
+      return;
+    }
+    const list = result.data.addresses;
     setAddresses(list);
     setAddressId((current) => select ?? (list.some((a) => a.id === current) ? current : (list[0]?.id ?? '')));
     if (!list.length) setAdding(true);
@@ -64,63 +65,60 @@ export function CheckoutView() {
   );
 
   async function placeAll() {
-    const supabase = createClient();
-    if (!supabase || !who || !addressId) return;
-    const db = ordersDb(supabase);
+    if (!who || !addressId) return;
 
     setPlacing(true);
     setProblems([]);
 
-    const placed: string[] = [];
-    const failed: string[] = [];
-
-    // Each shop is its own order; one failing never undoes the others.
-    for (const group of groups) {
-      // The database prices from its own cart table, so mirror this shop's lines into it.
-      await db.from('cart_items').delete().eq('user_id', who.id).eq('seller_id', group.sellerId);
-      const lines = await db.from('cart_items').insert(
-        group.lines.map((line: CartLine) => ({
-          user_id: who.id,
-          product_id: line.productId,
-          seller_id: line.sellerId,
-          variant_id: '',
-          quantity: line.quantity
+    // One request; the backend places each shop as its own order, so one shop
+    // failing never undoes the others, and it prices everything from the database.
+    const result = await api<{ placed: string[]; failed: Array<{ sellerId: string; message: string }> }>(
+      'POST',
+      '/v1/checkout',
+      {
+        addressId,
+        payOnline: pay === 'online',
+        note: note.trim(),
+        shops: groups.map((group) => ({
+          sellerId: group.sellerId,
+          lines: group.lines.map((line) => ({ productId: line.productId, quantity: line.quantity }))
         }))
-      );
-      if (lines.error) {
-        failed.push(`${group.sellerName}: ${friendlyError(lines.error.message)}`);
-        continue;
       }
+    );
 
-      const result = await db.rpc('place_order', {
-        p_address_id: addressId,
-        p_seller_id: group.sellerId,
-        p_pay_online: pay === 'online',
-        p_note: note.trim()
-      });
-
-      if (result.error || typeof result.data !== 'string') {
-        await db.from('cart_items').delete().eq('user_id', who.id).eq('seller_id', group.sellerId);
-        failed.push(`${group.sellerName}: ${friendlyError(result.error?.message)}`);
-        continue;
-      }
-
-      placed.push(result.data);
-      for (const line of group.lines) setQuantity(line.productId, 0);
+    if (!result.ok) {
+      setPlacing(false);
+      setProblems([friendlyError(result.error)]);
+      return;
     }
 
-    setPlacing(false);
-    setProblems(failed);
+    const { placed, failed } = result.data;
+    const nameOf = (sellerId: string) => groups.find((group) => group.sellerId === sellerId)?.sellerName ?? 'A shop';
+    const reasons = failed.map((item) => nameOf(item.sellerId) + ': ' + friendlyError(item.message));
+
+    // Clear only the shops that went through; the rest stay in the cart.
+    const placedSellers = new Set(groups.map((group) => group.sellerId));
+    for (const item of failed) placedSellers.delete(item.sellerId);
+    for (const group of groups) {
+      if (placedSellers.has(group.sellerId)) for (const line of group.lines) setQuantity(line.productId, 0);
+    }
+
+    setProblems(reasons);
 
     if (placed.length && !failed.length) {
+      // The cart is already empty; keep the loading state so the "Nothing to
+      // check out" screen never flashes before the order page opens.
+      setRedirecting(true);
       router.push(placed.length === 1 ? `/orders/${placed[0]}` : '/orders');
-    } else if (placed.length) {
-      // Some shops went through; the rest stay in the cart with their reasons shown.
-      setProblems([...failed, `${placed.length} order${placed.length > 1 ? 's were' : ' was'} placed. See Orders.`]);
+    } else {
+      setPlacing(false);
+      if (placed.length) {
+        setProblems([...reasons, `${placed.length} order${placed.length > 1 ? 's were' : ' was'} placed. See Orders.`]);
+      }
     }
   }
 
-  if (!ready || who === undefined) return <div className="skeleton h-72 rounded-[26px]" />;
+  if (redirecting || !ready || who === undefined) return <div className="skeleton h-72 rounded-[26px]" />;
 
   if (!groups.length) {
     return (
@@ -225,7 +223,6 @@ export function CheckoutView() {
 
               {adding ? (
                 <AddressForm
-                  userId={who.id}
                   startPin={startPin}
                   makeDefault={addresses.length === 0}
                   onSaved={(saved) => {
@@ -261,15 +258,15 @@ export function CheckoutView() {
               id="online"
               active={pay === 'online'}
               onSelect={setPay}
-              title="Pay online by UPI"
-              body="Pay the shop's UPI ID after you order; they confirm before preparing."
+              title="Pay online"
+              body="UPI, cards or net banking. You pay right after placing the order."
             />
           </div>
 
           {pay === 'online' && (
             <p className="mt-3 rounded-[18px] bg-warning/12 px-4 py-3 text-xs leading-relaxed font-medium text-[var(--text)] ring-1 ring-warning/35">
-              Online payments are verified manually by each shop today. Your order starts once
-              they confirm receipt.
+              You will pay securely on the next screen. The shop starts your order once the payment
+              goes through, and you are refunded if they cannot take it.
             </p>
           )}
           <p className="mt-3 text-xs text-[var(--text-muted)]">

@@ -7,8 +7,8 @@ import { ProductForm } from '@/components/business/product-form';
 export const metadata: Metadata = { title: 'Add product' };
 
 export default async function NewProductPage() {
-  const { supabase, shop } = await requireShop();
-  const categories = await loadCategories(supabase);
+  const { shop } = await requireShop();
+  const categories = await loadCategories();
 
   return (
     <div className="animate-rise grid gap-5">
@@ -21,7 +21,7 @@ export default async function NewProductPage() {
           New products are reviewed by our team before customers can see them.
         </p>
       </div>
-      <ProductForm shopId={shop.id} defaultMode={shop.listing_mode} categories={categories} />
+      <ProductForm defaultMode={shop.listing_mode} categories={categories} />
     </div>
   );
 }

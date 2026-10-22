@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { serverApi } from '@/lib/api/server';
 import { Eyebrow } from '@/components/ui/card';
 import { ButtonLink } from '@/components/ui/button';
 import { Wordmark } from '@/components/brand/logo';
@@ -33,21 +34,10 @@ export default async function ApplyPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/sign-in?next=/business/apply');
 
-  // The checked-in Database type does not describe tables to supabase-js yet,
-  // so the one row read here is typed locally.
-  const db = supabase as unknown as {
-    from: (table: string) => {
-      select: (columns: string) => {
-        eq: (column: string, value: string) => { maybeSingle: () => PromiseLike<{ data: unknown }> };
-      };
-    };
-  };
-  const { data } = await db
-    .from('sellers')
-    .select('shop_name, status, review_note')
-    .eq('user_id', user.id)
-    .maybeSingle();
-  const existing = data as SellerRow | null;
+  const result = await serverApi<{ application: SellerRow | null }>('/v1/seller/application');
+  // Never show a blank application form when the real problem is the server.
+  if (!result.ok) throw new Error('We could not load your application right now. Please try again.');
+  const existing = result.data.application;
   const canReapply = !existing || existing.status === 'rejected';
 
   return (

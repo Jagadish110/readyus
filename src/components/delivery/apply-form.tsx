@@ -2,9 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { api } from '@/lib/api/client';
 import { friendlyError } from '@/lib/orders/errors';
-import { ordersDb } from '@/lib/orders/db';
 import { Button } from '@/components/ui/button';
 
 const FIELD =
@@ -25,17 +24,15 @@ export function DeliveryApplyForm() {
     if (name.trim().length < 2) return setError('Add your full name.');
     if (phone.replace(/\D/g, '').length < 10) return setError('Add a 10-digit phone number.');
 
-    const supabase = createClient();
-    if (!supabase) return;
     setBusy(true);
-    const result = await ordersDb(supabase).rpc('apply_to_deliver', {
-      p_full_name: name.trim(),
-      p_phone: phone.trim(),
-      p_vehicle: vehicle.trim()
+    const result = await api('POST', '/v1/rider/apply', {
+      fullName: name.trim(),
+      phone: phone.trim(),
+      vehicle: vehicle.trim()
     });
     setBusy(false);
 
-    if (result.error) return setError(friendlyError(result.error.message));
+    if (!result.ok) return setError(friendlyError(result.error));
     router.replace('/delivery');
     router.refresh();
   }

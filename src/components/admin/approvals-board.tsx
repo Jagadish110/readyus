@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
+import { api } from '@/lib/api/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -33,15 +33,6 @@ export type PendingProduct = {
   sellers: { shop_name: string } | null;
 };
 
-// The checked-in Database type does not describe functions to supabase-js yet,
-// so the review call is typed here.
-type Client = {
-  rpc: (
-    name: string,
-    args: Record<string, unknown>
-  ) => PromiseLike<{ error: { message: string } | null }>;
-};
-
 type Tab = 'shops' | 'products';
 
 const ERRORS: Record<string, string> = {
@@ -62,7 +53,6 @@ export function ApprovalsBoard({
   products: PendingProduct[];
 }) {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
   const [tab, setTab] = useState<Tab>('shops');
   const [sellers, setSellers] = useState(initialSellers);
   const [products, setProducts] = useState(initialProducts);
@@ -79,16 +69,13 @@ export function ApprovalsBoard({
   async function review(kind: Tab, id: string, approve: boolean) {
     setBusy(id);
     setError('');
-    const client = supabase as unknown as Client;
-    const p_note = approve ? '' : note.trim();
-    const { error: failure } =
-      kind === 'shops'
-        ? await client.rpc('review_seller', { p_seller: id, p_approve: approve, p_note })
-        : await client.rpc('review_product', { p_product: id, p_approve: approve, p_note });
+    const reason = approve ? '' : note.trim();
+    const result = await api('POST', `/v1/admin/approvals/${kind}/${id}`, { approve, note: reason });
+    const failure = result.ok ? null : result.error;
     setBusy(null);
     if (failure) {
-      const code = Object.keys(ERRORS).find((key) => failure.message.includes(key));
-      setError(code ? ERRORS[code]! : failure.message);
+      const code = Object.keys(ERRORS).find((key) => failure.includes(key));
+      setError(code ? ERRORS[code]! : failure);
       return;
     }
     if (kind === 'shops') setSellers((rows) => rows.filter((row) => row.id !== id));

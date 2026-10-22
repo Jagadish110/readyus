@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { useEffect, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
-import { createClient } from '@/lib/supabase/client';
+import { api } from '@/lib/api/client';
+import { uploadShopImage } from '@/lib/api/upload';
+import { friendlyError } from '@/lib/orders/errors';
 import { Button } from '@/components/ui/button';
 import { PinIcon } from '@/components/shell/icons';
-import { loose } from '@/lib/business/db';
 import { cn } from '@/lib/utils';
 
 const PHOTO_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
@@ -23,21 +24,8 @@ const CATEGORY_HINTS: Record<Mode, string[]> = {
 const fieldClass =
   'h-14 w-full rounded-[18px] border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-4 text-base outline-none transition-all placeholder:text-ink-400 focus:border-leaf-500 focus:ring-4 focus:ring-leaf-500/20';
 
-// The checked-in Database type does not describe functions or tables to
-// supabase-js yet, so the two calls this form makes are typed here.
-type Rpc = (
-  name: string,
-  args: Record<string, unknown>
-) => PromiseLike<{ data: string | null; error: { message: string } | null }>;
-type Table = {
-  update: (values: Record<string, unknown>) => {
-    eq: (column: string, value: string) => PromiseLike<{ error: { message: string } | null }>;
-  };
-};
-
 export function ApplyForm() {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
   const [pending, startTransition] = useTransition();
 
   const [mode, setMode] = useState<Mode>('food');
@@ -122,57 +110,42 @@ export function ApplyForm() {
 
   async function submit() {
     setError('');
-    if (!supabase) return setError('Sign-in is not available right now.');
 
     const problem = problemInShop() ?? problemInPlace();
     if (problem) return setError(problem);
     const parsed = parsePhoneNumberFromString(phone, 'IN');
     if (!parsed || !pin) return;
 
-    const client = supabase as unknown as { rpc: Rpc; from: (table: string) => Table };
-
-    const { data: sellerId, error: applyError } = await client.rpc('apply_to_sell', {
-      p_shop_name: shopName.trim(),
-      p_owner_name: ownerName.trim(),
-      p_phone: parsed.number,
-      p_category: category.trim(),
-      p_listing_mode: mode,
-      p_address: address.trim(),
-      p_city: city.trim(),
-      p_pincode: pincode.trim()
+    // One request: the application and the map pin are saved together.
+    const applied = await api<{ sellerId: string }>('POST', '/v1/seller/apply', {
+      shopName: shopName.trim(),
+      ownerName: ownerName.trim(),
+      phone: parsed.number,
+      category: category.trim(),
+      listingMode: mode,
+      address: address.trim(),
+      city: city.trim(),
+      pincode: pincode.trim(),
+      lat: pin.lat,
+      lng: pin.lng
     });
-    if (applyError || !sellerId) {
+    if (!applied.ok) {
       return setError(
-        applyError?.message === 'AUTH_REQUIRED'
+        applied.error === 'AUTH_REQUIRED' || applied.status === 401
           ? 'Please log in again, then resubmit.'
-          : (applyError?.message ?? 'We could not save your application.')
+          : friendlyError(applied.error) || 'We could not save your application.'
       );
     }
 
-    // A shop without a pin never appears to customers, so it is saved now.
-    const { error: pinError } = await client
-      .from('sellers')
-      .update({ location: 'SRID=4326;POINT(' + pin.lng + ' ' + pin.lat + ')' })
-      .eq('id', sellerId);
-    if (pinError) {
-      return setError('Your application was saved, but the map pin was not: ' + pinError.message);
-    }
-
-    // The photo is optional and goes up last, into the shop's own folder, so
-    // a failed upload never costs the applicant their application.
+    // The photo is optional and goes up last, so a failed upload never costs
+    // the applicant their application.
     if (photo) {
-      const bucket = loose(supabase).storage.from('product-images');
-      const path = sellerId + '/shop-' + crypto.randomUUID() + '.' + PHOTO_TYPES[photo.type];
-      const { error: uploadError } = await bucket.upload(path, photo, { contentType: photo.type, upsert: false });
-      if (uploadError) {
+      const uploaded = await uploadShopImage('shop', photo);
+      if (!uploaded.ok) {
         setPhotoMissed(true);
       } else {
-        const url = bucket.getPublicUrl(path).data.publicUrl;
-        const { error: photoError } = await client
-          .from('sellers')
-          .update({ photo_url: url, banner_url: url })
-          .eq('id', sellerId);
-        if (photoError) setPhotoMissed(true);
+        const attached = await api('POST', '/v1/seller/shop/photo', { url: uploaded.url });
+        if (!attached.ok) setPhotoMissed(true);
       }
     }
 

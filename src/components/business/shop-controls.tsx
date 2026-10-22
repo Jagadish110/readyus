@@ -1,9 +1,9 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { loose, type ShopRow } from '@/lib/business/db';
+import { api } from '@/lib/api/client';
+import type { ShopRow } from '@/lib/business/db';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -13,7 +13,6 @@ const fieldClass =
 
 export function ShopControls({ shop }: { shop: ShopRow }) {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
   const [pending, startTransition] = useTransition();
 
   const [open, setOpen] = useState(shop.business_open);
@@ -25,9 +24,8 @@ export function ShopControls({ shop }: { shop: ShopRow }) {
   const approved = shop.status === 'approved';
 
   async function save(values: Record<string, unknown>, done: string) {
-    if (!supabase) return setMessage({ tone: 'error', text: 'Saving is not available right now.' });
-    const { error } = await loose(supabase).from('sellers').update(values).eq('id', shop.id);
-    if (error) return setMessage({ tone: 'error', text: error.message });
+    const result = await api('POST', '/v1/seller/shop/settings', values);
+    if (!result.ok) return setMessage({ tone: 'error', text: result.error });
     setMessage({ tone: 'ok', text: done });
     router.refresh();
   }

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
+import { serverApi } from '@/lib/api/server';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/card';
 import { signOut } from './actions';
@@ -35,8 +36,6 @@ export default async function AccountPage() {
   // session that expired between that check and this render.
   if (!user) redirect('/sign-in?next=/account');
 
-  // The checked-in Database type does not describe tables to supabase-js yet
-  // (see the note in lib/data/marketplace.ts), so the two rows are typed here.
   type ProfileRow = {
     full_name: string;
     phone: string | null;
@@ -45,26 +44,11 @@ export default async function AccountPage() {
     search_radius_km: number;
     created_at: string;
   };
-  const db = supabase as unknown as {
-    from: (table: string) => {
-      select: (columns: string) => {
-        eq: (column: string, value: string) => PromiseLike<{ data: unknown }> & {
-          maybeSingle: () => PromiseLike<{ data: unknown }>;
-        };
-      };
-    };
-  };
-
-  const [profileResult, rolesResult] = await Promise.all([
-    db
-      .from('profiles')
-      .select('full_name, phone, email, avatar_url, search_radius_km, created_at')
-      .eq('id', user.id)
-      .maybeSingle(),
-    db.from('user_roles').select('role').eq('user_id', user.id)
-  ]);
-  const profile = profileResult.data as ProfileRow | null;
-  const roles = rolesResult.data as Array<{ role: string }> | null;
+  const me = await serverApi<{ profile: ProfileRow | null; roles: string[] }>('/v1/me');
+  // A server outage must not show a signed-in person an empty account.
+  if (!me.ok) throw new Error('We could not load your account right now. Please try again.');
+  const profile = me.data.profile;
+  const roles = me.data.roles.map((role) => ({ role }));
 
   const email = profile?.email ?? user.email ?? '';
   const phone = profile?.phone ?? user.phone ?? '';

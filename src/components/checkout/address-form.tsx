@@ -1,15 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { ordersDb, row } from '@/lib/orders/db';
-import { toPoint, type LatLng } from '@/lib/orders/geo';
+import { api } from '@/lib/api/client';
+import type { LatLng } from '@/lib/orders/geo';
 import { PinPicker } from '@/components/maps/pin-picker';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-
-export const ADDRESS_COLUMNS =
-  'id, label, recipient, phone, line1, line2, landmark, city, pincode, location, is_default';
 
 export type AddressRow = {
   id: string;
@@ -32,7 +28,6 @@ const FIELD =
   'placeholder:text-ink-400 focus:border-leaf-500 focus:ring-4 focus:ring-leaf-500/20';
 
 type Props = {
-  userId: string;
   /** Where the map opens; usually the pin the customer browsed from. */
   startPin: LatLng | null;
   makeDefault: boolean;
@@ -40,7 +35,7 @@ type Props = {
   onCancel?: () => void;
 };
 
-export function AddressForm({ userId, startPin, makeDefault, onSaved, onCancel }: Props) {
+export function AddressForm({ startPin, makeDefault, onSaved, onCancel }: Props) {
   const [label, setLabel] = useState<(typeof LABELS)[number]>('Home');
   const [recipient, setRecipient] = useState('');
   const [phone, setPhone] = useState('');
@@ -82,32 +77,24 @@ export function AddressForm({ userId, startPin, makeDefault, onSaved, onCancel }
     if (line1.trim().length < 3) return setError('Add your flat, house or building and street.');
     if (phone.replace(/\D/g, '').length < 10) return setError('Add a 10-digit phone number so the rider can reach you.');
 
-    const supabase = createClient();
-    if (!supabase) return setError('The service is not connected right now.');
-
     setSaving(true);
-    const result = await ordersDb(supabase)
-      .from('addresses')
-      .insert({
-        user_id: userId,
-        label,
-        recipient: recipient.trim(),
-        phone: phone.trim(),
-        line1: line1.trim(),
-        line2: line2.trim(),
-        landmark: landmark.trim(),
-        city: city.trim(),
-        pincode: pincode.trim(),
-        location: toPoint(pin),
-        is_default: makeDefault
-      })
-      .select(ADDRESS_COLUMNS);
+    const result = await api<{ address: AddressRow }>('POST', '/v1/addresses', {
+      label,
+      recipient: recipient.trim(),
+      phone: phone.trim(),
+      line1: line1.trim(),
+      line2: line2.trim(),
+      landmark: landmark.trim(),
+      city: city.trim(),
+      pincode: pincode.trim(),
+      lat: pin.lat,
+      lng: pin.lng,
+      makeDefault
+    });
     setSaving(false);
 
-    const saved = row<AddressRow>(result);
-    if (result.error || !saved) {
-      return setError('Could not save this address. Please try again.');
-    }
+    if (!result.ok) return setError(result.error || 'Could not save this address. Please try again.');
+    const saved = result.data.address;
     onSaved(saved);
   }
 

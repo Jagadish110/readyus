@@ -1,68 +1,36 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import { ordersDb, rows } from '@/lib/orders/db';
+import { api } from '@/lib/api/client';
 import { Button } from '@/components/ui/button';
 
 type Partner = { id: string; agent: { full_name: string; phone: string; vehicle: string } | null };
 type Invite = { id: string; code: string; expires_at: string; used_at: string | null };
 
-// No I, O, 0 or 1, so a code read aloud is hard to mistake.
-const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-
-function newCode() {
-  const bytes = new Uint8Array(6);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (byte) => ALPHABET[byte % ALPHABET.length]).join('');
-}
-
 /** The shop's own delivery team: partners join with a short code the shop hands out. */
-export function FleetPanel({ shopId }: { shopId: string }) {
+export function FleetPanel() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
-    const supabase = createClient();
-    if (!supabase) return;
-    const db = ordersDb(supabase);
-    const [team, codes] = await Promise.all([
-      db
-        .from('delivery_relationships')
-        .select('id, agent:delivery_agents(full_name, phone, vehicle)')
-        .eq('seller_id', shopId)
-        .eq('active', 'true'),
-      db
-        .from('delivery_invites')
-        .select('id, code, expires_at, used_at')
-        .eq('seller_id', shopId)
-        .order('created_at', { ascending: false })
-        .limit(10)
-    ]);
-    setPartners(rows<Partner>(team));
-    setInvites(rows<Invite>(codes));
-  }, [shopId]);
+    const result = await api<{ partners: Partner[]; invites: Invite[] }>('GET', '/v1/seller/fleet');
+    if (!result.ok) return;
+    setPartners(result.data.partners);
+    setInvites(result.data.invites);
+  }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   async function create() {
-    const supabase = createClient();
-    if (!supabase) return;
     setBusy(true);
     setError('');
-    const result = await ordersDb(supabase)
-      .from('delivery_invites')
-      .insert({
-        seller_id: shopId,
-        code: newCode(),
-        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-      });
+    const result = await api('POST', '/v1/seller/fleet/invites');
     setBusy(false);
-    if (result.error) setError('Could not create a code. Please try again.');
+    if (!result.ok) setError('Could not create a code. Please try again.');
     await load();
   }
 

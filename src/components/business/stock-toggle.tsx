@@ -1,29 +1,24 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { loose } from '@/lib/business/db';
+import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
 /** One-tap in stock / sold out switch for a menu card. */
 export function StockToggle({ productId, inStock: initial }: { productId: string; inStock: boolean }) {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
   const [inStock, setInStock] = useState(initial);
   const [busy, setBusy] = useState(false);
 
   async function flip() {
-    if (!supabase || busy) return;
+    if (busy) return;
     const next = !inStock;
     setBusy(true);
     setInStock(next);
-    const { error } = await loose(supabase)
-      .from('products')
-      .update({ stock: next ? 999 : 0, available: true })
-      .eq('id', productId);
+    const result = await api('POST', `/v1/seller/products/${productId}/stock`, { inStock: next });
     setBusy(false);
-    if (error) setInStock(!next);
+    if (!result.ok) setInStock(!next);
     else router.refresh();
   }
 

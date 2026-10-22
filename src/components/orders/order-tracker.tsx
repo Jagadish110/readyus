@@ -2,10 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
+import { api } from '@/lib/api/client';
 import { friendlyError } from '@/lib/orders/errors';
-import { ordersDb } from '@/lib/orders/db';
-import { loadOrder, type OrderView } from '@/lib/orders/load';
+import type { OrderView } from '@/lib/orders/load';
 import {
   canCancel,
   etaFor,
@@ -20,6 +19,7 @@ import {
   TIMELINE,
   type OrderStatus
 } from '@/lib/orders/status';
+import { payForOrder } from '@/lib/razorpay/checkout';
 import { LiveMap } from '@/components/maps/live-map';
 import { ReviewForm } from './review-form';
 import { Badge } from '@/components/ui/badge';
@@ -28,50 +28,32 @@ import { Eyebrow } from '@/components/ui/card';
 import { cn, formatPaise } from '@/lib/utils';
 
 /**
- * Keeps one order current. Realtime events only nudge a refetch (the database
- * stays the single source of truth); without a live channel it polls every 10s.
+ * Keeps one order current by asking the backend every few seconds while the
+ * order is in progress (and the tab is visible). `live` is false when the
+ * last check failed.
  */
 function useLiveOrder(orderId: string, initial: OrderView) {
   const [view, setView] = useState(initial);
-  const [live, setLive] = useState(false);
+  const [live, setLive] = useState(true);
 
   const refetch = useCallback(async () => {
-    const supabase = createClient();
-    if (!supabase) return;
-    const next = await loadOrder(supabase, orderId);
-    if (next) setView(next);
+    const result = await api<OrderView>('GET', `/v1/orders/${orderId}`);
+    if (result.ok) {
+      setView(result.data);
+      setLive(true);
+    } else {
+      setLive(false);
+    }
   }, [orderId]);
-
-  useEffect(() => {
-    const supabase = createClient();
-    if (!supabase) return;
-
-    let timer: number | undefined;
-    const nudge = () => {
-      window.clearTimeout(timer);
-      timer = window.setTimeout(refetch, 400);
-    };
-
-    const channel = supabase
-      .channel(`order-${orderId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'order_events', filter: `order_id=eq.${orderId}` }, nudge)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_assignments', filter: `order_id=eq.${orderId}` }, nudge)
-      // Row level security limits this to the customer's own rider.
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'delivery_agents' }, nudge)
-      .subscribe((status) => setLive(status === 'SUBSCRIBED'));
-
-    return () => {
-      window.clearTimeout(timer);
-      supabase.removeChannel(channel);
-    };
-  }, [orderId, refetch]);
 
   const watching = isActive(view.order.status);
   useEffect(() => {
     if (!watching) return;
-    const timer = window.setInterval(refetch, live ? 30_000 : 10_000);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void refetch();
+    }, 5_000);
     return () => window.clearInterval(timer);
-  }, [watching, live, refetch]);
+  }, [watching, refetch]);
 
   return { view, live, refetch };
 }
@@ -89,11 +71,22 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
   const { view, live, refetch } = useLiveOrder(orderId, initial);
   const { order, items, events, map, code, reviews } = view;
   const status = order.status;
-  const now = useNow(status === 'pending' ? 1_000 : 15_000);
+  const now = useNow(15_000);
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [reference, setReference] = useState('');
+  // Set when the shop has no payout account yet, so only manual UPI is possible.
+  const [upiOnly, setUpiOnly] = useState(false);
+
+  // Hide the online Pay button for a shop that has not added verified bank details.
+  const sellerId = order.seller?.id;
+  useEffect(() => {
+    if (!sellerId) return;
+    api<{ ready: string[] }>('GET', `/v1/shops/online?ids=${sellerId}`).then((result) => {
+      if (result.ok && !result.data.ready.includes(sellerId)) setUpiOnly(true);
+    });
+  }, [sellerId]);
 
   const prep = order.seller?.eta_minutes ?? 15;
   const eta = useMemo(() => etaFor(order, prep), [order, prep]);
@@ -102,26 +95,34 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
   const ended = isEnded(status);
   const shopName = order.seller?.shop_name ?? 'the shop';
 
-  async function run(call: () => PromiseLike<{ error: { message: string } | null }>) {
+  async function run(call: () => Promise<{ ok: boolean; error?: string }>) {
     setBusy(true);
     setError('');
     const result = await call();
     setBusy(false);
-    if (result.error) setError(friendlyError(result.error.message));
+    if (!result.ok && result.error) setError(friendlyError(result.error));
     await refetch();
   }
 
   const cancel = () => {
     if (!window.confirm('Cancel this order?')) return;
-    const supabase = createClient();
-    if (!supabase) return;
-    run(() => ordersDb(supabase).rpc('cancel_order', { p_order: orderId, p_reason: 'Cancelled by customer' }));
+    run(() => api('POST', `/v1/orders/${orderId}/cancel`));
   };
 
   const claimPaid = () => {
-    const supabase = createClient();
-    if (!supabase) return;
-    run(() => ordersDb(supabase).rpc('claim_payment', { p_order: orderId, p_reference: reference.trim() }));
+    run(() => api('POST', `/v1/orders/${orderId}/claim-payment`, { reference: reference.trim() }));
+  };
+
+  const payOnline = async () => {
+    setBusy(true);
+    setError('');
+    const result = await payForOrder(orderId, shopName);
+    setBusy(false);
+    if (!result.ok) {
+      if (result.shopNotReady) setUpiOnly(true);
+      if (result.error) setError(result.error);
+    }
+    await refetch();
   };
 
   const eventAt = (wanted: OrderStatus[]) =>
@@ -134,9 +135,6 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
     eventAt(['out_for_delivery']),
     order.delivered_at
   ];
-
-  const deadline = order.accept_deadline_at ? new Date(order.accept_deadline_at) : null;
-  const secondsToAccept = deadline ? Math.max(0, Math.round((deadline.getTime() - now) / 1000)) : 0;
 
   const upi = order.seller?.upi_id;
   const payUrl = upi
@@ -185,11 +183,11 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
                 Waiting for {shopName}
               </p>
               <p className="mt-1.5 font-display text-2xl font-extrabold tracking-[-0.035em]">
-                They have {Math.floor(secondsToAccept / 60)}:{String(secondsToAccept % 60).padStart(2, '0')} to accept
+                Your order is with the shop
               </p>
               <p className="mt-1 text-sm text-[var(--text-muted)]">
-                If they do not answer, the order is cancelled and nothing is charged. Usual delivery after
-                accepting is about {eta.minutes} minutes.
+                You will see it here the moment they accept. Usual delivery after accepting is about{' '}
+                {eta.minutes} minutes. You can cancel until they start preparing it.
               </p>
             </>
           ) : status === 'payment_required' || status === 'payment_rejected' ? (
@@ -223,6 +221,20 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
           <p className="font-display text-3xl font-extrabold tracking-[-0.04em] text-brand-600">
             {formatPaise(order.required_online_paise)}
           </p>
+          {!upiOnly && (
+            <>
+              <Button variant="leaf" size="lg" fullWidth className="mt-4" onClick={payOnline} loading={busy}>
+                Pay {formatPaise(order.required_online_paise)} securely
+              </Button>
+              <p className="mt-2 text-xs text-[var(--text-muted)]">
+                UPI, cards and net banking. The money goes straight to {shopName}.
+              </p>
+            </>
+          )}
+          <details open={upiOnly} className="mt-4 border-t border-[var(--line)] pt-3">
+            <summary className="cursor-pointer text-sm font-bold text-[var(--leaf-ink)]">
+              {upiOnly ? 'Pay the shop by UPI' : 'Or pay the shop by UPI yourself'}
+            </summary>
           {upi ? (
             <>
               <p className="mt-2 text-sm">
@@ -261,6 +273,7 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
           <p className="mt-2 text-xs text-[var(--text-muted)]">
             The shop confirms the money has arrived before they start. This does not charge you.
           </p>
+          </details>
         </section>
       )}
 
@@ -268,7 +281,7 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
         <section className="animate-rise rounded-[26px] bg-danger/10 p-5 ring-1 ring-danger/30">
           <p className="font-display text-xl font-extrabold tracking-[-0.03em]">{STATUS_LABEL[status]}</p>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            {order.cancel_reason || 'This order will not be delivered.'} Nothing was charged.
+            {order.cancel_reason || 'This order will not be delivered.'} Any online payment is refunded to your original payment method.
           </p>
           <Link href="/browse" className="mt-3 inline-block text-sm font-bold text-[var(--leaf-ink)] underline">
             Find another shop

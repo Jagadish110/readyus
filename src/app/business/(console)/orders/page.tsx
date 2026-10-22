@@ -21,8 +21,8 @@ export default async function BusinessOrdersPage() {
           New orders must be accepted within five minutes. This page updates by itself.
         </p>
       </div>
-      <OrdersBoard shopId={shop.id} />
-      <FleetPanel shopId={shop.id} />
+      <OrdersBoard />
+      <FleetPanel />
     </div>
   );
 }

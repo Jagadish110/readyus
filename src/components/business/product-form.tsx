@@ -1,19 +1,17 @@
 'use client';
 
-import { useMemo, useState, useTransition } from 'react';
+import { useState, useTransition } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { loose, type ProductRow } from '@/lib/business/db';
+import { api } from '@/lib/api/client';
+import { uploadShopImage } from '@/lib/api/upload';
+import type { ProductRow } from '@/lib/business/db';
 import type { Category } from '@/lib/business/categories';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 
-const BUCKET = 'product-images';
 const MAX_IMAGES = 4;
-const MAX_BYTES = 5 * 1024 * 1024;
-const TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 
 const fieldClass =
   'h-12 w-full rounded-[16px] border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-4 text-base outline-none transition-all placeholder:text-ink-400 focus:border-leaf-500 focus:ring-4 focus:ring-leaf-500/20';
@@ -46,18 +44,15 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 export function ProductForm({
-  shopId,
   defaultMode,
   categories,
   product
 }: {
-  shopId: string;
   defaultMode: 'food' | 'items';
   categories: Category[];
   product?: ProductRow;
 }) {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
   const [pending, startTransition] = useTransition();
 
   const [mode, setMode] = useState<'food' | 'items'>(product?.listing_mode ?? defaultMode);
@@ -79,7 +74,7 @@ export function ProductForm({
   const modeCategories = categories.filter((category) => category.mode === mode);
 
   async function addImages(files: FileList | null) {
-    if (!files || !supabase) return;
+    if (!files) return;
     setError('');
     const room = MAX_IMAGES - images.length;
     const picked = Array.from(files).slice(0, room);
@@ -88,28 +83,10 @@ export function ProductForm({
     setUploading(true);
     const added: string[] = [];
     for (const file of picked) {
-      const extension = TYPES[file.type];
-      if (!extension) {
-        setError('Photos must be JPG, PNG or WebP.');
-        continue;
-      }
-      if (file.size > MAX_BYTES) {
-        setError('Each photo must be under 5 MB.');
-        continue;
-      }
-      // The first path segment is the shop id: storage policy only lets a shop
-      // write inside its own folder.
-      const path = `${shopId}/${crypto.randomUUID()}.${extension}`;
-      const bucket = loose(supabase).storage.from(BUCKET);
-      const { error: uploadError } = await bucket.upload(path, file, {
-        contentType: file.type,
-        upsert: false
-      });
-      if (uploadError) {
-        setError(uploadError.message);
-        continue;
-      }
-      added.push(bucket.getPublicUrl(path).data.publicUrl);
+      // The backend picks the path inside this shop's own folder and checks the type.
+      const result = await uploadShopImage('product', file);
+      if (result.ok) added.push(result.url);
+      else setError(result.error);
     }
     setImages((current) => [...current, ...added]);
     setUploading(false);
@@ -142,7 +119,6 @@ export function ProductForm({
 
   async function submit() {
     setError('');
-    if (!supabase) return setError('Saving is not available right now.');
     const issue = problem();
     if (issue) return setError(issue);
 
@@ -164,13 +140,9 @@ export function ProductForm({
       available: true
     };
 
-    const table = loose(supabase).from('products');
-    // New rows are approved by the column default (migration 0013); the
-    // seller has no grant on that column.
-    const { error: saveError } = product
-      ? await table.update(values).eq('id', product.id)
-      : await table.insert({ ...values, seller_id: shopId });
-    if (saveError) return setError(saveError.message);
+    // The backend scopes this to the signed-in owner's shop; the shop id is never sent from here.
+    const saved = await api('POST', product ? `/v1/seller/products/${product.id}` : '/v1/seller/products', values);
+    if (!saved.ok) return setError(saved.error);
 
     router.push('/business/products');
     router.refresh();

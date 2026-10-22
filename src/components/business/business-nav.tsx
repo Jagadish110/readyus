@@ -7,7 +7,8 @@ import { cn } from '@/lib/utils';
 const LINKS = [
   { href: '/business', label: 'Dashboard' },
   { href: '/business/orders', label: 'Orders' },
-  { href: '/business/products', label: 'Products' }
+  { href: '/business/products', label: 'Products' },
+  { href: '/business/payouts', label: 'Payouts' }
 ];
 
 export function BusinessNav() {

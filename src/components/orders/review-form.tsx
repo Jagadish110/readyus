@@ -1,9 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { api } from '@/lib/api/client';
 import { friendlyError } from '@/lib/orders/errors';
-import { ordersDb } from '@/lib/orders/db';
 import type { MyReview, OrderItem } from '@/lib/orders/load';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -68,21 +67,16 @@ export function ReviewForm({ orderId, shopName, items, existing, onSaved }: Prop
     if (!shop && !Object.values(byProduct).some(Boolean)) {
       return setError('Tap the stars to rate something first.');
     }
-    const supabase = createClient();
-    if (!supabase) return;
-
     setSaving(true);
-    const result = await ordersDb(supabase).rpc('submit_review', {
-      p_order: orderId,
-      p_shop_rating: shop || null,
-      p_shop_body: '',
-      p_items: Object.entries(byProduct)
+    const result = await api('POST', `/v1/orders/${orderId}/review`, {
+      shopRating: shop || null,
+      items: Object.entries(byProduct)
         .filter(([, rating]) => rating > 0)
         .map(([product_id, rating]) => ({ product_id, rating, body: '' }))
     });
     setSaving(false);
 
-    if (result.error) return setError(friendlyError(result.error.message));
+    if (!result.ok) return setError(friendlyError(result.error));
     setSaved(true);
     onSaved();
   }

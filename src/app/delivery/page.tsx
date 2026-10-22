@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { ordersDb, row, rows } from '@/lib/orders/db';
+import { serverApi } from '@/lib/api/server';
 import { RiderConsole } from '@/components/delivery/rider-console';
 
 export const metadata: Metadata = { title: 'Delivery' };
@@ -16,20 +16,15 @@ export default async function DeliveryPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/sign-in?next=/delivery');
 
-  const db = ordersDb(supabase);
-  const agent = row<Agent>(
-    await db.from('delivery_agents').select('id, full_name, status').eq('user_id', user.id).maybeSingle()
-  );
+  const me = await serverApi<{ agent: Agent | null; fleets: string[] }>('/v1/rider/me');
+  if (!me.ok) throw new Error('We could not load your delivery profile right now. Please try again.');
+  const { agent, fleets } = me.data;
   if (!agent) redirect('/delivery/apply');
-
-  const fleets = rows<{ seller: { shop_name: string } | null }>(
-    await db.from('delivery_relationships').select('seller:sellers(shop_name)').eq('agent_id', agent.id).eq('active', 'true')
-  );
 
   return (
     <RiderConsole
       name={agent.full_name}
-      fleetNames={fleets.map((fleet) => fleet.seller?.shop_name).filter((name): name is string => Boolean(name))}
+      fleetNames={fleets}
     />
   );
 }

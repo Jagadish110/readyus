@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { ordersDb, row } from '@/lib/orders/db';
+import { serverApi } from '@/lib/api/server';
 import { DeliveryApplyForm } from '@/components/delivery/apply-form';
 import { Eyebrow } from '@/components/ui/card';
 
@@ -15,10 +15,9 @@ export default async function DeliveryApplyPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/sign-in?next=/delivery/apply');
 
-  const agent = row<{ id: string }>(
-    await ordersDb(supabase).from('delivery_agents').select('id').eq('user_id', user.id).maybeSingle()
-  );
-  if (agent) redirect('/delivery');
+  const me = await serverApi<{ agent: { id: string } | null }>('/v1/rider/me');
+  if (!me.ok) throw new Error('We could not load your delivery profile right now. Please try again.');
+  if (me.data.agent) redirect('/delivery');
 
   return (
     <div className="animate-rise grid gap-5">

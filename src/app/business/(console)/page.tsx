@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { requireShop } from '@/lib/business/shop';
-import { loose, STATUS_LABEL, STATUS_TONE } from '@/lib/business/db';
+import { STATUS_LABEL, STATUS_TONE } from '@/lib/business/db';
+import { serverApi } from '@/lib/api/server';
 import { Badge } from '@/components/ui/badge';
 import { Card, Eyebrow } from '@/components/ui/card';
 import { ButtonLink } from '@/components/ui/button';
@@ -16,15 +17,16 @@ const STATUS_BODY = {
 } as const;
 
 export default async function DashboardPage() {
-  const { supabase, shop } = await requireShop();
+  const { shop } = await requireShop();
 
-  const { data } = await loose(supabase)
-    .from('products')
-    .select('approval_status, available')
-    .eq('seller_id', shop.id);
-  const products = (data as Array<{ approval_status: string; available: boolean }> | null) ?? [];
+  const result = await serverApi<{ products: Array<{ approval_status: string; available: boolean }> }>('/v1/seller/products');
+  const products = result.ok ? result.data.products : [];
   const live = products.filter((p) => p.approval_status === 'approved' && p.available).length;
   const waiting = products.filter((p) => p.approval_status === 'pending').length;
+
+  const online = await serverApi<{ ready: string[] }>(`/v1/shops/online?ids=${shop.id}`);
+  // If the backend is unreachable, do not nag the owner to add details they may already have.
+  const acceptsOnline = !online.ok || online.data.ready.includes(shop.id);
 
   const stats = [
     { label: 'Products', value: products.length },
@@ -74,6 +76,23 @@ export default async function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      {shop.status === 'approved' && !acceptsOnline && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 p-5 ring-1 ring-warning/35 sm:p-6">
+          <div className="min-w-0">
+            <h2 className="font-display text-lg font-extrabold tracking-[-0.03em]">
+              Add your bank details to get paid online
+            </h2>
+            <p className="text-sm text-[var(--text-muted)]">
+              Without them, customers can only pay you by UPI or cash. With them, online payments go straight
+              to your bank account.
+            </p>
+          </div>
+          <ButtonLink href="/business/payouts" variant="leaf" size="sm">
+            Add bank details
+          </ButtonLink>
+        </Card>
+      )}
 
       <ShopControls shop={shop} />
 

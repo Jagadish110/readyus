@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { ordersDb, rows } from '@/lib/orders/db';
+import { serverApi } from '@/lib/api/server';
 import { isActive, STATUS_LABEL, STATUS_TONE, type OrderStatus } from '@/lib/orders/status';
 import { AutoRefresh } from '@/components/orders/auto-refresh';
 import { Badge } from '@/components/ui/badge';
@@ -31,13 +31,10 @@ export default async function OrdersPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/sign-in?next=/orders');
 
-  const result = await ordersDb(supabase)
-    .from('orders')
-    .select('id, order_code, status, total_paise, created_at, seller:sellers(shop_name), order_items(name, quantity)')
-    .eq('customer_id', user.id)
-    .order('created_at', { ascending: false })
-    .limit(50);
-  const orders = rows<ListedOrder>(result);
+  const result = await serverApi<{ orders: ListedOrder[] }>('/v1/orders');
+  // An outage must not look like an empty order history.
+  if (!result.ok) throw new Error('We could not load your orders right now. Please try again.');
+  const orders = result.data.orders;
 
   const live = orders.filter((order) => isActive(order.status));
   const past = orders.filter((order) => !isActive(order.status));

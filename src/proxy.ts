@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
+const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(/\/$/, '');
+
 /** Route prefixes that require a signed-in user, and the role each one needs. */
 const GUARDED: Array<{ prefix: string; role: string }> = [
   { prefix: '/business', role: 'seller' },
@@ -55,14 +57,25 @@ export async function proxy(request: NextRequest) {
   const isApplication = guarded ? path === `${guarded.prefix}/apply` : false;
 
   if (guarded && user && !isApplication) {
-    // Roles are read from the database, never from the token, so a revoked
-    // role stops working immediately.
-    const { data: roles } = await supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', user.id);
+    // Roles are read from the database by the backend, never from the token, so
+    // a revoked role stops working immediately.
+    const token = (await supabase.auth.getSession()).data.session?.access_token;
+    let held: string[] | null = null;
+    try {
+      const response = await fetch(`${API_URL}/v1/me`, {
+        headers: { Authorization: `Bearer ${token ?? ''}` },
+        cache: 'no-store',
+        signal: AbortSignal.timeout(8_000)
+      });
+      if (response.ok) held = ((await response.json()) as { roles: string[] }).roles;
+    } catch {
+      // fall through to the closed-door answer below
+    }
 
-    const held = (roles ?? []).map((row) => row.role as string);
+    // If the backend cannot say who this is, nobody gets into a restricted area.
+    if (held === null) {
+      return new NextResponse('The service is temporarily unavailable. Please try again in a moment.', { status: 503 });
+    }
 
     if (!held.includes(guarded.role)) {
       const target = request.nextUrl.clone();

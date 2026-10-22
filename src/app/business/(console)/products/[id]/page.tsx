@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { requireShop } from '@/lib/business/shop';
 import { loadCategories } from '@/lib/business/categories';
-import { loose, PRODUCT_COLUMNS, STATUS_LABEL, STATUS_TONE, type ProductRow } from '@/lib/business/db';
+import { STATUS_LABEL, STATUS_TONE, type ProductRow } from '@/lib/business/db';
+import { serverApi } from '@/lib/api/server';
 import { Badge } from '@/components/ui/badge';
 import { Eyebrow } from '@/components/ui/card';
 import { ProductForm } from '@/components/business/product-form';
@@ -12,19 +13,17 @@ export const dynamic = 'force-dynamic';
 
 export default async function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { supabase, shop } = await requireShop();
+  const { shop } = await requireShop();
 
-  // Scoped to this shop, so another seller's id is simply "not found".
-  const { data } = await loose(supabase)
-    .from('products')
-    .select(PRODUCT_COLUMNS)
-    .eq('id', id)
-    .eq('seller_id', shop.id)
-    .maybeSingle();
-  const product = data as ProductRow | null;
-  if (!product) notFound();
+  // Scoped to this shop by the backend, so another seller's id is simply "not found".
+  const result = await serverApi<{ product: ProductRow }>(`/v1/seller/products/${id}`);
+  if (!result.ok) {
+    if (result.status === 404 || result.status === 400) notFound();
+    throw new Error('We could not load this product right now. Please try again.');
+  }
+  const product = result.data.product;
 
-  const categories = await loadCategories(supabase);
+  const categories = await loadCategories();
 
   return (
     <div className="animate-rise grid gap-5">
@@ -45,7 +44,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
           </p>
         )}
       </div>
-      <ProductForm shopId={shop.id} defaultMode={shop.listing_mode} categories={categories} product={product} />
+      <ProductForm defaultMode={shop.listing_mode} categories={categories} product={product} />
     </div>
   );
 }

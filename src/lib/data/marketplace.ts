@@ -1,6 +1,5 @@
 import 'server-only';
 
-import { createClient } from '@/lib/supabase/server';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import type { NearbyCategory, NearbyProduct, NearbySeller, ListingMode } from '@/lib/database.types';
 import {
@@ -9,28 +8,23 @@ import {
   FIXTURE_SELLERS
 } from './fixtures';
 
-/**
- * Thin RPC wrapper.
- *
- * The checked-in `Database` type is hand-authored, so supabase-js cannot infer
- * function argument types from it yet. Once `supabase gen types` has run
- * against a real project, this cast can be dropped and `.rpc()` called
- * directly with full inference.
- */
-async function callRpc<T>(fn: string, args: Record<string, unknown>): Promise<T[]> {
-  const supabase = await createClient();
-  // Called as a method, not pulled off the client: `rpc` reads `this.rest`, so
-  // a detached reference throws before it ever reaches the network.
-  const client = supabase as unknown as {
-    rpc: (
-      name: string,
-      params: Record<string, unknown>
-    ) => Promise<{ data: T[] | null; error: { message: string } | null }>;
-  };
+const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(/\/$/, '');
 
-  const { data, error } = await client.rpc(fn, args);
-  if (error) throw new Error(`${fn}: ${error.message}`);
-  return data ?? [];
+type Params = Record<string, string | number | boolean | null | undefined>;
+
+/**
+ * Reads the public shop catalogue from the ReadyUs backend. Guests can browse,
+ * so no login is needed; the backend serves these as an anonymous visitor.
+ */
+async function callApi<T>(path: string, params: Params): Promise<T[]> {
+  const url = new URL(`${API_URL}/v1/public${path}`);
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
+  }
+
+  const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
+  if (!response.ok) throw new Error(`catalogue ${path}: ${response.status}`);
+  return ((await response.json()) as { rows: T[] }).rows;
 }
 
 export type MarketplaceQuery = {
@@ -97,32 +91,30 @@ function fixtureProducts(query: MarketplaceQuery): NearbyProduct[] {
 export async function getNearbySellers(query: MarketplaceQuery): Promise<NearbySeller[]> {
   if (usingFixtures()) return fixtureSellers(query);
 
-  return callRpc<NearbySeller>('nearby_sellers', {
-    p_lat: query.lat,
-    p_lng: query.lng,
-    p_radius_km: query.radiusKm,
-    p_mode: query.mode ?? null,
-    p_open_only: query.openOnly ?? false,
-    p_search: query.search ?? null,
-    p_limit: query.limit ?? 40,
-    p_offset: 0
+  return callApi<NearbySeller>('/sellers', {
+    lat: query.lat,
+    lng: query.lng,
+    radiusKm: query.radiusKm,
+    mode: query.mode,
+    openOnly: query.openOnly ?? false,
+    search: query.search,
+    limit: query.limit ?? 40
   });
 }
 
 export async function getNearbyProducts(query: MarketplaceQuery): Promise<NearbyProduct[]> {
   if (usingFixtures()) return fixtureProducts(query);
 
-  return callRpc<NearbyProduct>('nearby_products', {
-    p_lat: query.lat,
-    p_lng: query.lng,
-    p_radius_km: query.radiusKm,
-    p_mode: query.mode ?? null,
-    p_category: query.category ?? null,
-    p_search: query.search ?? null,
-    p_sort: query.sort ?? 'distance',
-    p_seller_id: query.sellerId ?? null,
-    p_limit: query.limit ?? 40,
-    p_offset: 0
+  return callApi<NearbyProduct>('/products', {
+    lat: query.lat,
+    lng: query.lng,
+    radiusKm: query.radiusKm,
+    mode: query.mode,
+    category: query.category,
+    search: query.search,
+    sort: query.sort ?? 'distance',
+    sellerId: query.sellerId,
+    limit: query.limit ?? 40
   });
 }
 
@@ -141,11 +133,11 @@ export async function getNearbyCategories(query: MarketplaceQuery): Promise<Near
       .sort((a, b) => b.product_count - a.product_count);
   }
 
-  return callRpc<NearbyCategory>('nearby_categories', {
-    p_lat: query.lat,
-    p_lng: query.lng,
-    p_radius_km: query.radiusKm,
-    p_mode: query.mode ?? null
+  return callApi<NearbyCategory>('/categories', {
+    lat: query.lat,
+    lng: query.lng,
+    radiusKm: query.radiusKm,
+    mode: query.mode
   });
 }
 

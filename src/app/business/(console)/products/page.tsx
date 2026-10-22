@@ -2,7 +2,8 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { requireShop } from '@/lib/business/shop';
-import { loose, PRODUCT_COLUMNS, STATUS_LABEL, STATUS_TONE, type ProductRow } from '@/lib/business/db';
+import { STATUS_LABEL, STATUS_TONE, type ProductRow } from '@/lib/business/db';
+import { serverApi } from '@/lib/api/server';
 import { Badge, VegMark } from '@/components/ui/badge';
 import { Card, Eyebrow } from '@/components/ui/card';
 import { ButtonLink } from '@/components/ui/button';
@@ -14,14 +15,12 @@ export const metadata: Metadata = { title: 'Your products' };
 export const dynamic = 'force-dynamic';
 
 export default async function ProductsPage() {
-  const { supabase, shop } = await requireShop();
+  await requireShop();
 
-  const { data } = await loose(supabase)
-    .from('products')
-    .select(PRODUCT_COLUMNS)
-    .eq('seller_id', shop.id)
-    .order('created_at', { ascending: false });
-  const products = (data as ProductRow[] | null) ?? [];
+  const result = await serverApi<{ products: ProductRow[] }>('/v1/seller/products');
+  // An outage must not look like an empty menu.
+  if (!result.ok) throw new Error('We could not load your products right now. Please try again.');
+  const products = result.data.products;
 
   return (
     <div className="animate-rise grid gap-5">
