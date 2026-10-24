@@ -1,31 +1,64 @@
+import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
-export function LogoMark({ className }: { className?: string }) {
+/**
+ * The Localty brand: the symbol and the lowercase "localty" word are separate
+ * images so a narrow header can show the symbol alone. `light` is the white
+ * version for dark or coloured backgrounds.
+ */
+type Tone = 'brand' | 'light';
+
+const FILES: Record<Tone, { mark: string; word: string }> = {
+  brand: { mark: '/brand/localty-mark.png', word: '/brand/localty-word.png' },
+  light: { mark: '/brand/localty-mark-white.png', word: '/brand/localty-word-white.png' }
+};
+
+export function LogoMark({ className, size, tone = 'brand' }: { className?: string; size?: number; tone?: Tone }) {
   return (
-    <span
-      className={cn(
-        'grid size-11 shrink-0 place-items-center rounded-[15px] font-display text-lg font-extrabold',
-        'bg-linear-140 from-brand-400 to-brand-600 text-white',
-        'shadow-[0_10px_24px_rgb(255_77_28/0.32),inset_0_1px_0_rgb(255_255_255/0.4)]',
-        className
-      )}
-    >
-      R
-    </span>
+    <Image
+      src={FILES[tone].mark}
+      alt=""
+      aria-hidden
+      width={226}
+      height={231}
+      priority
+      // An explicit pixel size when given; otherwise the caller's classes decide.
+      style={size ? { width: size, height: size } : undefined}
+      className={cn('shrink-0 object-contain', !size && (className ?? 'size-11'), size && className)}
+    />
   );
 }
 
+/** The word is 75.7% of the symbol's height in the original logo, sitting on the same baseline. */
+const WORD_RATIO = 0.757;
+
 export function Wordmark({
   className,
-  markClassName
+  size = 44,
+  wordClassName,
+  tone = 'brand'
 }: {
   className?: string;
-  markClassName?: string;
+  /** Height of the symbol in pixels; the word scales with it. */
+  size?: number;
+  /** Extra classes for the word, e.g. "hidden sm:flex" to show only the symbol on phones. */
+  wordClassName?: string;
+  tone?: Tone;
 }) {
   return (
-    <span className={cn('inline-flex items-center gap-2.5', className)}>
-      <LogoMark className={markClassName} />
-      <span className="font-display text-xl font-extrabold tracking-[-0.035em]">ReadyUs</span>
+    <span role="img" aria-label="Localty" className={cn('inline-flex items-end gap-2.5', className)}>
+      <LogoMark tone={tone} size={size} />
+      <span className={cn('flex', wordClassName)}>
+        <Image
+          src={FILES[tone].word}
+          alt=""
+          aria-hidden
+          width={407}
+          height={175}
+          priority
+          style={{ height: Math.round(size * WORD_RATIO), width: 'auto' }}
+        />
+      </span>
     </span>
   );
 }

@@ -17,8 +17,8 @@ export function AppHeader() {
   return (
     <header className="glass sticky top-0 z-40 border-b border-[var(--line)]">
       <div className="mx-auto flex h-[72px] w-full max-w-6xl items-center gap-2.5 px-4 sm:gap-3 sm:px-6">
-        <Link href="/" aria-label="ReadyUs home" className="shrink-0">
-          <LogoMark className="size-10 rounded-[13px] text-base" />
+        <Link href="/" aria-label="Localty home" className="shrink-0">
+          <LogoMark className="size-10" />
         </Link>
 
         {/* Location + radius: the single most important control in the app. */}

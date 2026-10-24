@@ -18,7 +18,7 @@ export function NotFoundView({ withLogo = false }: { withLogo?: boolean }) {
   return (
     <div className="mx-auto grid max-w-md justify-items-center gap-6 py-10 text-center">
       {withLogo && (
-        <Link href="/" aria-label="ReadyUs home">
+        <Link href="/" aria-label="Localty home">
           <Wordmark />
         </Link>
       )}

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/client';
 
 /**
- * Every data request in the browser goes to the ReadyUs backend, never straight
+ * Every data request in the browser goes to the Localty backend, never straight
  * to the database. The backend checks the Supabase login token on each call.
  */
 export const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(/\/$/, '');

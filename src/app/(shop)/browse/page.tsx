@@ -151,7 +151,7 @@ function EmptyRadius({ radiusKm }: { radiusKm: number }) {
         Nothing within {radiusKm} km yet
       </h2>
       <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-        ReadyUs never shows shops that cannot reach you. Widen your radius from
+        Localty never shows shops that cannot reach you. Widen your radius from
         the header, or check back as more shops join your area.
       </p>
       <div className="mt-5 flex flex-wrap justify-center gap-2.5">

@@ -1,4 +1,4 @@
-# ReadyUs backend
+# Localty backend
 
 The only thing that talks to the database and to Razorpay. The website sends it the
 signed-in user's Supabase login token; it checks the token, validates the request,

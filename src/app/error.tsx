@@ -19,7 +19,7 @@ export default function ErrorPage({
   return (
     <main className="paper grid min-h-dvh place-items-center px-5">
       <div className="grid max-w-md justify-items-center gap-5 text-center">
-        <Link href="/" aria-label="ReadyUs home">
+        <Link href="/" aria-label="Localty home">
           <Wordmark />
         </Link>
         <p className="text-eyebrow uppercase text-[var(--leaf-ink)]">Something went wrong</p>

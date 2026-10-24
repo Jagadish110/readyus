@@ -115,7 +115,7 @@ export default async function AccountPage() {
         </ButtonLink>
         {!held.includes('seller') && (
           <ButtonLink href="/business/apply" variant="leaf-soft" size="lg" fullWidth>
-            Sell on ReadyUs
+            Sell on Localty
           </ButtonLink>
         )}
       </section>

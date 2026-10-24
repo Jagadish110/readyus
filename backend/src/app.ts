@@ -37,7 +37,7 @@ export async function buildApp() {
 
   await app.register(helmet);
 
-  // Only the ReadyUs site may call this from a browser.
+  // Only the Localty site may call this from a browser.
   await app.register(cors, {
     origin: config.ALLOWED_ORIGINS,
     methods: ['GET', 'POST'],

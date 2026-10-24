@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { LogoMark } from '@/components/brand/logo';
+import { Wordmark } from '@/components/brand/logo';
 import { CartIcon, SearchIcon } from '@/components/shell/icons';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
 import { AccountLink } from '@/components/shell/account-link';
@@ -40,9 +40,8 @@ export function SiteHeader() {
       )}
     >
       <div className="mx-auto flex h-18 max-w-7xl items-center gap-4 px-5 sm:px-8 lg:px-10">
-        <Link href="/" className="flex shrink-0 items-center gap-2.5">
-          <LogoMark className="size-10 rounded-[13px]" />
-          <span className="font-display text-xl font-extrabold tracking-[-0.04em]">ReadyUs</span>
+        <Link href="/" aria-label="Localty home" className="flex shrink-0 items-center">
+          <Wordmark size={40} />
         </Link>
 
         <nav className="ml-6 hidden items-center gap-1 lg:flex">

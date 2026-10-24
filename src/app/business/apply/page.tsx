@@ -43,12 +43,12 @@ export default async function ApplyPage() {
   return (
     <main className="paper grid min-h-dvh place-items-center px-4 py-8">
       <div className="grid w-full max-w-md gap-5">
-        <Link href="/" aria-label="ReadyUs home" className="justify-self-center">
+        <Link href="/" aria-label="Localty home" className="justify-self-center">
           <Wordmark />
         </Link>
 
         <section className="animate-rise rounded-[30px] bg-[var(--surface)] p-6 shadow-xl ring-1 ring-[var(--line)] sm:p-7">
-          <Eyebrow>Sell on ReadyUs</Eyebrow>
+          <Eyebrow>Sell on Localty</Eyebrow>
           <h1 className="mt-2 font-display text-[1.7rem] leading-[1.05] font-extrabold tracking-[-0.045em]">
             List your shop
           </h1>

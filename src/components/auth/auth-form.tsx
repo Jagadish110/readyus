@@ -142,7 +142,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
   return (
     <div>
-      <p className="text-eyebrow uppercase text-[var(--leaf-ink)]">ReadyUs account</p>
+      <p className="text-eyebrow uppercase text-[var(--leaf-ink)]">Localty account</p>
       <h1 className="mt-2 font-display text-[1.9rem] leading-tight font-extrabold tracking-[-0.04em]">
         {isSignUp ? 'Create your account' : 'Welcome back'}
       </h1>
@@ -280,7 +280,7 @@ export function AuthForm({ mode }: { mode: Mode }) {
       </div>
 
       <p className="mt-6 text-center text-sm text-[var(--text-muted)]">
-        {isSignUp ? 'Already have an account? ' : 'New to ReadyUs? '}
+        {isSignUp ? 'Already have an account? ' : 'New to Localty? '}
         <Link href={isSignUp ? '/sign-in' : '/sign-up'} className="font-bold text-[var(--leaf-ink)] hover:underline">
           {isSignUp ? 'Log in' : 'Create one'}
         </Link>

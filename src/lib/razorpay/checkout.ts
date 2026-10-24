@@ -21,6 +21,7 @@ type CheckoutOptions = {
   name: string;
   description: string;
   theme: { color: string };
+  image?: string;
   handler: (response: CheckoutResponse) => void;
   modal: { ondismiss: () => void };
 };
@@ -67,7 +68,7 @@ export async function callPaymentsApi(path: string, body: unknown): Promise<Resp
 
 export type PayResult = { ok: true } | { ok: false; error: string; cancelled?: boolean; shopNotReady?: boolean };
 
-/** Pays one ReadyUs order. Resolves once the server has recorded the payment. */
+/** Pays one Localty order. Resolves once the server has recorded the payment. */
 export async function payForOrder(orderId: string, shopName: string): Promise<PayResult> {
   const start = await callPaymentsApi('/v1/payments/orders', { orderId });
   if (!start) return { ok: false, error: 'Could not reach the payment service. Check your connection and sign in.' };
@@ -101,7 +102,8 @@ export async function payForOrder(orderId: string, shopName: string): Promise<Pa
       order_id: razorpayOrderId,
       amount,
       currency: 'INR',
-      name: 'ReadyUs',
+      name: 'Localty',
+      image: `${window.location.origin}/brand/localty-icon-192.png`,
       description: `${shopName} · ${orderCode ?? 'order'}`,
       theme: { color: '#1f7a4d' },
       handler: async (response) => {

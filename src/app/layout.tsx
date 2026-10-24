@@ -17,13 +17,13 @@ const bricolage = Bricolage_Grotesque({
 
 export const metadata: Metadata = {
   title: {
-    default: 'ReadyUs — Shop in Your Radius',
-    template: '%s · ReadyUs'
+    default: 'Localty — Shop in Your Radius',
+    template: '%s · Localty'
   },
   description:
-    'Food, groceries and everyday essentials from approved sellers near you. ReadyUs only shows what can actually reach your door.',
-  applicationName: 'ReadyUs',
-  appleWebApp: { capable: true, title: 'ReadyUs', statusBarStyle: 'default' }
+    'Food, groceries and everyday essentials from approved sellers near you. Localty only shows what can actually reach your door.',
+  applicationName: 'Localty',
+  appleWebApp: { capable: true, title: 'Localty', statusBarStyle: 'default' }
 };
 
 export const viewport: Viewport = {

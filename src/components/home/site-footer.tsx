@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { LogoMark } from '@/components/brand/logo';
+import { Wordmark } from '@/components/brand/logo';
 import { ThemeToggle } from '@/components/theme/theme-toggle';
 
 const COLUMNS = [
@@ -15,7 +15,7 @@ const COLUMNS = [
   {
     title: 'For partners',
     links: [
-      { href: '/business/apply', label: 'Sell on ReadyUs' },
+      { href: '/business/apply', label: 'Sell on Localty' },
       { href: '/delivery/apply', label: 'Deliver with us' },
       { href: '/business', label: 'Shop dashboard' }
     ]
@@ -35,10 +35,7 @@ export function SiteFooter() {
     <footer className="border-t bg-[var(--surface)]">
       <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 sm:px-8 lg:grid-cols-[1.3fr_2fr] lg:px-10">
         <div>
-          <span className="flex items-center gap-2.5">
-            <LogoMark className="size-10 rounded-[13px]" />
-            <span className="font-display text-xl font-extrabold tracking-[-0.04em]">ReadyUs</span>
-          </span>
+          <Wordmark size={40} />
           <p className="mt-4 max-w-[36ch] text-sm leading-relaxed text-[var(--text-muted)]">
             A hyperlocal marketplace for Hyderabad. Zero commission to the shop, zero fees to you.
           </p>
@@ -77,7 +74,7 @@ export function SiteFooter() {
 
       <div className="border-t">
         <p className="mx-auto max-w-7xl px-5 py-6 text-sm text-[var(--text-muted)] sm:px-8 lg:px-10">
-          © {new Date().getFullYear()} ReadyUs. Built for the shops on your street.
+          © {new Date().getFullYear()} Localty. Built for the shops on your street.
         </p>
       </div>
     </footer>

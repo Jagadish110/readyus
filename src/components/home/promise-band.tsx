@@ -18,7 +18,7 @@ export function PromiseBand() {
         />
         <div className="relative grid gap-5 p-7 sm:p-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center lg:gap-12">
           <h2 className="max-w-[16ch] font-display text-[clamp(1.6rem,3.1vw,2.3rem)] leading-[1.06] font-extrabold tracking-[-0.04em]">
-            What makes a ReadyUs order different
+            What makes a Localty order different
           </h2>
           <p className="text-[1.02rem] leading-relaxed text-white/85">
             We take no cut of what you order, so the price on the listing is the price you pay — no

@@ -73,7 +73,7 @@ export default async function PayoutsPage() {
           Payouts
         </h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Online payments go directly from the customer to your bank account. ReadyUs does not hold your money.
+          Online payments go directly from the customer to your bank account. Localty does not hold your money.
         </p>
       </div>
 

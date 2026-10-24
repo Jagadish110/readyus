@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { PinIcon } from './icons';
 
 /**
- * ReadyUs cannot show a catalogue without a location, because the radius rule
+ * Localty cannot show a catalogue without a location, because the radius rule
  * is the catalogue. This asks once, then gets out of the way.
  */
 export function LocationGate({ children }: { children: React.ReactNode }) {
@@ -40,7 +40,7 @@ export function LocationGate({ children }: { children: React.ReactNode }) {
         Where are we delivering?
       </h1>
       <p className="mx-auto mt-2 max-w-[38ch] text-sm leading-relaxed text-[var(--text-muted)]">
-        ReadyUs only shows shops that can actually reach you, so we need a
+        Localty only shows shops that can actually reach you, so we need a
         location before we can show anything.
       </p>
 

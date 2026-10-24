@@ -31,7 +31,7 @@ export const paymentRoutes: FastifyPluginAsync = async (app) => {
   /**
    * Starts an online payment for an order the caller owns. The amount comes from
    * our database, never from the browser, and the shop's share is routed to its
-   * linked account so ReadyUs never holds the money.
+   * linked account so Localty never holds the money.
    */
   app.post('/orders', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (request) => {
     const user = await requireUser(request);

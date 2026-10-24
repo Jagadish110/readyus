@@ -13,7 +13,7 @@ const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').rep
 type Params = Record<string, string | number | boolean | null | undefined>;
 
 /**
- * Reads the public shop catalogue from the ReadyUs backend. Guests can browse,
+ * Reads the public shop catalogue from the Localty backend. Guests can browse,
  * so no login is needed; the backend serves these as an anonymous visitor.
  */
 async function callApi<T>(path: string, params: Params): Promise<T[]> {

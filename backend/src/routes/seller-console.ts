@@ -44,7 +44,7 @@ const imageUrl = (shopId: string) =>
     .string()
     .url()
     .refine((value) => value.startsWith(`${config.SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${shopId}/`), {
-      message: 'Photos must be uploaded through ReadyUs.'
+      message: 'Photos must be uploaded through Localty.'
     });
 
 const productFields = (shopId: string) =>
