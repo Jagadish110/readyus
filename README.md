@@ -1,4 +1,4 @@
-# ReadyUs
+# Localty
 
 Hyperlocal marketplace for food, groceries and everyday essentials.
 

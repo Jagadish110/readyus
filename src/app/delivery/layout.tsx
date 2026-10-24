@@ -8,7 +8,7 @@ export default function DeliveryLayout({ children }: { children: React.ReactNode
       <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[var(--surface)]/90 backdrop-blur">
         <div className="mx-auto flex w-full max-w-2xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <Link href="/delivery" aria-label="Delivery home" className="flex items-center gap-2.5">
-            <Wordmark markClassName="size-9 rounded-[12px] text-base" />
+            <Wordmark size={36} />
             <Badge tone="leaf-soft">Delivery</Badge>
           </Link>
           <Link href="/" className="text-sm font-bold text-[var(--text-muted)] hover:text-[var(--leaf-ink)]">

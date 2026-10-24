@@ -24,10 +24,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
 
       <div className="mx-auto flex w-full max-w-md flex-col px-5 pt-8 pb-14 sm:px-6">
         <Link href="/" className="animate-rise self-center">
-          <Wordmark
-            className="text-white"
-            markClassName="bg-white/95 bg-none text-leaf-700 shadow-[0_10px_24px_rgb(15_44_29/0.3),inset_0_1px_0_#fff]"
-          />
+          <Wordmark tone="light" size={48} />
         </Link>
 
         <div className="animate-rise mt-10 rounded-[34px] bg-[var(--surface)] p-6 shadow-xl ring-1 ring-[var(--line)] [animation-delay:60ms] sm:p-8">

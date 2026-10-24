@@ -8,7 +8,7 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
       <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[var(--surface)]/90 backdrop-blur">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <Link href="/business" aria-label="Seller dashboard">
-            <Wordmark markClassName="size-9 rounded-[12px] text-base" className="[&>span:last-child]:hidden sm:[&>span:last-child]:inline" />
+            <Wordmark size={36} wordClassName="hidden sm:flex" />
           </Link>
           <BusinessNav />
           <Link
