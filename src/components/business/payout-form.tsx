@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { callPaymentsApi } from '@/lib/razorpay/checkout';
+import { callPaymentsApi } from '@/lib/payments/checkout';
 import { Button } from '@/components/ui/button';
 
 const fieldClass =
@@ -24,7 +24,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 /**
- * Bank details go to our server, which forwards them to Razorpay. They are
+ * Bank details go to our server, which forwards them to Cashfree. They are
  * never kept here; after saving only the last four digits are shown.
  */
 export function PayoutForm({ hasAccount, defaultName }: { hasAccount: boolean; defaultName: string }) {
@@ -48,7 +48,7 @@ export function PayoutForm({ hasAccount, defaultName }: { hasAccount: boolean; d
     setError('');
     const response = await callPaymentsApi('/v1/seller/payout', {
       businessType: type,
-      ...(hasAccount ? {} : { contactName: text('contactName'), pan: text('pan'), state: text('state') }),
+      ...(hasAccount ? {} : { contactName: text('contactName'), pan: text('pan') }),
       beneficiaryName: text('beneficiaryName'),
       accountNumber: text('accountNumber'),
       ifsc: text('ifsc')
@@ -111,9 +111,6 @@ export function PayoutForm({ hasAccount, defaultName }: { hasAccount: boolean; d
               className={fieldClass + ' uppercase'}
               autoComplete="off"
             />
-          </Field>
-          <Field label="State" hint="Where the shop is registered.">
-            <input name="state" required placeholder="Telangana" className={fieldClass} />
           </Field>
         </div>
       )}

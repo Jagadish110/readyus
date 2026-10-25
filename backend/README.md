@@ -1,12 +1,12 @@
 # Localty backend
 
-The only thing that talks to the database and to Razorpay. The website sends it the
+The only thing that talks to the database and to Cashfree. The website sends it the
 signed-in user's Supabase login token; it checks the token, validates the request,
 and runs it.
 
 ```
 Browser (Next.js)  ──token──►  this server  ──►  Postgres (direct connection)
-                                    └──────────►  Razorpay
+                                    └──────────►  Cashfree
 ```
 
 Supabase is still used for **login only** (sign-in, sign-up, Google). Nothing in the
@@ -35,7 +35,7 @@ database password, so keep it only in `backend/.env`).
 | Validation | Every body, query and param is parsed with zod; unknown or oversized input is rejected. |
 | Per-user database role | Each request runs in one transaction as `authenticated` with the user's id in the JWT claims, so row level security and every database function apply exactly as written. |
 | Ownership | Seller routes find the shop from who you are, never from an id you send. |
-| Money | Amounts come from the database. Razorpay secrets never leave this server. Webhooks and checkout are signature-checked. |
+| Money | Amounts come from the database. Cashfree secrets never leave this server. Webhooks and checkout are signature-checked. |
 | Transport | helmet headers, CORS limited to `ALLOWED_ORIGINS`, rate limits per route, 100 KB body limit. |
 | Errors and logs | Callers get a short message; details stay in logs. Tokens and signatures are redacted from logs. |
 
@@ -53,10 +53,29 @@ Actions, cron-job.org, ...):
 |---|---|---|
 | Refund online payments on declined/cancelled orders | `POST /internal/refunds/sweep` | every 5 minutes |
 
-## Razorpay
+## Cashfree (online payments)
 
-Webhook URL: `https://<this server>/v1/webhooks/razorpay`, event `payment.captured`,
-secret = `RAZORPAY_WEBHOOK_SECRET`. Use `rzp_test_` keys until you go live.
+Each shop becomes an **Easy Split vendor** when it saves its bank details on the Payouts
+page. An online order is created at Cashfree with a split that sends the shop's whole
+share to its vendor, so Localty never holds the money.
+
+1. Cashfree dashboard -> **Developers -> API Keys**: copy the *sandbox* App ID and Secret
+   Key into `backend/.env` (`CASHFREE_APP_ID`, `CASHFREE_SECRET_KEY`, `CASHFREE_ENV=sandbox`).
+2. Easy Split must be enabled on the account (Cashfree enables it on request).
+3. **Webhook:** Developers -> Webhooks, URL `https://<this server>/v1/webhooks/cashfree`,
+   enable the payment success event. Cashfree signs it with the secret key; there is no
+   separate webhook secret. Orders also carry this address when `PUBLIC_API_URL` is set.
+4. Payment success is never taken from the browser or the webhook body: the server asks
+   Cashfree for the order's real status and amount, then records it.
+5. Going live: switch to the production keys and `CASHFREE_ENV=production`.
+
+| Route | What it does |
+|---|---|
+| `POST /v1/payments/orders` | Creates (or reuses) the Cashfree order with the split and returns a payment session |
+| `POST /v1/payments/verify` | Checks with Cashfree whether the order is paid and records it |
+| `POST /v1/webhooks/cashfree` | Signed webhook; does the same check |
+| `POST /v1/seller/payout` | Creates or updates the shop's vendor from its bank details |
+| `POST /internal/refunds/sweep` | Refunds orders that ended without delivery |
 
 ## Deploy
 

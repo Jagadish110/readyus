@@ -1,11 +1,19 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { config } from '../config.js';
 import { requireUser } from '../lib/auth.js';
+import {
+  cashfree,
+  CashfreeError,
+  toPayoutStatus,
+  vendorProblem,
+  type CashfreeVendor,
+  type PayoutStatus
+} from '../lib/cashfree.js';
 import { asService } from '../lib/db.js';
 import { AppError } from '../lib/errors.js';
-import { razorpay, toPayoutStatus, type PayoutStatus } from '../lib/razorpay.js';
 
-/** Only needed the first time, when the Razorpay account is created. */
+/** Only needed the first time, when the shop becomes a Cashfree vendor. */
 const identitySchema = z.object({
   businessType: z.enum(['individual', 'proprietorship']),
   contactName: z.string().trim().min(2).max(80),
@@ -13,8 +21,7 @@ const identitySchema = z.object({
     .string()
     .trim()
     .toUpperCase()
-    .regex(/^[A-Z]{5}[0-9]{4}[A-Z]$/, 'Enter a valid PAN, like ABCDE1234F.'),
-  state: z.string().trim().min(2).max(60)
+    .regex(/^[A-Z]{5}[0-9]{4}[A-Z]$/, 'Enter a valid PAN, like ABCDE1234F.')
 });
 
 const bankSchema = z.object({
@@ -27,20 +34,10 @@ const bankSchema = z.object({
     .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Enter a valid IFSC, like HDFC0001234.')
 });
 
-type Shop = {
-  id: string;
-  shop_name: string;
-  phone: string;
-  address: string;
-  city: string;
-  pincode: string;
-  status: string;
-  listing_mode: 'food' | 'items';
-};
+type Shop = { id: string; shop_name: string; phone: string; status: string };
 
 type Stored = {
-  razorpay_account_id: string;
-  razorpay_product_id: string | null;
+  cashfree_vendor_id: string;
   status: PayoutStatus;
   status_detail: string;
   business_type: string | null;
@@ -49,22 +46,13 @@ type Stored = {
   bank_last4: string | null;
 };
 
-type Product = {
-  id: string;
-  activation_status?: string;
-  requirements?: Array<{ field_reference?: string }>;
-};
-
-/** Razorpay wants a street of at least 10 characters. */
-const pad = (value: string, city: string) => (value.length >= 10 ? value : `${value}, ${city}`.padEnd(10, '.'));
+/** Cashfree allows letters, digits, spaces and . / - & in a vendor name. */
+const cleanName = (value: string) => value.replace(/[^A-Za-z0-9 ./&-]/g, ' ').replace(/\s+/g, ' ').trim();
 
 /** The caller's own shop, found by who they are, never by an id they sent. */
 async function shopOf(userId: string): Promise<Shop> {
   const shop = await asService((q) =>
-    q.one<Shop>(
-      'select id, shop_name, phone, address, city, pincode, status, listing_mode from sellers where user_id = $1',
-      [userId]
-    )
+    q.one<Shop>('select id, shop_name, phone, status from sellers where user_id = $1', [userId])
   );
   if (!shop) throw new AppError(404, 'Create your shop first.');
   return shop;
@@ -73,17 +61,18 @@ async function shopOf(userId: string): Promise<Shop> {
 const getAccount = (sellerId: string) =>
   asService((q) =>
     q.one<Stored>(
-      `select razorpay_account_id, razorpay_product_id, status, status_detail, business_type,
-              beneficiary_name, bank_ifsc, bank_last4
+      `select cashfree_vendor_id, status, status_detail, business_type, beneficiary_name, bank_ifsc, bank_last4
        from seller_payout_accounts where seller_id = $1`,
       [sellerId]
     )
   );
 
+const exists = (error: unknown) => error instanceof CashfreeError && /already (exist|present)|duplicate/i.test(error.message);
+
 export const sellerRoutes: FastifyPluginAsync = async (app) => {
   /**
-   * The shop's payout status for the Payouts page. Only what the owner needs:
-   * never the Razorpay account id, and never a full account number.
+   * The shop's payout status for the Payouts page. Only what the owner needs: never the
+   * vendor id, and never a full account number.
    */
   app.get('/payout', async (request) => {
     const user = await requireUser(request);
@@ -92,19 +81,12 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
     let stored = await getAccount(shop.id);
     if (!stored) return { account: null };
 
-    // While Razorpay is still reviewing, ask it for the latest so the page is never stale.
-    if (stored.status !== 'activated' && stored.razorpay_product_id) {
+    // While Cashfree is still checking, ask it for the latest so the page is never stale.
+    if (stored.status !== 'activated') {
       try {
-        const live = await razorpay<Product>(
-          `/accounts/${stored.razorpay_account_id}/products/${stored.razorpay_product_id}`,
-          undefined,
-          { version: 'v2' }
-        );
-        const status = toPayoutStatus(live.activation_status);
-        const detail = (live.requirements ?? [])
-          .map((item) => item.field_reference?.replace(/_/g, ' '))
-          .filter(Boolean)
-          .join(', ');
+        const live = await cashfree<CashfreeVendor>('GET', `/easy-split/vendors/${encodeURIComponent(stored.cashfree_vendor_id)}`);
+        const status = toPayoutStatus(live.status);
+        const detail = vendorProblem(live);
         if (status !== stored.status || detail !== stored.status_detail) {
           await asService((q) =>
             q.rows('update seller_payout_accounts set status = $2, status_detail = $3 where seller_id = $1', [shop.id, status, detail])
@@ -128,9 +110,9 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
   });
 
   /**
-   * Saves a shop's bank details by creating (or updating) its Razorpay Route
-   * linked account. The account number and PAN go to Razorpay and are never
-   * stored or logged here; only the last four digits are kept for display.
+   * Saves a shop's bank details by creating (or updating) its Cashfree Easy Split vendor.
+   * The account number and PAN go to Cashfree and are never stored or logged here; only the
+   * last four digits are kept for display.
    */
   app.post('/payout', { config: { rateLimit: { max: 10, timeWindow: '1 hour' } } }, async (request) => {
     const user = await requireUser(request);
@@ -140,100 +122,76 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
     if (shop.status !== 'approved') {
       throw new AppError(409, 'Your shop must be approved before you add bank details.');
     }
+    if (!user.email) throw new AppError(400, 'Add an email address to your account first; Cashfree needs one for payouts.');
 
     const existing = await getAccount(shop.id);
     // Required only on the first save.
     const identity = existing ? null : identitySchema.parse(request.body);
 
-    let accountId = existing?.razorpay_account_id;
-    let productId = existing?.razorpay_product_id ?? null;
+    const vendorId = existing?.cashfree_vendor_id ?? `shop_${shop.id.replace(/-/g, '')}`;
+    const phone = shop.phone.replace(/\D/g, '').slice(-10);
+    const bankBlock = { account_number: bank.accountNumber, account_holder: bank.beneficiaryName, ifsc: bank.ifsc };
 
-    if (!accountId && identity) {
-      const phone = shop.phone.replace(/\D/g, '').slice(-10);
-      const account = await razorpay<{ id: string }>(
-        '/accounts',
-        {
-          email: user.email,
-          phone,
-          type: 'route',
-          reference_id: shop.id,
-          legal_business_name: shop.shop_name,
-          business_type: identity.businessType,
-          contact_name: identity.contactName,
-          profile: {
-            category: shop.listing_mode === 'food' ? 'food' : 'ecommerce',
-            subcategory: shop.listing_mode === 'food' ? 'restaurant' : 'grocery',
-            addresses: {
-              registered: {
-                street1: pad(shop.address, shop.city),
-                street2: pad(shop.shop_name, shop.city),
-                city: shop.city,
-                state: identity.state,
-                postal_code: shop.pincode,
-                country: 'IN'
-              }
-            }
-          },
-          legal_info: { pan: identity.pan }
-        },
-        { version: 'v2' }
-      );
-      accountId = account.id;
-
-      // Saved straight away so a failure further down resumes instead of duplicating.
-      await asService((q) =>
-        q.rows(
-          `insert into seller_payout_accounts (seller_id, razorpay_account_id, status, business_type)
-           values ($1, $2, 'created', $3)`,
-          [shop.id, accountId, identity.businessType]
-        )
-      );
-
-      if (identity.businessType === 'proprietorship') {
-        await razorpay(
-          `/accounts/${accountId}/stakeholders`,
-          { name: identity.contactName, email: user.email, kyc: { pan: identity.pan } },
-          { version: 'v2' }
-        );
+    let vendor: CashfreeVendor;
+    if (!identity) {
+      vendor = await cashfree<CashfreeVendor>('PATCH', `/easy-split/vendors/${encodeURIComponent(vendorId)}`, {
+        bank: bankBlock,
+        verify_account: config.CASHFREE_VERIFY_VENDOR_BANK
+      });
+    } else {
+      const create = {
+        vendor_id: vendorId,
+        status: 'ACTIVE',
+        name: cleanName(identity.contactName),
+        email: user.email,
+        phone,
+        verify_account: config.CASHFREE_VERIFY_VENDOR_BANK,
+        dashboard_access: false,
+        schedule_option: 1,
+        bank: bankBlock,
+        kyc_details: {
+          account_type: identity.businessType === 'individual' ? 'individual' : 'business_account',
+          ...(identity.businessType === 'proprietorship' ? { business_type: 'Proprietorship' } : {}),
+          pan: identity.pan
+        }
+      };
+      try {
+        vendor = await cashfree<CashfreeVendor>('POST', '/easy-split/vendors', create);
+      } catch (error) {
+        // A first attempt reached Cashfree but not our database: carry on from there.
+        if (!exists(error)) throw error;
+        vendor = await cashfree<CashfreeVendor>('PATCH', `/easy-split/vendors/${encodeURIComponent(vendorId)}`, {
+          bank: bankBlock,
+          verify_account: config.CASHFREE_VERIFY_VENDOR_BANK
+        });
       }
     }
 
-    if (!accountId) throw new AppError(500, 'Could not set up your payout account.');
-
-    if (!productId) {
-      const product = await razorpay<Product>(
-        `/accounts/${accountId}/products`,
-        { product_name: 'route', tnc_accepted: true },
-        { version: 'v2' }
-      );
-      productId = product.id;
-      await asService((q) =>
-        q.rows('update seller_payout_accounts set razorpay_product_id = $2 where seller_id = $1', [shop.id, productId])
-      );
-    }
-
-    const configured = await razorpay<Product>(
-      `/accounts/${accountId}/products/${productId}`,
-      {
-        settlements: {
-          account_number: bank.accountNumber,
-          ifsc_code: bank.ifsc,
-          beneficiary_name: bank.beneficiaryName
-        },
-        tnc_accepted: true
-      },
-      { version: 'v2', method: 'PATCH' }
-    );
+    // A vendor Cashfree has not finished checking is "under review", never "activated".
+    const status = vendor.status ? toPayoutStatus(vendor.status) : 'under_review';
 
     await asService((q) =>
       q.rows(
-        `update seller_payout_accounts
-            set status = $2, status_detail = '', beneficiary_name = $3, bank_ifsc = $4, bank_last4 = $5
-          where seller_id = $1`,
-        [shop.id, toPayoutStatus(configured.activation_status), bank.beneficiaryName, bank.ifsc, bank.accountNumber.slice(-4)]
+        `insert into seller_payout_accounts
+           (seller_id, cashfree_vendor_id, status, status_detail, business_type, beneficiary_name, bank_ifsc, bank_last4)
+         values ($1, $2, $3, $4, $5, $6, $7, $8)
+         on conflict (seller_id) do update set
+           status = excluded.status, status_detail = excluded.status_detail,
+           beneficiary_name = excluded.beneficiary_name, bank_ifsc = excluded.bank_ifsc,
+           bank_last4 = excluded.bank_last4, updated_at = now()`,
+        [
+          shop.id,
+          vendorId,
+          status,
+          vendorProblem(vendor),
+          identity?.businessType ?? existing?.business_type ?? null,
+          bank.beneficiaryName,
+          bank.ifsc,
+          bank.accountNumber.slice(-4)
+        ]
       )
     );
 
-    return { ok: true };
+    return { ok: true, status };
   });
 };

@@ -39,15 +39,49 @@ const schema = z.object({
   // before it is set; the data routes answer 503 until it is.
   DATABASE_URL: z.string().url().optional(),
 
-  RAZORPAY_KEY_ID: z.string().regex(/^rzp_(test|live)_[A-Za-z0-9]+$/, 'must look like rzp_test_... or rzp_live_...'),
-  RAZORPAY_KEY_SECRET: secret(10),
-  RAZORPAY_WEBHOOK_SECRET: secret(16),
+  // Cashfree → Developers → API Keys. Optional so the rest of the server runs before the
+  // keys are added; payment routes answer 503 until both are set. The same secret key
+  // also signs webhooks, so there is no separate webhook secret.
+  CASHFREE_APP_ID: z.string().min(5).optional(),
+  CASHFREE_SECRET_KEY: secret(10).optional(),
+  // sandbox = test money, production = real money. Must match the keys (checked below).
+  CASHFREE_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
+  // For automated tests only: point at a local fake Cashfree. Ignored when NODE_ENV=production.
+  CASHFREE_BASE_URL: z.string().url().optional(),
+  CASHFREE_API_VERSION: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'must look like 2025-01-01')
+    .default('2025-01-01'),
+  // Charge the one-off bank check Cashfree offers when a shop saves its bank details (fees apply).
+  CASHFREE_VERIFY_VENDOR_BANK: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
+
+  // This server's public https address, used as Cashfree's webhook address on each order.
+  PUBLIC_API_URL: z.string().url().optional(),
+  // The website, used as the return address after paying.
+  SITE_URL: z.string().url().default('http://localhost:3000'),
 
   // Protects the scheduled refund sweep.
   CRON_SECRET: secret(16)
 });
 
-const parsed = schema.safeParse(process.env);
+const checked = schema.superRefine((value, ctx) => {
+  const { CASHFREE_APP_ID: id, CASHFREE_SECRET_KEY: key, CASHFREE_ENV: env } = value;
+  if (Boolean(id) !== Boolean(key)) {
+    ctx.addIssue({ code: 'custom', path: ['CASHFREE_APP_ID'], message: 'set both CASHFREE_APP_ID and CASHFREE_SECRET_KEY, or neither' });
+  }
+  // Cashfree secret keys carry their mode, so a mix-up is caught here instead of on a customer's payment.
+  if (key && env === 'production' && key.includes('_test_')) {
+    ctx.addIssue({ code: 'custom', path: ['CASHFREE_ENV'], message: 'CASHFREE_ENV is production but the secret key is a TEST key' });
+  }
+  if (key && env === 'sandbox' && key.includes('_prod_')) {
+    ctx.addIssue({ code: 'custom', path: ['CASHFREE_ENV'], message: 'CASHFREE_ENV is sandbox but the secret key is a PRODUCTION key' });
+  }
+});
+
+const parsed = checked.safeParse(process.env);
 if (!parsed.success) {
   // Names and reasons only; never print the values.
   const problems = parsed.error.issues.map((issue) => `  ${issue.path.join('.')}: ${issue.message}`).join('\n');

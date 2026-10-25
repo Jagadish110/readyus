@@ -19,7 +19,7 @@ import {
   TIMELINE,
   type OrderStatus
 } from '@/lib/orders/status';
-import { payForOrder } from '@/lib/razorpay/checkout';
+import { payForOrder } from '@/lib/payments/checkout';
 import { LiveMap } from '@/components/maps/live-map';
 import { ReviewForm } from './review-form';
 import { Badge } from '@/components/ui/badge';
@@ -116,7 +116,7 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
   const payOnline = async () => {
     setBusy(true);
     setError('');
-    const result = await payForOrder(orderId, shopName);
+    const result = await payForOrder(orderId);
     setBusy(false);
     if (!result.ok) {
       if (result.shopNotReady) setUpiOnly(true);
