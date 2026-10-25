@@ -5,7 +5,7 @@ import rateLimit from '@fastify/rate-limit';
 import { ZodError } from 'zod';
 import { config, isProduction } from './config.js';
 import { AppError } from './lib/errors.js';
-import { RazorpayError } from './lib/razorpay.js';
+import { CashfreeError } from './lib/cashfree.js';
 import { customerRoutes } from './routes/customer.js';
 import { paymentRoutes } from './routes/payments.js';
 import { webhookRoutes } from './routes/webhooks.js';
@@ -19,7 +19,7 @@ import { adminRoutes } from './routes/admin.js';
 
 declare module 'fastify' {
   interface FastifyRequest {
-    /** The exact bytes received, needed to check Razorpay's webhook signature. */
+    /** The exact bytes received, needed to check Cashfree's webhook signature. */
     rawBody?: string;
   }
 }
@@ -31,7 +31,7 @@ export async function buildApp() {
     logger: {
       level: isProduction ? 'info' : 'debug',
       // Credentials and signatures never reach the logs.
-      redact: ['req.headers.authorization', 'req.headers["x-razorpay-signature"]', 'req.headers.cookie']
+      redact: ['req.headers.authorization', 'req.headers["x-webhook-signature"]', 'req.headers.cookie']
     }
   });
 
@@ -64,8 +64,8 @@ export async function buildApp() {
     if (error instanceof ZodError) {
       return reply.code(400).send({ error: error.issues[0]?.message ?? 'Check the details and try again.' });
     }
-    if (error instanceof RazorpayError) {
-      request.log.warn({ razorpayStatus: error.status }, error.message);
+    if (error instanceof CashfreeError) {
+      request.log.warn({ cashfreeStatus: error.status }, error.message);
       return reply.code(502).send({ error: error.message });
     }
     // Rate limit, payload too large and similar framework errors keep their status.

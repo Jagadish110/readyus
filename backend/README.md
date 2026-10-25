@@ -1,12 +1,12 @@
 # ReadyUs backend
 
-The only thing that talks to the database and to Razorpay. The website sends it the
+The only thing that talks to the database and to Cashfree. The website sends it the
 signed-in user's Supabase login token; it checks the token, validates the request,
 and runs it.
 
 ```
 Browser (Next.js)  ──token──►  this server  ──►  Postgres (direct connection)
-                                    └──────────►  Razorpay
+                                    └──────────►  Cashfree
 ```
 
 Supabase is still used for **login only** (sign-in, sign-up, Google). Nothing in the
@@ -35,7 +35,7 @@ database password, so keep it only in `backend/.env`).
 | Validation | Every body, query and param is parsed with zod; unknown or oversized input is rejected. |
 | Per-user database role | Each request runs in one transaction as `authenticated` with the user's id in the JWT claims, so row level security and every database function apply exactly as written. |
 | Ownership | Seller routes find the shop from who you are, never from an id you send. |
-| Money | Amounts come from the database. Razorpay secrets never leave this server. Webhooks and checkout are signature-checked. |
+| Money | Amounts come from the database. Cashfree secrets never leave this server. Webhooks and checkout are signature-checked. |
 | Transport | helmet headers, CORS limited to `ALLOWED_ORIGINS`, rate limits per route, 100 KB body limit. |
 | Errors and logs | Callers get a short message; details stay in logs. Tokens and signatures are redacted from logs. |
 
@@ -53,10 +53,11 @@ Actions, cron-job.org, ...):
 |---|---|---|
 | Refund online payments on declined/cancelled orders | `POST /internal/refunds/sweep` | every 5 minutes |
 
-## Razorpay
+## Cashfree
 
-Webhook URL: `https://<this server>/v1/webhooks/razorpay`, event `payment.captured`,
-secret = `RAZORPAY_WEBHOOK_SECRET`. Use `rzp_test_` keys until you go live.
+Webhook URL: `https://<this server>/v1/webhooks/cashfree`, event `PAYMENT_SUCCESS_WEBHOOK`.
+Webhooks are signed with `CASHFREE_SECRET_KEY`. Use `CASHFREE_ENV=sandbox` until you go live.
+Shops are paid through Cashfree Easy Split vendors, so enable Easy Split on your account.
 
 ## Deploy
 

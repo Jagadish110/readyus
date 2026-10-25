@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { requireShop } from '@/lib/business/shop';
-import { type PayoutAccount, type PayoutStatus } from '@/lib/razorpay/api';
+import { type PayoutAccount, type PayoutStatus } from '@/lib/cashfree/api';
 import { serverApi } from '@/lib/api/server';
 import { PayoutForm } from '@/components/business/payout-form';
 import { Badge } from '@/components/ui/badge';

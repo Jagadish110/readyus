@@ -39,9 +39,13 @@ const schema = z.object({
   // before it is set; the data routes answer 503 until it is.
   DATABASE_URL: z.string().url().optional(),
 
-  RAZORPAY_KEY_ID: z.string().regex(/^rzp_(test|live)_[A-Za-z0-9]+$/, 'must look like rzp_test_... or rzp_live_...'),
-  RAZORPAY_KEY_SECRET: secret(10),
-  RAZORPAY_WEBHOOK_SECRET: secret(16),
+  // Cashfree → Developers → API keys. `sandbox` until you go live. Webhooks are
+  // signed with the same secret key, so there is no separate webhook secret.
+  CASHFREE_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
+  CASHFREE_APP_ID: z.string().min(5),
+  CASHFREE_SECRET_KEY: secret(10),
+  // Where Cashfree sends the customer after a redirect-style payment (UPI apps).
+  CASHFREE_RETURN_URL: z.string().url().optional(),
 
   // Protects the scheduled refund sweep.
   CRON_SECRET: secret(16)

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { callPaymentsApi } from '@/lib/razorpay/checkout';
+import { callPaymentsApi } from '@/lib/cashfree/checkout';
 import { Button } from '@/components/ui/button';
 
 const fieldClass =
@@ -24,7 +24,7 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 }
 
 /**
- * Bank details go to our server, which forwards them to Razorpay. They are
+ * Bank details go to our server, which forwards them to Cashfree. They are
  * never kept here; after saving only the last four digits are shown.
  */
 export function PayoutForm({ hasAccount, defaultName }: { hasAccount: boolean; defaultName: string }) {
