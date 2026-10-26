@@ -18,7 +18,7 @@ export default async function BusinessOrdersPage() {
           Orders
         </h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          New orders must be accepted within five minutes. This page updates by itself.
+          Answer new orders quickly. Orders paid online are refunded if they are not accepted in time. This page updates by itself.
         </p>
       </div>
       <OrdersBoard />

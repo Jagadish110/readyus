@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils';
 const MAX_IMAGES = 4;
 
 const fieldClass =
-  'h-12 w-full rounded-[16px] border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-4 text-base outline-none transition-all placeholder:text-ink-400 focus:border-leaf-500 focus:ring-4 focus:ring-leaf-500/20';
+  'h-12 w-full rounded-[16px] border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-3.5 text-base outline-none transition-all placeholder:text-ink-400 focus:border-leaf-500 focus:ring-4 focus:ring-leaf-500/20';
 
 const VEG_OPTIONS = [
   ['', 'Not specified'],
@@ -35,7 +35,7 @@ const SPICE_OPTIONS = [
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
-    <label className="grid gap-1.5 text-sm font-bold">
+    <label className="grid content-start gap-1.5 text-sm font-bold">
       {label}
       {children}
       {hint && <span className="text-xs font-medium text-[var(--text-muted)]">{hint}</span>}

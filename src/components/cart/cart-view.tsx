@@ -163,11 +163,11 @@ export function CartView() {
           </div>
           <div className="flex justify-between">
             <dt className="text-[var(--text-muted)]">Delivery</dt>
-            <dd className="text-[var(--text-muted)]">Calculated at checkout</dd>
+            <dd className="font-bold text-[var(--leaf-ink)]">Free</dd>
           </div>
           <div className="flex justify-between">
-            <dt className="text-[var(--text-muted)]">Commission</dt>
-            <dd className="font-bold text-[var(--leaf-ink)]">Zero, always</dd>
+            <dt className="text-[var(--text-muted)]">Platform fee</dt>
+            <dd className="font-bold text-[var(--leaf-ink)]">₹0</dd>
           </div>
         </dl>
 

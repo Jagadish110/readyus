@@ -149,7 +149,7 @@
     --line: var(--color-ink-200);
     --text: var(--color-ink-900);
     --text-muted: var(--color-ink-600);
-    --glass: rgb(255 255 255 / 0.72);
+    --glass: rgb(255 255 255 / 0.9);
     --glass-line: rgb(255 255 255 / 0.55);
     color-scheme: light;
   }
@@ -166,7 +166,7 @@
     --line: #2a221e;
     --text: #f7f3f1;
     --text-muted: #a89d97;
-    --glass: rgb(22 18 16 / 0.72);
+    --glass: rgb(22 18 16 / 0.9);
     --glass-line: rgb(255 255 255 / 0.09);
     color-scheme: dark;
   }

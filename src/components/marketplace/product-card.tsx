@@ -10,7 +10,8 @@ import { dishForProduct } from '@/components/art/dish-map';
 import { cn, deliveryMinutes, discountPercent, formatRupees } from '@/lib/utils';
 import { MinusIcon, PlusIcon, StarIcon } from '@/components/shell/icons';
 
-export function ProductCard({ product }: { product: NearbyProduct }) {
+/** `showShop` is false on a shop's own page, where the shop name and distance are already in the header. */
+export function ProductCard({ product, showShop = true }: { product: NearbyProduct; showShop?: boolean }) {
   const { add, setQuantity, quantityOf } = useCart();
   const quantity = quantityOf(product.id);
   const off = discountPercent(product.price, product.mrp);
@@ -89,6 +90,8 @@ export function ProductCard({ product }: { product: NearbyProduct }) {
           </Link>
         </div>
 
+        {showShop && (
+          <>
         <Link
           href={`/shop/${product.seller_id}`}
           className="truncate text-xs font-semibold text-[var(--text-muted)] transition-colors hover:text-[var(--leaf-ink)]"
@@ -101,6 +104,8 @@ export function ProductCard({ product }: { product: NearbyProduct }) {
           <span aria-hidden>·</span>
           <span>~{deliveryMinutes(product.distance_km, product.eta_minutes)} min</span>
         </div>
+          </>
+        )}
 
         <div className="mt-auto flex flex-wrap items-end justify-between gap-x-2 gap-y-3 pt-3">
           <div className="min-w-0">

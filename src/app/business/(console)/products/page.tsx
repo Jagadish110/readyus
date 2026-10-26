@@ -8,7 +8,6 @@ import { Badge, VegMark } from '@/components/ui/badge';
 import { Card, Eyebrow } from '@/components/ui/card';
 import { ButtonLink } from '@/components/ui/button';
 import { StockToggle } from '@/components/business/stock-toggle';
-import { StarIcon } from '@/components/shell/icons';
 import { cn } from '@/lib/utils';
 
 export const metadata: Metadata = { title: 'Your products' };
@@ -47,62 +46,59 @@ export default async function ProductsPage() {
           </ButtonLink>
         </Card>
       ) : (
-        <ul className="grid gap-4 sm:grid-cols-2">
-          {products.map((product, index) => {
+        <ul className="grid gap-2.5 sm:grid-cols-2">
+          {products.map((product) => {
             const inStock = product.available && product.stock > 0;
-            const rating = Number(product.rating);
+            const items = product.listing_mode === 'items';
             return (
               <li
                 key={product.id}
-                className="animate-rise overflow-hidden rounded-[26px] bg-[var(--surface)] shadow-sm ring-1 ring-[var(--line)]"
-                style={{ animationDelay: Math.min(index, 5) * 50 + 'ms' }}
+                className="flex items-center gap-3 rounded-[22px] bg-[var(--surface)] p-3 shadow-sm ring-1 ring-[var(--line)]"
               >
-                <Link href={`/business/products/${product.id}`} className="group block">
-                  <div className="tile relative aspect-[16/10] w-full overflow-hidden bg-[var(--tile)]">
+                <Link
+                  href={`/business/products/${product.id}`}
+                  className="group flex min-w-0 flex-1 items-center gap-3 rounded-[16px] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-leaf-500"
+                >
+                  <span className="tile relative size-16 shrink-0 overflow-hidden rounded-[16px] bg-[var(--tile)]">
                     {product.images[0] ? (
                       <Image
                         src={product.images[0]}
                         alt=""
                         fill
-                        sizes="(max-width: 640px) 92vw, 380px"
-                        className={cn(
-                          'object-cover transition-transform duration-500 group-hover:scale-[1.05]',
-                          !inStock && 'grayscale'
-                        )}
+                        sizes="64px"
+                        className={cn('object-cover', !inStock && 'grayscale')}
                       />
                     ) : (
-                      <span className="grid size-full place-items-center font-display text-4xl font-extrabold text-[var(--leaf-ink)]">
+                      <span className="grid size-full place-items-center font-display text-xl font-extrabold text-[var(--leaf-ink)]">
                         {product.name.charAt(0).toUpperCase()}
                       </span>
                     )}
-                    <span className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-[0.74rem] font-extrabold text-ink-900 shadow-sm">
-                      <StarIcon className="size-3.5 text-saffron-500" />
-                      {rating > 0 ? rating.toFixed(1) : 'New'}
-                      {product.rating_count > 0 && (
-                        <span className="font-semibold text-ink-500">({product.rating_count})</span>
-                      )}
-                    </span>
-                  </div>
-                  <div className="grid gap-1 px-4 pt-3.5">
-                    <div className="flex items-start gap-2">
+                  </span>
+                  <span className="grid min-w-0 gap-0.5">
+                    <span className="flex items-start gap-1.5">
                       <VegMark type={product.veg_type} />
-                      <h2 className="line-clamp-2 flex-1 font-display text-[1.02rem] leading-tight font-extrabold tracking-[-0.025em]">
+                      <span className="line-clamp-2 font-display text-[0.98rem] leading-tight font-extrabold tracking-[-0.025em]">
                         {product.name}
-                      </h2>
-                    </div>
-                    <p className="font-display text-lg font-extrabold text-brand-600">
+                      </span>
+                    </span>
+                    <span className="font-display font-extrabold text-brand-600">
                       ₹{Number(product.price).toLocaleString('en-IN')}
                       {product.unit && (
                         <span className="text-xs font-semibold text-[var(--text-muted)]"> / {product.unit}</span>
                       )}
-                    </p>
-                  </div>
+                    </span>
+                    {product.approval_status !== 'approved' && (
+                      <span>
+                        <Badge tone={STATUS_TONE[product.approval_status]}>{STATUS_LABEL[product.approval_status]}</Badge>
+                      </span>
+                    )}
+                  </span>
                 </Link>
-                <div className="flex items-center justify-between gap-2 px-4 pt-2 pb-4">
-                  {product.listing_mode === 'items' ? (
+                <div className="shrink-0">
+                  {items ? (
                     <span
                       className={cn(
-                        'inline-flex h-9 items-center rounded-full px-3.5 text-xs font-extrabold ring-1 ring-[var(--line)]',
+                        'inline-flex h-9 items-center rounded-full px-3 text-xs font-extrabold ring-1 ring-[var(--line)]',
                         product.stock === 0
                           ? 'bg-[var(--tile)] text-[var(--text-muted)]'
                           : product.stock <= 5
@@ -110,15 +106,10 @@ export default async function ProductsPage() {
                             : 'bg-[var(--leaf-soft)] text-[var(--leaf-ink)]'
                       )}
                     >
-                      {product.stock === 0 ? 'Sold out' : product.stock <= 5 ? 'Low: ' + product.stock + ' left' : product.stock + ' in stock'}
+                      {product.stock === 0 ? 'Sold out' : product.stock <= 5 ? product.stock + ' left' : product.stock + ' in stock'}
                     </span>
                   ) : (
                     <StockToggle productId={product.id} inStock={inStock} />
-                  )}
-                  {product.approval_status !== 'approved' && (
-                    <Badge tone={STATUS_TONE[product.approval_status]}>
-                      {STATUS_LABEL[product.approval_status]}
-                    </Badge>
                   )}
                 </div>
               </li>

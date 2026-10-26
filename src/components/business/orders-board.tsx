@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api/client';
 import { friendlyError } from '@/lib/orders/errors';
 import { STATUS_LABEL, STATUS_TONE, type OrderStatus } from '@/lib/orders/status';
@@ -15,16 +15,64 @@ type SellerOrder = {
   total_paise: number;
   payment_mode: 'full_prepaid' | 'normal_cod' | 'cod_partial_prepayment';
   required_online_paise: number;
+  verified_prepaid_paise: number;
+  accept_deadline_at: string | null;
   created_at: string;
   customer_note: string;
   delivery_address: { recipient?: string; line1?: string; city?: string };
   order_items: Array<{ name: string; quantity: number }>;
 };
 
+/** A short two-tone chime, made in the browser so no sound file is needed. */
+function chime() {
+  try {
+    const context = new AudioContext();
+    [880, 1175].forEach((frequency, index) => {
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.frequency.value = frequency;
+      gain.gain.setValueAtTime(0.0001, context.currentTime + index * 0.18);
+      gain.gain.exponentialRampToValueAtTime(0.25, context.currentTime + index * 0.18 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + index * 0.18 + 0.4);
+      oscillator.connect(gain).connect(context.destination);
+      oscillator.start(context.currentTime + index * 0.18);
+      oscillator.stop(context.currentTime + index * 0.18 + 0.45);
+    });
+  } catch {
+    // No audio in this browser; the page title and the list still change.
+  }
+}
+
 export function OrdersBoard() {
   const [orders, setOrders] = useState<SellerOrder[] | null>(null);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
+  const [declining, setDeclining] = useState<string | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const [sound, setSound] = useState(false);
+  const seen = useRef<Set<string> | null>(null);
+
+  useEffect(() => {
+    try {
+      setSound(localStorage.getItem('localty-order-sound') === 'on');
+    } catch {
+      // Storage blocked; sound simply starts off.
+    }
+    const clock = window.setInterval(() => setNow(Date.now()), 30_000);
+    return () => window.clearInterval(clock);
+  }, []);
+
+  function toggleSound() {
+    const next = !sound;
+    setSound(next);
+    try {
+      localStorage.setItem('localty-order-sound', next ? 'on' : 'off');
+    } catch {
+      // Not remembered across visits; still works for now.
+    }
+    // The click is what lets the browser play sound later, so confirm with a chime.
+    if (next) chime();
+  }
 
   const refresh = useCallback(async () => {
     const result = await api<{ orders: SellerOrder[] }>('GET', '/v1/seller/orders');
@@ -52,6 +100,21 @@ export function OrdersBoard() {
     await refresh();
   }
 
+  const decideIds = (orders ?? [])
+    .filter((o) => o.status === 'pending' || o.status === 'payment_confirmed')
+    .map((o) => o.id)
+    .join(',');
+
+  // The tab title carries the count, so a shop with the page open in the background still sees it,
+  // and an order that arrives after the first load plays the chime if the owner turned sound on.
+  useEffect(() => {
+    if (!orders) return;
+    const ids = decideIds ? decideIds.split(',') : [];
+    document.title = ids.length ? `(${ids.length}) New orders · Localty` : 'Orders · Localty';
+    if (seen.current && sound && ids.some((id) => !seen.current!.has(id))) chime();
+    seen.current = new Set(ids);
+  }, [orders, decideIds, sound]);
+
   if (!orders) return <div className="skeleton h-40 rounded-[26px]" />;
 
   const decide = orders.filter((o) => o.status === 'pending' || o.status === 'payment_confirmed');
@@ -67,6 +130,14 @@ export function OrdersBoard() {
 
   return (
     <div className="grid gap-6">
+      <button
+        type="button"
+        onClick={toggleSound}
+        aria-pressed={sound}
+        className="justify-self-start rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-2 text-sm font-bold text-[var(--leaf-ink)] shadow-xs transition-colors hover:bg-[var(--leaf-soft)]"
+      >
+        {sound ? 'Sound alert on' : 'Turn on sound alert for new orders'}
+      </button>
       {error && (
         <p role="alert" className="rounded-[16px] bg-danger/10 px-4 py-3 text-sm font-medium ring-1 ring-danger/30">
           {error}
@@ -80,9 +151,32 @@ export function OrdersBoard() {
       )}
 
       <Group title="Needs your decision" count={decide.length}>
-        {decide.map((order) => {
-          return (
-            <OrderCard key={order.id} order={order}>
+        {decide.map((order) => (
+          <OrderCard key={order.id} order={order} note={waitingNote(order, now)}>
+            {declining === order.id ? (
+              <div className="grid gap-2">
+                <p className="text-sm font-bold">Why are you declining? The customer will see this.</p>
+                <div className="flex flex-wrap gap-2">
+                  {DECLINE_REASONS.map((reason) => (
+                    <Button
+                      key={reason}
+                      size="sm"
+                      variant="outline"
+                      loading={busy === `dec-${order.id}`}
+                      onClick={() => {
+                        setDeclining(null);
+                        void act(`dec-${order.id}`, `/v1/seller/orders/${order.id}/decide`, { accept: false, reason });
+                      }}
+                    >
+                      {reason}
+                    </Button>
+                  ))}
+                  <Button size="sm" variant="ghost" onClick={() => setDeclining(null)}>
+                    Back
+                  </Button>
+                </div>
+              </div>
+            ) : (
               <div className="flex flex-wrap gap-2.5">
                 <Button
                   variant="leaf"
@@ -91,21 +185,13 @@ export function OrdersBoard() {
                 >
                   Accept
                 </Button>
-                <Button
-                  variant="outline"
-                  loading={busy === `dec-${order.id}`}
-                  onClick={() => {
-                    const reason = window.prompt('Why are you declining? (the customer will see this)', 'Sorry, we cannot take this order right now.');
-                    if (reason === null) return;
-                    act(`dec-${order.id}`, `/v1/seller/orders/${order.id}/decide`, { accept: false, reason });
-                  }}
-                >
+                <Button variant="outline" onClick={() => setDeclining(order.id)}>
                   Decline
                 </Button>
               </div>
-            </OrderCard>
-          );
-        })}
+            )}
+          </OrderCard>
+        ))}
       </Group>
 
       <Group title="Check the payment" count={verify.length}>
@@ -203,6 +289,33 @@ function Group({ title, count, children }: { title: string; count: number; child
   );
 }
 
+/** What the owner should believe about the money: never "paid" before it has arrived. */
+function paymentLabel(order: SellerOrder) {
+  if (order.payment_mode === 'normal_cod') return 'Cash on delivery';
+  const paid = order.verified_prepaid_paise >= order.required_online_paise && order.required_online_paise > 0;
+  if (!paid) return 'Online payment pending';
+  const rest = order.total_paise - order.verified_prepaid_paise;
+  return rest > 0 ? `Part paid online · collect ${formatPaise(rest)} cash` : 'Paid online';
+}
+
+/** How long an order has waited, and for orders paid online, how long until they are refunded. */
+function waitingNote(order: SellerOrder, now: number) {
+  const waited = Math.max(0, Math.floor((now - new Date(order.created_at).getTime()) / 60_000));
+  const parts = [waited < 1 ? 'Just now' : `Waiting ${waited} min`];
+  if (order.verified_prepaid_paise > 0 && order.accept_deadline_at) {
+    const left = Math.ceil((new Date(order.accept_deadline_at).getTime() - now) / 60_000);
+    parts.push(left > 0 ? `paid online: accept within ${left} min or it is refunded` : 'paid online: refund pending');
+  }
+  return parts.join(' · ');
+}
+
+const DECLINE_REASONS = [
+  'An item is sold out',
+  'We are too busy right now',
+  'We are closing soon',
+  'Sorry, we cannot take this order'
+];
+
 function OrderCard({
   order,
   note,
@@ -220,7 +333,7 @@ function OrderCard({
           <p className="text-xs text-[var(--text-muted)]">
             {order.delivery_address.recipient || 'Customer'} &middot;{' '}
             {new Date(order.created_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })} &middot;{' '}
-            {order.payment_mode === 'normal_cod' ? 'Cash on delivery' : 'Paid online'}
+            {paymentLabel(order)}
           </p>
         </div>
         <Badge tone={STATUS_TONE[order.status]}>{STATUS_LABEL[order.status]}</Badge>

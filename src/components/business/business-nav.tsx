@@ -15,7 +15,7 @@ const LINKS = [
 export function BusinessNav() {
   const pathname = usePathname();
   return (
-    <nav className="flex gap-1 rounded-full border border-[var(--line)] bg-[var(--tile)] p-1">
+    <nav className="flex w-max gap-1 rounded-full border border-[var(--line)] bg-[var(--tile)] p-1">
       {LINKS.map(({ href, label }) => {
         const active = href === '/business' ? pathname === href : pathname.startsWith(href);
         return (
@@ -24,7 +24,7 @@ export function BusinessNav() {
             href={href}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'rounded-full px-4 py-2 text-sm font-bold transition-colors',
+              'rounded-full px-2.5 py-2 text-[0.8rem] font-bold whitespace-nowrap transition-colors sm:px-4 sm:text-sm',
               active
                 ? 'bg-[var(--surface)] text-[var(--leaf-ink)] shadow-sm'
                 : 'text-[var(--text-muted)] hover:text-[var(--text)]'

@@ -272,7 +272,7 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
       return {
         orders: await q.rows(
           `select o.id, o.order_code, o.status, o.total_paise, o.payment_mode, o.required_online_paise,
-                  o.created_at, o.customer_note,
+                  o.created_at, o.customer_note, o.verified_prepaid_paise, o.accept_deadline_at,
                   -- Only what the shop needs to hand the order over.
                   jsonb_build_object('recipient', o.delivery_address -> 'recipient',
                                      'line1', o.delivery_address -> 'line1',

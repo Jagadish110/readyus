@@ -90,7 +90,7 @@ async function ShopDetail({ id }: { id: string }) {
               [<PinIcon key="d" className="size-4" />, formatDistance(shop.distance_km) + ' away'],
               [<ClockIcon key="t" className="size-4" />, '~' + deliveryMinutes(shop.distance_km, shop.eta_minutes) + ' min'],
               [null, shop.min_order_amount ? 'Min ' + formatRupees(shop.min_order_amount) : 'No minimum'],
-              [null, shop.delivery_fee ? formatRupees(shop.delivery_fee) + ' delivery' : 'Free delivery']
+              [null, 'Free delivery']
             ].map(([icon, label], index) => (
               <li
                 key={index}
@@ -103,11 +103,6 @@ async function ShopDetail({ id }: { id: string }) {
             {shop.cod_available && (
               <li className="inline-flex shrink-0 items-center rounded-full bg-[var(--leaf-soft)] px-4 py-2 text-sm font-bold text-[var(--leaf-ink)] ring-1 ring-[var(--line)]">
                 Cash on delivery
-              </li>
-            )}
-            {shop.free_delivery_above > 0 && (
-              <li className="inline-flex shrink-0 items-center rounded-full bg-[var(--leaf-soft)] px-4 py-2 text-sm font-bold text-[var(--leaf-ink)] ring-1 ring-[var(--line)]">
-                Free over {formatRupees(shop.free_delivery_above)}
               </li>
             )}
           </ul>
@@ -124,7 +119,7 @@ async function ShopDetail({ id }: { id: string }) {
             <SectionTitle className="capitalize">{key}</SectionTitle>
             <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
               {items.map((product) => (
-                <ProductCard key={product.id} product={product} />
+                <ProductCard key={product.id} product={product} showShop={false} />
               ))}
             </div>
           </section>

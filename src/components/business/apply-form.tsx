@@ -254,7 +254,7 @@ export function ApplyForm() {
 
           <Field label="Shop name" value={shopName} onChange={setShopName} placeholder="Sri Lakshmi Tiffin House" autoComplete="organization" />
 
-          <label className="grid gap-1.5">
+          <label className="grid content-start gap-1.5">
             <span className="text-[0.82rem] font-bold">Category</span>
             <input
               value={category}

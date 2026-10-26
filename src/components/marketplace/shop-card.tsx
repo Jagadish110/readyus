@@ -59,13 +59,9 @@ export function ShopCard({ shop }: { shop: NearbySeller }) {
           ~{deliveryMinutes(shop.distance_km, shop.eta_minutes)} min
         </span>
         {shop.min_order_amount > 0 && <span>Min {formatRupees(shop.min_order_amount)}</span>}
-        {shop.free_delivery_above > 0 ? (
-          <span className="rounded-full bg-[var(--leaf-soft)] px-2.5 py-1 text-[0.68rem] font-extrabold text-[var(--leaf-ink)] ring-1 ring-[var(--line)]">
-            Free delivery over {formatRupees(shop.free_delivery_above)}
-          </span>
-        ) : (
-          shop.cod_available && <span className="text-[var(--leaf-ink)]">Cash on delivery</span>
-        )}
+        <span className="rounded-full bg-[var(--leaf-soft)] px-2.5 py-1 text-[0.68rem] font-extrabold text-[var(--leaf-ink)] ring-1 ring-[var(--line)]">
+          Free delivery
+        </span>
       </span>
     </Link>
   );

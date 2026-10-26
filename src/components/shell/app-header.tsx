@@ -36,8 +36,8 @@ export function AppHeader() {
               <span className="text-[0.62rem] font-extrabold tracking-[0.14em] text-[var(--leaf-ink)] uppercase">
                 Delivering to
               </span>
-              <span className="truncate text-[0.9rem] font-bold">
-                {location ? location.label : 'Choose your location'}
+              <span className="truncate text-[0.9rem] font-bold" title={location?.label}>
+                {location ? location.label.split(',')[0] : 'Choose your location'}
               </span>
             </span>
             {location && (

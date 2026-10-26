@@ -22,7 +22,23 @@ export function Hero() {
         &ldquo;Real food from the shops on your own street&rdquo;
       </h1>
 
-      <div className="mt-10 grid items-start gap-7 lg:grid-cols-[1.25fr_0.75fr]">
+      {/* On a phone the main action sits right under the headline, above the photos. */}
+      <div className="animate-rise mt-6 grid gap-3 [animation-delay:130ms] sm:grid-cols-2 md:hidden">
+        <Link
+          href="/browse"
+          className="inline-flex h-13 items-center justify-center rounded-full bg-brand-500 px-7 font-bold text-white shadow-ember active:scale-[0.97]"
+        >
+          Explore nearby shops
+        </Link>
+        <Link
+          href="/business/apply"
+          className="inline-flex h-13 items-center justify-center rounded-full border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-7 font-bold active:scale-[0.97]"
+        >
+          List your shop
+        </Link>
+      </div>
+
+      <div className="mt-8 grid items-start gap-7 md:mt-10 lg:grid-cols-[1.25fr_0.75fr]">
         {/* ---------- hero collage ---------- */}
         <div className="animate-rise group relative [animation-delay:170ms]">
           <div className="tile relative overflow-hidden rounded-[34px] bg-linear-160 from-[var(--tile)] via-[var(--surface)] to-[var(--leaf-soft)] p-6 shadow-[0_18px_60px_rgb(28_22_20/0.10)] ring-1 ring-[var(--line)] sm:p-8">
@@ -62,7 +78,7 @@ export function Hero() {
             </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center gap-3">
+          <div className="mt-5 hidden flex-wrap items-center gap-3 md:flex">
             <Link
               href="/browse"
               className="inline-flex h-13 items-center rounded-full bg-brand-500 px-7 font-bold text-white shadow-ember transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgb(255_77_28/0.42)] active:scale-[0.97]"

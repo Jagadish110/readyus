@@ -270,7 +270,7 @@ export function CheckoutView() {
             </p>
           )}
           <p className="mt-3 text-xs text-[var(--text-muted)]">
-            Shops that only take online payment will ask for UPI even if you pick cash.
+            Some shops take online payment only. If so, you will be asked to pay online after you place the order.
           </p>
         </section>
 
@@ -322,9 +322,11 @@ export function CheckoutView() {
           </ul>
         )}
 
-        <Button size="lg" fullWidth onClick={placeAll} disabled={!canPlace} loading={placing}>
-          Place {groups.length > 1 ? groups.length + ' orders' : 'order'}
-        </Button>
+        <div className="hidden md:block">
+          <Button size="lg" fullWidth onClick={placeAll} disabled={!canPlace} loading={placing}>
+            Place {groups.length > 1 ? groups.length + ' orders' : 'order'}
+          </Button>
+        </div>
 
         {!addressId && !adding && (
           <p className="text-center text-xs text-[var(--text-muted)]">Add a delivery address to continue.</p>
@@ -333,6 +335,21 @@ export function CheckoutView() {
           <p className="text-center text-xs text-[var(--text-muted)]">Save your address to continue.</p>
         )}
       </aside>
+
+      {/* On a phone the total and the button stay on screen instead of at the bottom of a long form. */}
+      <div className="fixed inset-x-0 bottom-[calc(4.4rem+env(safe-area-inset-bottom))] z-30 border-t border-[var(--line)] bg-[var(--surface)] px-4 py-3 shadow-[0_-8px_24px_rgb(28_22_20/0.08)] md:hidden">
+        <div className="mx-auto flex max-w-lg items-center gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold text-[var(--text-muted)]">{pay === 'cod' ? 'Pay on delivery' : 'Pay online'}</p>
+            <p className="font-display text-lg font-extrabold tabular-nums text-brand-600">{formatRupees(subtotal)}</p>
+          </div>
+          <div className="flex-1">
+            <Button size="md" fullWidth onClick={placeAll} disabled={!canPlace} loading={placing}>
+              Place {groups.length > 1 ? groups.length + ' orders' : 'order'}
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -12,7 +12,14 @@ create table if not exists auth.users (
   id uuid primary key default gen_random_uuid(),
   email text,
   phone text,
-  raw_user_meta_data jsonb not null default '{}'::jsonb
+  raw_user_meta_data jsonb not null default '{}'::jsonb,
+  -- Columns Supabase's own seed data fills in.
+  instance_id uuid,
+  aud text,
+  role text,
+  raw_app_meta_data jsonb,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
 );
 
 -- Supabase reads the caller from the JWT claims the backend sets per transaction.
@@ -38,4 +45,10 @@ $$;
 create publication supabase_realtime;
 
 grant usage on schema public, auth, storage to anon, authenticated, service_role;
+
+-- Supabase hands every new public table, sequence and function to these roles; the migrations then
+-- revoke what must stay private. Without this the tests would not notice a table left too open.
+alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+alter default privileges in schema public grant all on functions to anon, authenticated, service_role;
 grant execute on function auth.uid() to anon, authenticated, service_role;
