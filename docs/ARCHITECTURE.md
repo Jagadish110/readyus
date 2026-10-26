@@ -1,6 +1,7 @@
 # Localty — target architecture
 
-Status: proposal, based on the code at commit `b29bf29`. Nothing here is implemented yet.
+Status: Phase 0 (foundation) and Phase 1 (subscription) are implemented; see "Implementation notes"
+at the end. The rest is still proposal, based on the code at commit `b29bf29`.
 
 ## 1. The product in one paragraph
 
@@ -393,3 +394,24 @@ the first month, then widen.
 6. Is a customer-facing delivery charge allowed later, or is "zero fees" a permanent
    promise? Marketing copy currently promises it everywhere (`tape.tsx`, `features.tsx`,
    `site-footer.tsx`), and `place_order()` hard-codes fees to 0.
+
+## 15. Implementation notes (Phases 0 and 1)
+
+Built in migrations `0025_foundation_hardening` and `0026_subscriptions`, `backend/src/lib/billing.ts`,
+`backend/src/routes/billing.ts`, and `/business/billing` on the website.
+
+Where the build differs from, or settles, the proposal above:
+
+- **Subscription state is derived, not stored** (section 4.2 sketched a status machine). The database keeps
+  facts (`trial_ends_at`, `paid_through`, `cancelled_at`) and computes `trialing / active / past_due /
+  suspended` from the clock, so a late webhook or job can never leave a shop visible or hidden wrongly.
+- **Grace applies after the trial too**: a shop that never subscribes has 5 days after its trial before it is hidden.
+- **Price is a placeholder** (Rs 499 + GST, `subscription_plans`). GST invoices are not built yet.
+- **Unpaid-order stock**: orders left at the payment step for 30 minutes are cancelled and their stock returned.
+- **Paid orders the shop ignores** now time out (deadline restarts when payment is recorded) and are refunded.
+  Unpaid cash orders still wait for the shop, as in migration 0020.
+- **Delivery code** uses a cryptographic source and locks for 15 minutes after five wrong tries.
+- **Not done in this pass**: Sentry (needs your account), a staging environment, the gateway-fee decision,
+  notification delivery by SMS/WhatsApp (reminders are in-app only for now).
+- **Needs one sandbox run before real money**: the Cashfree Subscriptions request and the field names read from
+  its responses were written from Cashfree's documentation, and tested only against a fake Cashfree.

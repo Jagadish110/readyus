@@ -15,6 +15,7 @@ type CheckoutResult = {
 
 type CashfreeSdk = {
   checkout: (options: { paymentSessionId: string; redirectTarget?: '_modal' | '_self' | '_blank' }) => Promise<CheckoutResult>;
+  subscriptionsCheckout: (options: { subsSessionId: string; redirectTarget?: '_modal' | '_self' | '_blank' }) => Promise<CheckoutResult>;
 };
 
 declare global {
@@ -105,4 +106,43 @@ export async function payForOrder(orderId: string): Promise<PayResult> {
   }
   if (result.error?.message) return { ok: false, error: result.error.message };
   return { ok: false, error: '', cancelled: true };
+}
+
+export type MandateResult = { ok: true } | { ok: false; error: string; cancelled?: boolean };
+
+/**
+ * Opens Cashfree's window where the shop owner approves the monthly automatic payment. The
+ * price and the shop come from the backend; afterwards the backend asks Cashfree what happened.
+ */
+export async function approveMandate(): Promise<MandateResult> {
+  const start = await callPaymentsApi('/v1/seller/billing/subscribe', {});
+  if (!start) return { ok: false, error: 'Could not reach the server. Check your connection and sign in.' };
+
+  const started = (await start.json().catch(() => ({}))) as {
+    error?: string;
+    subscriptionSessionId?: string;
+    mode?: 'sandbox' | 'production';
+  };
+  if (!start.ok || !started.subscriptionSessionId || !started.mode) {
+    return { ok: false, error: started.error ?? 'Could not start the setup.' };
+  }
+
+  if (!(await loadScript()) || !window.Cashfree) {
+    return { ok: false, error: 'Could not load the approval window. Check your connection.' };
+  }
+
+  let result: CheckoutResult;
+  try {
+    result = await window.Cashfree({ mode: started.mode }).subscriptionsCheckout({
+      subsSessionId: started.subscriptionSessionId,
+      redirectTarget: '_modal'
+    });
+  } catch {
+    return { ok: false, error: 'The approval window could not open. Please try again.' };
+  }
+
+  // Whatever the window said, ask the backend, which asks Cashfree.
+  await callPaymentsApi('/v1/seller/billing/verify', {});
+  if (result.error?.message) return { ok: false, error: result.error.message };
+  return { ok: true };
 }

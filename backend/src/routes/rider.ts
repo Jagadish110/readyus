@@ -134,8 +134,11 @@ export const riderRoutes: FastifyPluginAsync = async (app) => {
     const { id } = idParams.parse(request.params);
     const { code } = z.object({ code: z.string().trim().min(1).max(10) }).parse(request.body);
     try {
-      await asUser(user.id, (q) => q.rows('select complete_delivery($1, $2)', [id, code]));
+      const result = await asUser(user.id, (q) => q.one<{ result: string }>('select complete_delivery($1, $2) as result', [id, code]));
+      // A wrong code is an answer, not an exception, so the attempt counter survives it.
+      if (result?.result !== 'OK') throw new AppError(409, result?.result ?? 'INVALID_DELIVERY_CODE', 'DATABASE_RULE');
     } catch (error) {
+      if (error instanceof AppError) throw error;
       ruleError(error);
     }
     return { ok: true };

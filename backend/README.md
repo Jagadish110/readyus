@@ -46,12 +46,52 @@ is allowed).
 
 ## Scheduled jobs
 
-Call this with `Authorization: Bearer $CRON_SECRET` (Render/Railway cron, GitHub
-Actions, cron-job.org, ...):
+Each is called with `Authorization: Bearer $CRON_SECRET`. `.github/workflows/scheduled-jobs.yml` does
+this from GitHub Actions once the `API_URL` and `CRON_SECRET` repository secrets are set; any other
+scheduler (Render/Railway cron, cron-job.org) works the same way. All of them are safe to run twice.
 
 | Job | Call | How often |
 |---|---|---|
-| Refund online payments on declined/cancelled orders | `POST /internal/refunds/sweep` | every 5 minutes |
+| Close orders nobody will act on: paid orders the shop ignored past the deadline become `timed_out`; orders left unpaid for 30 minutes are cancelled and their stock returned | `POST /internal/orders/expire` | every 5 minutes |
+| Refund online payments on declined/cancelled/timed-out orders | `POST /internal/refunds/sweep` | every 5 minutes (right after the one above) |
+| In-app reminders: trial ending, payment overdue, shop hidden | `POST /internal/billing/reminders` | hourly |
+| Ask Cashfree about subscriptions whose webhook may have been missed | `POST /internal/billing/resync` | every 4 hours |
+
+## Subscription (monthly fee from shops)
+
+Localty's only income. Separate from order money, which never touches Localty.
+
+- A shop gets a 30-day free trial when an admin approves it (database trigger). Plan price, trial
+  and grace days live in `subscription_plans`; the price is a placeholder, change it with an `UPDATE`
+  before real shops subscribe. A shop keeps the price it started with.
+- The owner approves a monthly automatic payment (UPI AutoPay / eNACH / card) at Cashfree Subscriptions
+  from `/business/billing`. The first charge is scheduled for the day the trial ends.
+- **State is derived from the clock**, never stored: `trialing`, `active`, `past_due` (5 grace days),
+  `suspended`. A shop is hidden on time even if a job or webhook is late. A suspended shop is hidden
+  from discovery and `place_order()` refuses new orders; orders already placed carry on.
+- Success is never taken from the browser or a webhook body. After any signal the server fetches the
+  subscription and its payments from Cashfree and records each charge once (`subscription_payments`).
+- Webhook: the same `/v1/webhooks/cashfree` URL; enable the subscription events in Cashfree's webhook
+  settings too (at least status-changed and payment events).
+- `platform_settings.billing_enforced = false` stops hiding any shop (emergency switch).
+
+| Route | What it does |
+|---|---|
+| `GET /v1/seller/billing` | The owner's plan and state |
+| `POST /v1/seller/billing/subscribe` | Creates the mandate request and returns a Cashfree session |
+| `POST /v1/seller/billing/verify` | Re-checks with Cashfree after the approval window closes |
+| `POST /v1/seller/billing/cancel` | Stops future charges; what is paid for stays valid |
+
+## Tests
+
+```bash
+cd backend && npm test                      # unit tests only (database tests are skipped)
+TEST_DATABASE_URL=postgres://postgres:postgres@localhost:5432/localty_test npm test
+```
+
+The database tests need a Postgres with PostGIS and **rebuild that database from `supabase/migrations`
+on every run** (a small Supabase stand-in is in `test/db/supabase-shim.sql`). The URL must be local and
+its name must contain `test`, or the run refuses to start. CI does this against `postgis/postgis:16-3.4`.
 
 ## Cashfree (online payments)
 

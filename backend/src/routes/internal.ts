@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { config } from '../config.js';
+import { syncSubscription } from '../lib/billing.js';
 import { cashfree, CashfreeError, toRupees } from '../lib/cashfree.js';
 import { asService } from '../lib/db.js';
 import { AppError } from '../lib/errors.js';
@@ -86,5 +87,43 @@ export const internalRoutes: FastifyPluginAsync = async (app) => {
     }
 
     return { refunded, waiting, failed };
+  });
+
+  /**
+   * Closes orders nobody will act on: paid orders the shop ignored (the refund sweep then returns
+   * the money) and orders abandoned at the payment step (their stock goes back on the shelf).
+   */
+  app.post('/orders/expire', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request) => {
+    requireCron(request);
+    const row = await asService((q) => q.one<{ closed: number }>('select expire_stale_orders() as closed'));
+    return { closed: row?.closed ?? 0 };
+  });
+
+  /** In-app reminders about trials ending and overdue subscriptions. Run hourly. */
+  app.post('/billing/reminders', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request) => {
+    requireCron(request);
+    const row = await asService((q) => q.one<{ looked_at: number }>('select billing_reminders() as looked_at'));
+    return { lookedAt: row?.looked_at ?? 0 };
+  });
+
+  /**
+   * Asks Cashfree about every mandate that should have paid or is about to, so a webhook that never
+   * arrived cannot leave a paying shop suspended. Run every few hours.
+   */
+  app.post('/billing/resync', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request) => {
+    requireCron(request);
+    const due = await asService((q) => q.rows<{ cashfree_subscription_id: string }>('select * from billing_syncable()'));
+    let synced = 0;
+    const failed: string[] = [];
+    for (const item of due) {
+      try {
+        await syncSubscription(item.cashfree_subscription_id, request.log);
+        synced += 1;
+      } catch (cause) {
+        request.log.error({ subscription: item.cashfree_subscription_id, cause }, 'subscription resync failed');
+        failed.push(item.cashfree_subscription_id);
+      }
+    }
+    return { synced, failed };
   });
 };

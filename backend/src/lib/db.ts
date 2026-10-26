@@ -31,7 +31,8 @@ function getPool() {
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 10_000,
     // Supabase's pooler requires TLS; its certificate chain is not in Node's store.
-    ssl: { rejectUnauthorized: false }
+    // A database on this machine (local development and the automated tests) has no TLS.
+    ssl: /@(localhost|127\.0\.0\.1)[:/]/.test(config.DATABASE_URL) ? false : { rejectUnauthorized: false }
   });
   return pool;
 }

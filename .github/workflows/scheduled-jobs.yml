@@ -1,0 +1,42 @@
+name: Scheduled jobs
+
+# Calls the backend's cron endpoints. Set two repository secrets:
+#   API_URL      e.g. https://api.localty.in   (no trailing slash)
+#   CRON_SECRET  the same value as the backend's CRON_SECRET
+# GitHub runs scheduled workflows on a best-effort basis (they can start a few minutes late), so
+# every job here is safe to run twice and none depends on exact timing. If you need tighter
+# timing for the refund sweep, call the same endpoints from your host's cron instead.
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'   # refunds and order expiry
+    - cron: '17 * * * *'    # billing reminders, hourly
+    - cron: '41 */4 * * *'  # subscription resync, every 4 hours
+  workflow_dispatch:
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call the jobs due now
+        env:
+          API_URL: ${{ secrets.API_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          if [ -z "$API_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "API_URL and CRON_SECRET secrets are not set; nothing to do."
+            exit 0
+          fi
+          call() {
+            echo "POST $1"
+            curl --fail-with-body --silent --show-error --max-time 60 -X POST \
+              -H "Authorization: Bearer $CRON_SECRET" "$API_URL$1"
+            echo
+          }
+          case "$SCHEDULE" in
+            '*/5 * * * *')   call /internal/orders/expire; call /internal/refunds/sweep ;;
+            '17 * * * *')    call /internal/billing/reminders ;;
+            '41 */4 * * *')  call /internal/billing/resync ;;
+            *)               call /internal/orders/expire; call /internal/refunds/sweep; call /internal/billing/reminders; call /internal/billing/resync ;;
+          esac

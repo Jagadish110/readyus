@@ -53,7 +53,7 @@ export default async function ApplyPage() {
             List your shop
           </h1>
           <p className="mt-1.5 mb-5 text-sm text-[var(--text-muted)]">
-            Zero commission and zero listing fees.
+            Zero commission. A free trial, then one flat monthly fee.
           </p>
 
           {existing && (

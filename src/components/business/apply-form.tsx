@@ -326,7 +326,7 @@ export function ApplyForm() {
         </Button>
       </div>
       <p className="text-center text-xs text-[var(--text-muted)]">
-        Free to list. We never take a commission on your sales.
+        Free for your first 30 days, then one flat monthly fee. We never take a commission on your sales.
       </p>
     </form>
   );

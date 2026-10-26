@@ -8,7 +8,8 @@ const LINKS = [
   { href: '/business', label: 'Dashboard' },
   { href: '/business/orders', label: 'Orders' },
   { href: '/business/products', label: 'Products' },
-  { href: '/business/payouts', label: 'Payouts' }
+  { href: '/business/payouts', label: 'Payouts' },
+  { href: '/business/billing', label: 'Plan' }
 ];
 
 export function BusinessNav() {
