@@ -81,7 +81,8 @@ const checked = schema.superRefine((value, ctx) => {
   }
 });
 
-const parsed = checked.safeParse(process.env);
+// A line like `PUBLIC_API_URL=` in .env (copied from the template) means "not set", not an empty value.
+const parsed = checked.safeParse(Object.fromEntries(Object.entries(process.env).filter(([, value]) => value !== '')));
 if (!parsed.success) {
   // Names and reasons only; never print the values.
   const problems = parsed.error.issues.map((issue) => `  ${issue.path.join('.')}: ${issue.message}`).join('\n');

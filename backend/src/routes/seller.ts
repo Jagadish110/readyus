@@ -34,7 +34,7 @@ const bankSchema = z.object({
     .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Enter a valid IFSC, like HDFC0001234.')
 });
 
-type Shop = { id: string; shop_name: string; phone: string; status: string };
+type Shop = { id: string; shop_name: string; phone: string; status: string; listing_mode: 'food' | 'items' };
 
 type Stored = {
   cashfree_vendor_id: string;
@@ -52,7 +52,7 @@ const cleanName = (value: string) => value.replace(/[^A-Za-z0-9 ./&-]/g, ' ').re
 /** The caller's own shop, found by who they are, never by an id they sent. */
 async function shopOf(userId: string): Promise<Shop> {
   const shop = await asService((q) =>
-    q.one<Shop>('select id, shop_name, phone, status from sellers where user_id = $1', [userId])
+    q.one<Shop>('select id, shop_name, phone, status, listing_mode from sellers where user_id = $1', [userId])
   );
   if (!shop) throw new AppError(404, 'Create your shop first.');
   return shop;
@@ -151,7 +151,8 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
         bank: bankBlock,
         kyc_details: {
           account_type: identity.businessType === 'individual' ? 'individual' : 'business_account',
-          ...(identity.businessType === 'proprietorship' ? { business_type: 'Proprietorship' } : {}),
+          // Cashfree's business_type is the line of business, chosen from its own list (not the legal form).
+          business_type: shop.listing_mode === 'food' ? 'Food and Beverages' : 'Retail and Shopping',
           pan: identity.pan
         }
       };

@@ -24,6 +24,11 @@ function requireCron(request: FastifyRequest) {
 
 /** A refund Cashfree has refused or abandoned must not be recorded as money returned. */
 const FAILED = /^(CANCELLED|FAILED|REJECTED)$/i;
+/**
+ * Cashfree has the refund but is holding it (for example until the account has enough balance or
+ * someone approves it). Money has not moved yet, so it is not recorded; the next run looks again.
+ */
+const WAITING = /^(ONHOLD|PENDING_APPROVAL)$/i;
 
 export const internalRoutes: FastifyPluginAsync = async (app) => {
   /**
@@ -37,6 +42,7 @@ export const internalRoutes: FastifyPluginAsync = async (app) => {
     const pending = await asService((q) => q.rows<Pending>('select * from orders_needing_refund()'));
 
     let refunded = 0;
+    const waiting: string[] = [];
     const failed: string[] = [];
 
     for (const item of pending) {
@@ -64,6 +70,10 @@ export const internalRoutes: FastifyPluginAsync = async (app) => {
         }
 
         if (refund.refund_status && FAILED.test(refund.refund_status)) throw new Error(`refund ${refund.refund_status}`);
+        if (refund.refund_status && WAITING.test(refund.refund_status)) {
+          waiting.push(item.order_id);
+          continue;
+        }
 
         await asService((q) =>
           q.rows('select record_refund($1, $2, $3)', [item.order_id, String(refund.cf_refund_id ?? refundId), item.amount_paise])
@@ -75,6 +85,6 @@ export const internalRoutes: FastifyPluginAsync = async (app) => {
       }
     }
 
-    return { refunded, failed };
+    return { refunded, waiting, failed };
   });
 };

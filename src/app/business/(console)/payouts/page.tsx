@@ -3,6 +3,7 @@ import { requireShop } from '@/lib/business/shop';
 import { type PayoutAccount, type PayoutStatus } from '@/lib/payments/api';
 import { serverApi } from '@/lib/api/server';
 import { PayoutForm } from '@/components/business/payout-form';
+import { AutoRefresh } from '@/components/orders/auto-refresh';
 import { Badge } from '@/components/ui/badge';
 import { Card, Eyebrow } from '@/components/ui/card';
 import { formatPaise } from '@/lib/utils';
@@ -37,10 +38,10 @@ const ACCOUNT_BADGE: Record<PayoutStatus, { tone: 'success' | 'warning' | 'dange
 
 const ACCOUNT_BODY: Record<PayoutStatus, string> = {
   activated: 'Customers can pay online. Their money goes straight to your bank account.',
-  under_review: 'Our payment partner is checking your details. This usually takes a day or two. Until then customers pay you by UPI.',
+  under_review: 'Cashfree is checking your bank details. This page updates by itself, so you can leave it open. Until it is ready, customers pay you by UPI or cash.',
   created: 'Your account is being set up. Save your bank details to finish.',
-  needs_clarification: 'Your payment partner needs a few more details before they can send you money.',
-  rejected: 'Your payment partner could not approve these details. Check them and try again.'
+  needs_clarification: 'Cashfree could not accept these details yet. Fix what it says below and save again.',
+  rejected: 'Cashfree could not approve these details. Check them and try again.'
 };
 
 export default async function PayoutsPage() {
@@ -102,6 +103,8 @@ export default async function PayoutsPage() {
           <>
             {account && (
               <>
+                {/* While Cashfree is still checking, look again every few seconds so a result shows without a reload. */}
+                {(account.status === 'under_review' || account.status === 'created') && <AutoRefresh everyMs={5_000} />}
                 <p className="text-sm leading-relaxed text-[var(--text-muted)]">{ACCOUNT_BODY[account.status]}</p>
                 {account.bank_last4 && (
                   <dl className="grid gap-1 rounded-[18px] bg-[var(--tile)] p-3.5 text-sm">
@@ -121,14 +124,14 @@ export default async function PayoutsPage() {
                 )}
                 {account.status_detail && (
                   <p className="rounded-[16px] bg-warning/12 px-4 py-3 text-sm font-medium ring-1 ring-warning/35">
-                    Still needed: {account.status_detail}
+                    Cashfree says: {account.status_detail}
                   </p>
                 )}
               </>
             )}
 
             {account?.bank_last4 ? (
-              <details className="border-t border-[var(--line)] pt-3">
+              <details open={account.status === 'needs_clarification' || account.status === 'rejected'} className="border-t border-[var(--line)] pt-3">
                 <summary className="cursor-pointer text-sm font-bold text-[var(--leaf-ink)]">
                   Change bank details
                 </summary>

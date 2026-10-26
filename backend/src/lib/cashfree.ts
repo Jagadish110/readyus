@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { config } from '../config.js';
 import { asService } from './db.js';
 import { AppError } from './errors.js';
@@ -47,7 +47,10 @@ export async function cashfree<T>(method: 'GET' | 'POST' | 'PATCH', path: string
       'content-type': 'application/json',
       'x-client-id': id,
       'x-client-secret': key,
-      'x-api-version': config.CASHFREE_API_VERSION
+      'x-api-version': config.CASHFREE_API_VERSION,
+      // Cashfree requires a unique key on writes (it makes a retried request safe). A fresh one per
+      // call is correct here: our own checks (stable order and refund ids) are what prevent duplicates.
+      ...(method === 'GET' ? {} : { 'x-idempotency-key': randomUUID() })
     },
     body: body ? JSON.stringify(body) : undefined,
     signal: AbortSignal.timeout(20_000)
@@ -150,13 +153,16 @@ export type CashfreeVendor = {
   vendor_id?: string;
   status?: string;
   remarks?: string;
-  related_docs?: Array<{ status?: string; doc_type?: string; remarks?: string }>;
+  related_docs?: Array<{ doc_name?: string; doc_value?: string; status?: string; remarks?: string }>;
 };
 
 /** A readable reason when Cashfree needs something more from the shop. */
 export function vendorProblem(vendor: CashfreeVendor): string {
+  // Cashfree lists every document it knows about; one a shop never gave (like a GSTIN for an
+  // individual) comes back empty and is not a problem, so only documents with a value or a
+  // complaint are worth showing.
   const docs = (vendor.related_docs ?? [])
-    .filter((doc) => doc.status && !/^(verified|success|approved)$/i.test(doc.status))
-    .map((doc) => (doc.doc_type ?? 'document').replace(/_/g, ' ') + (doc.remarks ? ` (${doc.remarks})` : ''));
-  return [vendor.remarks, ...docs].filter(Boolean).join(', ');
+    .filter((doc) => doc.status && !/^(verified|success|approved|active)$/i.test(doc.status) && (doc.remarks || doc.doc_value))
+    .map((doc) => (doc.doc_name ?? 'document') + (doc.remarks ? ` (${doc.remarks})` : ''));
+  return [vendor.remarks, ...docs].filter(Boolean).join('; ');
 }
