@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { api } from '@/lib/api/client';
@@ -163,6 +164,15 @@ export function ApplyForm() {
         <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
           We review every shop before it goes live, and we will notify you the moment it is approved.
         </p>
+        <p className="mt-3 text-sm leading-relaxed text-[var(--text-muted)]">
+          Next step: upload your FSSAI licence. Food shops cannot be approved without it.
+        </p>
+        <Link
+          href="/business/documents"
+          className="mt-5 inline-flex h-12 items-center rounded-full bg-leaf-600 px-7 text-[0.95rem] font-bold text-white shadow-[0_10px_26px_rgb(36_101_64/0.3)]"
+        >
+          Upload documents
+        </Link>
         {photoMissed && (
           <p className="mt-3 text-sm leading-relaxed text-[var(--text-muted)]">
             Your shop photo could not be uploaded. Everything else was saved.

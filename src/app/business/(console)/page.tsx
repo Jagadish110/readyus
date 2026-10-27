@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, Eyebrow } from '@/components/ui/card';
 import { ButtonLink } from '@/components/ui/button';
 import { ShopControls } from '@/components/business/shop-controls';
+import { fssaiAttention, loadDocuments } from '@/lib/business/documents';
 
 export const metadata: Metadata = { title: 'Seller dashboard' };
 export const dynamic = 'force-dynamic';
@@ -27,6 +28,9 @@ export default async function DashboardPage() {
   const online = await serverApi<{ ready: string[] }>(`/v1/shops/online?ids=${shop.id}`);
   // If the backend is unreachable, do not nag the owner to add details they may already have.
   const acceptsOnline = !online.ok || online.data.ready.includes(shop.id);
+
+  const documents = await loadDocuments();
+  const attention = documents ? fssaiAttention(documents) : null;
 
   const stats = [
     { label: 'Products', value: products.length },
@@ -76,6 +80,20 @@ export default async function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      {(attention || (documents?.fssaiRequired && shop.status === 'pending')) && (
+        <Card className="flex flex-wrap items-center justify-between gap-3 p-5 ring-1 ring-warning/35 sm:p-6">
+          <div className="min-w-0">
+            <h2 className="font-display text-lg font-extrabold tracking-[-0.03em]">
+              {attention?.message ?? 'Add your FSSAI licence so we can approve your shop'}
+            </h2>
+            <p className="text-sm text-[var(--text-muted)]">Food shops need a valid FSSAI licence. It takes two minutes to upload.</p>
+          </div>
+          <ButtonLink href="/business/documents" variant="leaf" size="sm">
+            Open documents
+          </ButtonLink>
+        </Card>
+      )}
 
       {shop.status === 'approved' && !acceptsOnline && (
         <Card className="flex flex-wrap items-center justify-between gap-3 p-5 ring-1 ring-warning/35 sm:p-6">

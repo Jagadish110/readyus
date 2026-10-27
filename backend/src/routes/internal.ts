@@ -99,11 +99,13 @@ export const internalRoutes: FastifyPluginAsync = async (app) => {
     return { closed: row?.closed ?? 0 };
   });
 
-  /** In-app reminders about trials ending and overdue subscriptions. Run hourly. */
+  /** In-app reminders about trials ending, overdue subscriptions and licences expiring. Run hourly. */
   app.post('/billing/reminders', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request) => {
     requireCron(request);
-    const row = await asService((q) => q.one<{ looked_at: number }>('select billing_reminders() as looked_at'));
-    return { lookedAt: row?.looked_at ?? 0 };
+    const row = await asService((q) =>
+      q.one<{ billing: number; compliance: number }>('select billing_reminders() as billing, compliance_reminders() as compliance')
+    );
+    return { lookedAt: row?.billing ?? 0, compliance: row?.compliance ?? 0 };
   });
 
   /**

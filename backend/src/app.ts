@@ -15,6 +15,7 @@ import { internalRoutes } from './routes/internal.js';
 import { publicRoutes } from './routes/public.js';
 import { accountRoutes } from './routes/account.js';
 import { billingRoutes } from './routes/billing.js';
+import { documentRoutes } from './routes/documents.js';
 import { riderRoutes } from './routes/rider.js';
 import { adminRoutes } from './routes/admin.js';
 
@@ -90,6 +91,7 @@ export async function buildApp() {
   await app.register(sellerRoutes, { prefix: '/v1/seller' });
   await app.register(sellerConsoleRoutes, { prefix: '/v1/seller' });
   await app.register(billingRoutes, { prefix: '/v1/seller/billing' });
+  await app.register(documentRoutes, { prefix: '/v1/seller/documents' });
   await app.register(publicRoutes, { prefix: '/v1/public' });
   await app.register(accountRoutes, { prefix: '/v1' });
   await app.register(riderRoutes, { prefix: '/v1/rider' });

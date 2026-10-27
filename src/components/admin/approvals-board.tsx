@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { ShopDocuments } from './shop-documents';
 
 export type PendingSeller = {
   id: string;
@@ -33,11 +34,20 @@ export type PendingProduct = {
   sellers: { shop_name: string } | null;
 };
 
-type Tab = 'shops' | 'products';
+type Tab = 'shops' | 'products' | 'documents';
+
+export type PendingDocuments = {
+  seller_id: string;
+  shop_name: string;
+  listing_mode: string;
+  kinds: string[];
+  waiting_since: string;
+};
 
 const ERRORS: Record<string, string> = {
   ADMIN_ONLY: 'Only an admin can review applications.',
   SELLER_NOT_FOUND: 'That shop no longer exists.',
+  FSSAI_REQUIRED: 'A food shop needs an approved, unexpired FSSAI licence. Approve its document above first.',
   PRODUCT_NOT_FOUND: 'That product no longer exists.'
 };
 
@@ -47,10 +57,12 @@ function when(iso: string) {
 
 export function ApprovalsBoard({
   sellers: initialSellers,
-  products: initialProducts
+  products: initialProducts,
+  documents = []
 }: {
   sellers: PendingSeller[];
   products: PendingProduct[];
+  documents?: PendingDocuments[];
 }) {
   const router = useRouter();
   const [tab, setTab] = useState<Tab>('shops');
@@ -87,7 +99,8 @@ export function ApprovalsBoard({
 
   const tabs: Array<{ key: Tab; label: string; count: number }> = [
     { key: 'shops', label: 'Shops', count: sellers.length },
-    { key: 'products', label: 'Products', count: products.length }
+    { key: 'products', label: 'Products', count: products.length },
+    { key: 'documents', label: 'Documents', count: documents.length }
   ];
 
   function declineBox(id: string, kind: Tab) {
@@ -149,7 +162,7 @@ export function ApprovalsBoard({
     );
   }
 
-  const list = tab === 'shops' ? sellers : products;
+  const list = tab === 'shops' ? sellers : tab === 'products' ? products : documents;
 
   return (
     <div className="grid gap-4">
@@ -192,7 +205,7 @@ export function ApprovalsBoard({
         <Card className="animate-rise p-8 text-center [animation-delay:100ms]">
           <p className="font-display text-lg font-extrabold tracking-[-0.03em]">Nothing is waiting</p>
           <p className="mt-1 text-sm text-[var(--text-muted)]">
-            New {tab === 'shops' ? 'shop applications' : 'products'} will show up here.
+            New {tab === 'shops' ? 'shop applications' : tab === 'products' ? 'products' : 'licence renewals and late documents from live shops'} will show up here.
           </p>
         </Card>
       )}
@@ -242,8 +255,26 @@ export function ApprovalsBoard({
               </div>
             </dl>
 
+            <ShopDocuments sellerId={shop.id} foodShop={shop.listing_mode === 'food'} />
+
             {actions(shop.id, 'shops')}
             {declining === shop.id && declineBox(shop.id, 'shops')}
+          </Card>
+        ))}
+
+      {tab === 'documents' &&
+        documents.map((item) => (
+          <Card key={item.seller_id} className="animate-rise p-5">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0">
+                <h2 className="font-display text-lg font-extrabold tracking-[-0.03em] break-words">{item.shop_name}</h2>
+                <p className="text-sm text-[var(--text-muted)]">
+                  Waiting since {when(item.waiting_since)} · {item.kinds.map((kind) => kind.toUpperCase()).join(', ')}
+                </p>
+              </div>
+              <Badge tone="leaf-soft">{item.listing_mode === 'food' ? 'Food' : 'Items'}</Badge>
+            </div>
+            <ShopDocuments sellerId={item.seller_id} foodShop={item.listing_mode === 'food'} onChange={() => startTransition(() => router.refresh())} />
           </Card>
         ))}
 

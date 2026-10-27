@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { requireUser } from '../lib/auth.js';
 import { asUser, databaseMessage, type Q } from '../lib/db.js';
 import { AppError } from '../lib/errors.js';
+import { supabase } from '../lib/supabase.js';
+import { DOCUMENT_BUCKET } from './documents.js';
 
 const idParams = z.object({ id: z.string().uuid() });
 
@@ -28,7 +30,7 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/approvals', async (request) => {
     return requireAdmin(request, async (q) => {
-      const [sellers, products] = await Promise.all([
+      const [sellers, products, documents] = await Promise.all([
         q.rows(
           `select id, shop_name, owner_name, phone, category, listing_mode, address, city, pincode, created_at,
                   case when location is null then null
@@ -40,9 +42,10 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
                   jsonb_build_object('shop_name', s.shop_name) as sellers
            from products p left join sellers s on s.id = p.seller_id
            where p.approval_status = 'pending' order by p.created_at desc`
-        )
+        ),
+        q.rows('select * from admin_pending_documents()')
       ]);
-      return { sellers, products };
+      return { sellers, products, documents };
     });
   });
 
@@ -69,4 +72,32 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
     return { ok: true };
   });
+
+  /** A shop's documents with short-lived links to the files (private storage, so each link expires in 5 minutes). */
+  app.get('/sellers/:id/documents', async (request) => {
+    const { id } = idParams.parse(request.params);
+    const rows = await requireAdmin(request, (q) =>
+      q.rows<{ kind: string; file_path: string }>('select * from admin_seller_documents($1)', [id])
+    );
+    const documents = await Promise.all(
+      rows.map(async ({ file_path, ...rest }) => {
+        const signed = await supabase.storage.from(DOCUMENT_BUCKET).createSignedUrl(file_path, 300);
+        return { ...rest, url: signed.data?.signedUrl ?? null, isPdf: file_path.toLowerCase().endsWith('.pdf') };
+      })
+    );
+    return { documents };
+  });
+
+  app.post('/sellers/:id/documents/:kind', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request) => {
+    const { id, kind } = z.object({ id: z.string().uuid(), kind: z.enum(['fssai', 'gst']) }).parse(request.params);
+    const { approve, note } = review.parse(request.body);
+    try {
+      await requireAdmin(request, (q) => q.rows('select review_seller_document($1, $2, $3, $4)', [id, kind, approve, note]));
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      ruleError(error);
+    }
+    return { ok: true };
+  });
 };
+

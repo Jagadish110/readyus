@@ -54,7 +54,7 @@ scheduler (Render/Railway cron, cron-job.org) works the same way. All of them ar
 |---|---|---|
 | Close orders nobody will act on: paid orders the shop ignored past the deadline become `timed_out`; orders left unpaid for 30 minutes are cancelled and their stock returned | `POST /internal/orders/expire` | every 5 minutes |
 | Refund online payments on declined/cancelled/timed-out orders | `POST /internal/refunds/sweep` | every 5 minutes (right after the one above) |
-| In-app reminders: trial ending, payment overdue, shop hidden | `POST /internal/billing/reminders` | hourly |
+| In-app reminders: trial ending, payment overdue, shop hidden, FSSAI licence expiring or missing | `POST /internal/billing/reminders` | hourly |
 | Ask Cashfree about subscriptions whose webhook may have been missed | `POST /internal/billing/resync` | every 4 hours |
 
 ## Subscription (monthly fee from shops)

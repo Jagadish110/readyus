@@ -15,10 +15,10 @@ CI and a database test suite. Delivery partners have their own login (`/delivery
 1. **Notifications that reach a phone.** Today they are rows inside the app. Needed: SMS or WhatsApp for new
    orders (shops), rider assignment (riders), status (customers), subscription reminders. India SMS needs DLT
    template registration: start early.
-2. **Owner KYC and compliance:** FSSAI licence number and expiry for food shops, GSTIN where registered, shop
-   licence/photos, private document storage and an admin screen to review them. Name match between PAN, owner and
-   bank holder.
-3. **GST invoices** for the monthly subscription, and the subscription price decision (it is a placeholder, Rs 499).
+2. **Owner KYC, remaining parts:** FSSAI and GSTIN are built (see `docs/COMPLIANCE.md`). Still to do: name match between
+   certificate, PAN, owner and bank holder; shop licence and premises photos if wanted; document deletion on request.
+   **Get the GST / TDS questions in `docs/COMPLIANCE.md` section 4 answered by a CA before launch.**
+3. **GST invoices** for the monthly subscription (needs Localty's own GSTIN), and the subscription price decision (a placeholder, Rs 499). Open question: whether Localty itself owes GST on restaurant orders (Section 9(5)), see `docs/COMPLIANCE.md`.
 4. **Gateway-fee decision** (who pays Cashfree's per-payment fee). Today Localty absorbs it.
 5. **Legal pages:** terms for shops, customers and riders, privacy policy (location data), refund and cancellation
    policy. **These pages do not exist yet**: the sign-in page already links to `/legal/terms` and `/legal/privacy`, and both currently show "not found". Have them written or reviewed by a lawyer; do not ship placeholder text.

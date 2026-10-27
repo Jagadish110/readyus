@@ -86,4 +86,10 @@ export const publicRoutes: FastifyPluginAsync = async (app) => {
       )
     };
   });
+
+  /** FSSAI numbers of shops, shown to customers as the law requires. Only reviewed, unexpired licences appear. */
+  app.get('/licences', limits, async (request) => {
+    const { ids } = z.object({ ids: z.string().regex(/^[0-9a-f-]{36}(,[0-9a-f-]{36}){0,49}$/i) }).parse(request.query);
+    return { rows: await asAnon((db) => db.rows('select * from seller_licences($1::uuid[])', [ids.split(',')])) };
+  });
 };

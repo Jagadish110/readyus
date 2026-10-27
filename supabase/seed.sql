@@ -60,3 +60,8 @@ insert into public.products (id, seller_id, name, description, category_key, lis
   ('9a3c9379-0df7-400d-aaa8-904e1adf82e2', '88077c27-81ff-415e-a32d-c4b5ab0c64c6', 'Banana (dozen)', 'Yelakki variety, naturally ripened.', 'fruits', 'items', 60, 72, '12 pcs', 48, 'veg', 'approved', true, true, 4.5, 112),
   ('7a9a3e68-f87b-48df-a84c-5f5fc06e6e5a', '88077c27-81ff-415e-a32d-c4b5ab0c64c6', 'Shimla Apples 1kg', 'Crisp and sweet.', 'fruits', 'items', 180, 220, '1 kg', 30, 'veg', 'approved', true, true, 4.4, 58)
 on conflict (id) do update set price = excluded.price, mrp = excluded.mrp, stock = excluded.stock, approval_status = 'approved';
+
+-- Demo shops carry no real licence: exempt them from the FSSAI rule so they stay visible.
+update public.sellers
+   set documents_due_at = now() + interval '3650 days'
+ where user_id in (select id from auth.users where email like '%@readyus.test');

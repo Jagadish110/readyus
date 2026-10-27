@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Wordmark } from '@/components/brand/logo';
 import { BillingBanner } from '@/components/business/billing-banner';
+import { ComplianceBanner } from '@/components/business/compliance-banner';
 import { BusinessNav } from '@/components/business/business-nav';
 
 export default function ConsoleLayout({ children }: { children: React.ReactNode }) {
@@ -24,6 +25,7 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
         </div>
       </header>
       <BillingBanner />
+      <ComplianceBanner />
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-6 pb-16 sm:px-6">{children}</main>
     </div>
   );

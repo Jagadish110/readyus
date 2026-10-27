@@ -11,7 +11,7 @@ const setSub = (sellerId: string, set: string) => asService((q) => q.rows(`updat
 const pay = (sellerId: string, id: string, amount = 49900, at = new Date()) =>
   asService((q) => q.one<{ r: boolean }>('select record_subscription_payment($1, $2, $3, $4) as r', [sellerId, id, amount, at])).then((row) => row!.r);
 const discoverable = (sellerId: string) =>
-  asAnon((q) => q.rows<{ id: string }>('select id from nearby_sellers(17.3855, 78.4880, 5)')).then((rows) => rows.some((row) => row.id === sellerId));
+  asAnon((q) => q.rows<{ id: string }>('select id from nearby_sellers(17.3855, 78.4880, 5, null, false, null, 1000, 0)')).then((rows) => rows.some((row) => row.id === sellerId));
 const billable = (sellerId: string) =>
   asService((q) => q.one<{ b: boolean }>('select shop_is_billable($1) as b', [sellerId])).then((row) => row!.b);
 
@@ -54,7 +54,7 @@ describe.skipIf(!HAS_DB)('subscription state (database)', () => {
     await setSub(shop.sellerId, `trial_ends_at = ${days(-10)}`);
 
     expect(await discoverable(shop.sellerId)).toBe(false);
-    const products = await asAnon((q) => q.rows<{ seller_id: string }>('select seller_id from nearby_products(17.3855, 78.4880, 5)'));
+    const products = await asAnon((q) => q.rows<{ seller_id: string }>('select seller_id from nearby_products(17.3855, 78.4880, 5, null, null, null, \'distance\', null, 1000, 0)'));
     expect(products.some((row) => row.seller_id === shop.sellerId)).toBe(false);
     const categories = await asAnon((q) => q.rows<{ category_key: string }>('select * from nearby_categories(17.3855, 78.4880, 5)'));
     expect(categories.some((row) => row.category_key === shop.category)).toBe(false);

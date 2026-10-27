@@ -1,17 +1,18 @@
 import type { Metadata } from 'next';
 import { serverApi } from '@/lib/api/server';
 import { Eyebrow } from '@/components/ui/card';
-import { ApprovalsBoard, type PendingProduct, type PendingSeller } from '@/components/admin/approvals-board';
+import { ApprovalsBoard, type PendingDocuments, type PendingProduct, type PendingSeller } from '@/components/admin/approvals-board';
 
 export const metadata: Metadata = { title: 'Approvals' };
 export const dynamic = 'force-dynamic';
 
 export default async function ApprovalsPage() {
   // The backend checks the caller is an admin and reads the pending lists as them.
-  const result = await serverApi<{ sellers: PendingSeller[]; products: PendingProduct[] }>('/v1/admin/approvals');
+  const result = await serverApi<{ sellers: PendingSeller[]; products: PendingProduct[]; documents: PendingDocuments[] }>('/v1/admin/approvals');
 
   const sellers = result.ok ? result.data.sellers : [];
   const products = result.ok ? result.data.products : [];
+  const documents = result.ok ? result.data.documents : [];
   const loadError = result.ok
     ? ''
     : result.status === 403
@@ -39,7 +40,7 @@ export default async function ApprovalsPage() {
         </p>
       )}
 
-      <ApprovalsBoard sellers={sellers} products={products} />
+      <ApprovalsBoard sellers={sellers} products={products} documents={documents} />
     </div>
   );
 }

@@ -18,7 +18,7 @@ export async function makeUser(label = 'user') {
 }
 
 /** An approved, visible shop with one product. Approval starts its free trial. */
-export async function makeShop(opts: { approved?: boolean; stock?: number } = {}) {
+export async function makeShop(opts: { approved?: boolean; stock?: number; fssai?: boolean } = {}) {
   const userId = await makeUser('owner');
   const sellerId = await asService(async (q) => {
     const seller = await q.one<{ id: string }>(
@@ -28,6 +28,8 @@ export async function makeShop(opts: { approved?: boolean; stock?: number } = {}
     );
     return seller!.id;
   });
+  // Food shops need a reviewed FSSAI licence to trade; by default the test shop has one.
+  if (opts.fssai !== false) await addFssai(sellerId);
   const productId = await asService(async (q) => {
     const product = await q.one<{ id: string }>(
       `insert into products (seller_id, name, price, stock, approval_status, category_key)
@@ -95,3 +97,15 @@ export async function makeRider(sellerId: string) {
 /** The delivery profile id of a rider's user (what a shop assigns an order to). */
 export const agentOf = (userId: string) =>
   asService((q) => q.one<{ id: string }>('select id from delivery_agents where user_id = $1', [userId])).then((row) => row!.id);
+
+/** An approved FSSAI document, valid for a year unless told otherwise. */
+export async function addFssai(sellerId: string, validDays = 365, status: 'approved' | 'pending' | 'rejected' = 'approved') {
+  await asService((q) =>
+    q.rows(
+      `insert into seller_documents (seller_id, kind, number, valid_until, file_path, status)
+       values ($1, 'fssai', '12345678901234', current_date + $2::int, $3, $4)
+       on conflict (seller_id, kind) do update set valid_until = excluded.valid_until, status = excluded.status`,
+      [sellerId, validDays, `${sellerId}/fssai-test.pdf`, status]
+    )
+  );
+}

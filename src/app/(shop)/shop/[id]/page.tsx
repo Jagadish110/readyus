@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { readLocation } from '@/lib/data/location';
-import { getNearbyProducts, getSellerById } from '@/lib/data/marketplace';
+import { getFssaiNumber, getNearbyProducts, getSellerById } from '@/lib/data/marketplace';
 import { LocationGate } from '@/components/shell/location-gate';
 import { ProductCard } from '@/components/marketplace/product-card';
 import { SectionTitle } from '@/components/ui/card';
@@ -26,7 +26,7 @@ async function ShopDetail({ id }: { id: string }) {
   const shop = await getSellerById(id, query);
   if (!shop) notFound();
 
-  const products = await getNearbyProducts({ ...query, sellerId: id, limit: 100 });
+  const [products, fssai] = await Promise.all([getNearbyProducts({ ...query, sellerId: id, limit: 100 }), getFssaiNumber(id)]);
 
   // Group the menu by category so a long list stays readable.
   const sections = new Map<string, typeof products>();
@@ -106,6 +106,11 @@ async function ShopDetail({ id }: { id: string }) {
               </li>
             )}
           </ul>
+          {fssai && (
+            <p className="mt-4 text-xs font-semibold text-[var(--text-muted)]">
+              FSSAI Lic. No. <span className="tabular-nums">{fssai}</span>
+            </p>
+          )}
         </div>
       </header>
 

@@ -67,6 +67,7 @@ Migrations are ordered and idempotent to apply in sequence.
 | `0025_foundation_hardening` | Stronger delivery code with lockout, expiry of ignored paid orders and abandoned payments |
 | `0026_subscriptions` | Monthly shop subscription: trial, grace, suspension, gating |
 | `0027_assign_delivery` | The shop assigns its own delivery partner (replaces the open claim) |
+| `0028_shop_documents` | FSSAI and GST documents, FSSAI-gated approval, expiry hides a food shop, licence shown to customers |
 
 ### Money
 

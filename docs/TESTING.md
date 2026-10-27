@@ -7,7 +7,7 @@ must not overwrite each other.
 ## 0. One-time setup
 
 1. **Supabase project** (supabase.com). Run every file in `supabase/migrations/` in order
-   (`0001` ... `0027`), or `supabase db push`. Optional: run `supabase/seed.sql` for five demo shops.
+   (`0001` ... `0028`), or `supabase db push`. Optional: run `supabase/seed.sql` for five demo shops.
 2. **Supabase Auth settings.** Authentication -> Providers -> Email: for testing, turn **off**
    "Confirm email" so sign-up logs you straight in.
 3. **Cashfree sandbox account** (merchant.cashfree.com, "Test" mode). Ask Cashfree to enable
@@ -35,13 +35,23 @@ must not overwrite each other.
 
 1. Sign up at `/sign-up` with the owner email. Open `/business/apply`.
 2. Fill the two steps (shop details, pin the shop on the map, delivery radius). Submit.
-   **Check:** the page says the application is waiting for review.
-3. Sign in as **admin**, open `/admin/approvals`, approve the shop.
+   **Check:** the page says the application is waiting for review and offers **Upload documents**.
+3. **FSSAI licence (food shops).** Owner: `/business/documents` -> FSSAI card: 14-digit number (any 14 digits in a
+   test), expiry date in the future, any PDF or photo -> Submit.
+   **Check:** a 13-digit number is refused with "exactly 14 digits"; after a good submit the card says "Under review".
+   Optional: add a GSTIN. Use `27AAPFU0939F1ZV` (valid format and check character); change the last letter to see it refused.
+4. Sign in as **admin**, open `/admin/approvals`. The shop card shows a **Documents** section with a link to the file
+   (it opens for 5 minutes). First press **Approve** on the shop without approving the document:
+   **Check:** it is refused ("A food shop needs an approved, unexpired FSSAI licence"). Press **Approve document**,
+   then **Approve** the shop.
    **Check:** the owner's `/business` now says "Approved". A 30-day free trial starts automatically:
-   `/business/billing` shows "30 days of free trial left".
-4. Owner: `/business/products/new`. Add 2-3 dishes with price, a photo, in stock. Products go live on save
+   `/business/billing` shows "30 days of free trial left". Customers now see "FSSAI Lic. No. ..." on the shop page.
+5. **Expiry test.** In SQL: `update seller_documents set valid_until = current_date - 1 where kind = 'fssai' and seller_id = '<shop id>';`
+   **Check:** the shop disappears from `/browse`, the owner sees a red strip and dashboard card, and checkout refuses new
+   orders ("not taking new orders"). Upload a renewal; the admin finds it under **Approvals -> Documents**; approve it and the shop returns.
+6. Owner: `/business/products/new`. Add 2-3 dishes with price, a photo, in stock. Products go live on save
    (migration 0013).
-5. Owner: `/business` -> toggle "Taking orders" on, set the delivery radius and opening hours -> Save.
+7. Owner: `/business` -> toggle "Taking orders" on, set the delivery radius and opening hours -> Save.
 
 ## 2. Shop owner: bank details (needed for online payments)
 
@@ -135,7 +145,7 @@ What happens when the owner presses Save on `/business/payouts` (code: `backend/
    (Cashfree's cycle is typically T+2). Localty never holds it.
 
 **What is not verified by Localty itself (gaps):** nobody compares the bank holder name with the PAN or owner
-name; no documents (FSSAI licence, GSTIN, shop licence) are collected; changing bank details does not reset the
+name; the FSSAI licence and GSTIN are collected and reviewed (see `docs/COMPLIANCE.md`) but a shop licence is not; changing bank details does not reset the
 shop to "being verified" on our side until Cashfree says so. These are listed in `docs/REMAINING-FEATURES.md`.
 
 ## 8. Online payment test (sandbox)

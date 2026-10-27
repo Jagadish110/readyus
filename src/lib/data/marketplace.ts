@@ -141,6 +141,18 @@ export async function getNearbyCategories(query: MarketplaceQuery): Promise<Near
   });
 }
 
+/** The shop's reviewed, unexpired FSSAI number, shown to customers; null when there is none to show. */
+export async function getFssaiNumber(sellerId: string): Promise<string | null> {
+  if (usingFixtures()) return null;
+  try {
+    const rows = await callApi<{ seller_id: string; fssai_number: string }>('/licences', { ids: sellerId });
+    return rows[0]?.fssai_number ?? null;
+  } catch {
+    // A missing licence line must never stop the menu from loading.
+    return null;
+  }
+}
+
 export async function getSellerById(id: string, query: MarketplaceQuery) {
   const sellers = await getNearbySellers({ ...query, limit: 100, search: undefined });
   return sellers.find((seller) => seller.id === id) ?? null;
