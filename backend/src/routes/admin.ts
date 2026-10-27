@@ -99,5 +99,85 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
     }
     return { ok: true };
   });
+  const search = z.object({
+    q: z.string().trim().max(80).default(''),
+    status: z.string().trim().max(40).default(''),
+    limit: z.coerce.number().int().min(1).max(200).default(50)
+  });
+  const suspend = z.object({ suspend: z.boolean(), reason: z.string().trim().max(300).default('') });
+
+  /** Runs one database function as the admin and turns its rule errors into 409s. */
+  async function run<T>(request: FastifyRequest, work: (q: Q, userId: string) => Promise<T>): Promise<T> {
+    try {
+      return await requireAdmin(request, work);
+    } catch (error) {
+      if (error instanceof AppError) throw error;
+      ruleError(error);
+    }
+  }
+
+  app.get('/overview', async (request) => run(request, async (q) => (await q.one<{ overview: unknown }>('select admin_overview() as overview'))?.overview));
+
+  app.get('/shops', async (request) => {
+    const { q: term, limit } = search.parse(request.query);
+    return { shops: await run(request, (q) => q.rows('select * from admin_shops($1, $2)', [term, limit])) };
+  });
+
+  app.post('/shops/:id/suspend', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request) => {
+    const { id } = idParams.parse(request.params);
+    const body = suspend.parse(request.body);
+    await run(request, (q) => q.rows('select admin_set_shop_suspended($1, $2, $3)', [id, body.suspend, body.reason]));
+    return { ok: true };
+  });
+
+  app.get('/riders', async (request) => {
+    const { q: term, limit } = search.parse(request.query);
+    return { riders: await run(request, (q) => q.rows('select * from admin_riders($1, $2)', [term, limit])) };
+  });
+
+  app.post('/riders/:id/suspend', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request) => {
+    const { id } = idParams.parse(request.params);
+    const body = suspend.parse(request.body);
+    await run(request, (q) => q.rows('select admin_set_rider_suspended($1, $2, $3)', [id, body.suspend, body.reason]));
+    return { ok: true };
+  });
+
+  app.get('/orders', async (request) => {
+    const { q: term, status, limit } = search.parse(request.query);
+    return { orders: await run(request, (q) => q.rows('select * from admin_orders($1, $2, $3)', [term, status, limit])) };
+  });
+
+  app.get('/orders/:id', async (request) => {
+    const { id } = idParams.parse(request.params);
+    return run(request, async (q) => (await q.one<{ detail: unknown }>('select admin_order_detail($1) as detail', [id]))?.detail);
+  });
+
+  app.post('/orders/:id/refund', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request) => {
+    const { id } = idParams.parse(request.params);
+    const body = z.object({ amount_paise: z.number().int().positive().max(10_000_000), reason: z.string().trim().max(200).default('') }).parse(request.body);
+    await run(request, (q) => q.rows('select admin_request_refund($1, $2, $3)', [id, body.amount_paise, body.reason]));
+    return { ok: true };
+  });
+
+  app.post('/issues/:id/resolve', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request) => {
+    const { id } = idParams.parse(request.params);
+    const body = z.object({ note: z.string().trim().max(300).default('') }).parse(request.body);
+    await run(request, (q) => q.rows('select resolve_order_issue($1, $2)', [id, body.note]));
+    return { ok: true };
+  });
+
+  app.get('/admins', async (request) => ({ admins: await run(request, (q) => q.rows('select * from admin_list_admins()')) }));
+
+  app.post('/admins', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (request) => {
+    const { email } = z.object({ email: z.string().trim().toLowerCase().email().max(200) }).parse(request.body);
+    await run(request, (q) => q.rows('select admin_grant_admin($1)', [email]));
+    return { ok: true };
+  });
+
+  app.post('/admins/:id/remove', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (request) => {
+    const { id } = idParams.parse(request.params);
+    await run(request, (q) => q.rows('select admin_revoke_admin($1)', [id]));
+    return { ok: true };
+  });
 };
 

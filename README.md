@@ -72,6 +72,7 @@ Migrations are ordered and idempotent to apply in sequence.
 | `0030_order_exits` | Shop cancel, failed delivery, rider hand-back, refunds, cash handover, customer problem reports |
 | `0031_hours_and_auto_accept` | Opening hours enforced at order time, optional auto-accept |
 | `0032_account_and_cleanup` | Account erasure (`anonymize_customer`), drops unused `notification_devices` |
+| `0033_admin_console` | Pause a shop or rider, order search and timeline, admin management, audit trail |
 
 ### Money
 
