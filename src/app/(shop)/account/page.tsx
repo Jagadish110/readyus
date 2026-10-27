@@ -6,6 +6,8 @@ import { serverApi } from '@/lib/api/server';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/card';
 import { signOut } from './actions';
+import { AddressBook } from '@/components/account/address-book';
+import { DataControls } from '@/components/account/data-controls';
 
 export const metadata: Metadata = { title: 'Your account' };
 
@@ -120,6 +122,10 @@ export default async function AccountPage() {
         )}
       </section>
 
+      <AddressBook />
+
+      <DataControls />
+
       <form action={signOut} className="animate-rise [animation-delay:160ms]">
         <Button type="submit" variant="outline" size="lg" fullWidth>
           Sign out
@@ -127,11 +133,11 @@ export default async function AccountPage() {
       </form>
 
       <p className="text-center text-xs text-[var(--text-muted)]">
-        Need help? Visit{' '}
-        <Link href="/legal/privacy" className="font-semibold text-[var(--leaf-ink)] hover:underline">
-          Privacy
-        </Link>
-        .
+        <Link href="/legal/terms" className="font-semibold text-[var(--leaf-ink)] hover:underline">Terms</Link>
+        {' · '}
+        <Link href="/legal/privacy" className="font-semibold text-[var(--leaf-ink)] hover:underline">Privacy</Link>
+        {' · '}
+        <Link href="/legal/refunds" className="font-semibold text-[var(--leaf-ink)] hover:underline">Refunds</Link>
       </p>
     </div>
   );

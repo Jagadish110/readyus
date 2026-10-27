@@ -6,6 +6,7 @@ import { LocationGate } from '@/components/shell/location-gate';
 import { ProductCard } from '@/components/marketplace/product-card';
 import { SectionTitle } from '@/components/ui/card';
 import { ShopArt } from '@/components/marketplace/shop-art';
+import { FavouriteButton } from '@/components/shop/favourite-button';
 import { ClockIcon, PinIcon, StarIcon } from '@/components/shell/icons';
 import { deliveryMinutes, formatDistance, formatRupees, opensAt } from '@/lib/utils';
 
@@ -62,12 +63,15 @@ async function ShopDetail({ id }: { id: string }) {
             <span className="tile relative block size-20 shrink-0 overflow-hidden rounded-[22px] bg-[var(--tile)] shadow-md ring-4 ring-[var(--surface)] sm:size-24">
               <ShopArt shop={shop} sizes="96px" />
             </span>
-            <span className="mb-1 inline-flex items-center gap-1.5 rounded-full bg-[var(--tile)] px-3.5 py-2 text-sm font-extrabold ring-1 ring-[var(--line)]">
-              <StarIcon className="size-4 text-saffron-500" />
-              {shop.rating > 0 ? shop.rating.toFixed(1) : 'New'}
-              {shop.rating_count > 0 && (
-                <span className="text-xs font-semibold text-[var(--text-muted)]">({shop.rating_count})</span>
-              )}
+            <span className="mb-1 flex items-center gap-2">
+              <FavouriteButton shopId={shop.id} />
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[var(--tile)] px-3.5 py-2 text-sm font-extrabold ring-1 ring-[var(--line)]">
+                <StarIcon className="size-4 text-saffron-500" />
+                {shop.rating > 0 ? shop.rating.toFixed(1) : 'New'}
+                {shop.rating_count > 0 && (
+                  <span className="text-xs font-semibold text-[var(--text-muted)]">({shop.rating_count})</span>
+                )}
+              </span>
             </span>
           </div>
 

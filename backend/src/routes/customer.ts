@@ -88,6 +88,69 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
     });
   });
 
+  /** Make an address the one used first at checkout. */
+  app.post('/addresses/:id/default', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request) => {
+    const user = await requireUser(request);
+    const { id } = idParams.parse(request.params);
+    return asUser(user.id, async (q) => {
+      const mine = await q.one('select id from addresses where id = $1 and user_id = $2', [id, user.id]);
+      if (!mine) throw new AppError(404, 'Address not found.');
+      await q.rows('update addresses set is_default = false where user_id = $1 and is_default', [user.id]);
+      await q.rows('update addresses set is_default = true where id = $1 and user_id = $2', [id, user.id]);
+      return { ok: true };
+    });
+  });
+
+  /** Removes a saved address. Orders already placed keep their own copy of where they went. */
+  app.post('/addresses/:id/delete', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request) => {
+    const user = await requireUser(request);
+    const { id } = idParams.parse(request.params);
+    return asUser(user.id, async (q) => {
+      const gone = await q.one<{ is_default: boolean }>('delete from addresses where id = $1 and user_id = $2 returning is_default', [id, user.id]);
+      if (!gone) throw new AppError(404, 'Address not found.');
+      // Never leave someone with addresses and no default.
+      if (gone.is_default) {
+        await q.rows(
+          `update addresses set is_default = true where id = (select id from addresses where user_id = $1 order by created_at desc limit 1)`,
+          [user.id]
+        );
+      }
+      return { ok: true };
+    });
+  });
+
+  // ---------- Favourite shops ----------
+
+  app.get('/favourites', async (request) => {
+    const user = await requireUser(request);
+    return asUser(user.id, async (q) => ({
+      shops: await q.rows(
+        `select s.id, s.shop_name, s.category, s.listing_mode, s.city, s.photo_url, s.rating, s.rating_count,
+                public.shop_can_trade(s.id) as available, public.shop_is_open_now(s.id) as is_open
+         from favourite_sellers f join sellers s on s.id = f.seller_id
+         where f.user_id = $1 and s.status = 'approved' and s.public_visible
+         order by f.created_at desc limit 100`,
+        [user.id]
+      )
+    }));
+  });
+
+  app.post('/favourites/shops/:id', { config: { rateLimit: { max: 60, timeWindow: '1 minute' } } }, async (request) => {
+    const user = await requireUser(request);
+    const { id } = idParams.parse(request.params);
+    const { on } = z.object({ on: z.boolean() }).parse(request.body);
+    return asUser(user.id, async (q) => {
+      if (on) {
+        const exists = await q.one(`select id from sellers where id = $1 and status = 'approved' and public_visible`, [id]);
+        if (!exists) throw new AppError(404, 'Shop not found.');
+        await q.rows('insert into favourite_sellers (user_id, seller_id) values ($1, $2) on conflict do nothing', [user.id, id]);
+      } else {
+        await q.rows('delete from favourite_sellers where user_id = $1 and seller_id = $2', [user.id, id]);
+      }
+      return { ok: true };
+    });
+  });
+
   // ---------- Checkout ----------
 
   /**

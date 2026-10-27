@@ -15,8 +15,11 @@ const NOT_CONFIGURED =
 type Method = 'phone' | 'email';
 type Mode = 'sign-in' | 'sign-up';
 
+// Mobile OTP sends an SMS, which needs an SMS provider (cost, and registration in India). It stays hidden
+// until NEXT_PUBLIC_PHONE_LOGIN=true, so a fresh install signs in with email or Google and works at once.
+const PHONE_LOGIN = process.env.NEXT_PUBLIC_PHONE_LOGIN === 'true';
 const METHODS: Array<{ id: Method; label: string }> = [
-  { id: 'phone', label: 'Mobile OTP' },
+  ...(PHONE_LOGIN ? [{ id: 'phone' as const, label: 'Mobile OTP' }] : []),
   { id: 'email', label: 'Email' }
 ];
 
@@ -69,7 +72,7 @@ export function AuthForm({ mode, audience = 'customer' }: { mode: Mode; audience
   const params = useSearchParams();
   const next = params.get('next') || copy.next;
 
-  const [method, setMethod] = useState<Method>('phone');
+  const [method, setMethod] = useState<Method>(PHONE_LOGIN ? 'phone' : 'email');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);

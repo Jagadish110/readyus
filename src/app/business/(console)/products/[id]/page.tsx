@@ -7,6 +7,7 @@ import { serverApi } from '@/lib/api/server';
 import { Badge } from '@/components/ui/badge';
 import { Eyebrow } from '@/components/ui/card';
 import { ProductForm } from '@/components/business/product-form';
+import { DeleteProduct } from '@/components/business/delete-product';
 
 export const metadata: Metadata = { title: 'Edit product' };
 export const dynamic = 'force-dynamic';
@@ -45,6 +46,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
         )}
       </div>
       <ProductForm defaultMode={shop.listing_mode} categories={categories} product={product} />
+      <DeleteProduct productId={product.id} name={product.name} />
     </div>
   );
 }

@@ -192,6 +192,19 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
 
   // ---------- Products ----------
 
+  /** Removes a dish from the menu for good. Past orders keep their own copy of what was ordered. */
+  app.post('/products/:id/delete', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request) => {
+    const user = await requireUser(request);
+    const { id } = idParams.parse(request.params);
+    return asUser(user.id, async (q) => {
+      const shop = await ownShop(q, user.id);
+      const gone = await q.one('delete from products where id = $1 and seller_id = $2 returning id', [id, shop.id]);
+      if (!gone) throw new AppError(404, 'Product not found.');
+      return { ok: true };
+    });
+  });
+
+
   app.get('/products', async (request) => {
     const user = await requireUser(request);
     return asUser(user.id, async (q) => {

@@ -69,6 +69,9 @@ Migrations are ordered and idempotent to apply in sequence.
 | `0027_assign_delivery` | The shop assigns its own delivery partner (replaces the open claim) |
 | `0028_shop_documents` | FSSAI and GST documents, FSSAI-gated approval, expiry hides a food shop, licence shown to customers |
 | `0029_web_push` | Browser notifications: subscriptions, delivery queue on `notifications`, refund notice |
+| `0030_order_exits` | Shop cancel, failed delivery, rider hand-back, refunds, cash handover, customer problem reports |
+| `0031_hours_and_auto_accept` | Opening hours enforced at order time, optional auto-accept |
+| `0032_account_and_cleanup` | Account erasure (`anonymize_customer`), drops unused `notification_devices` |
 
 ### Money
 
