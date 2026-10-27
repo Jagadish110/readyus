@@ -181,6 +181,7 @@ export function RiderConsole({ name, fleetNames }: { name: string; fleetNames: s
             value={invite}
             onChange={(event) => setInvite(event.target.value)}
             placeholder="Delivery code"
+            aria-label="Delivery code from the shop"
             autoCapitalize="characters"
             className="h-12 w-full rounded-[16px] border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-bold tracking-widest uppercase outline-none focus:border-leaf-500 focus:ring-4 focus:ring-leaf-500/20"
           />
@@ -353,6 +354,7 @@ export function RiderConsole({ name, fleetNames }: { name: string; fleetNames: s
                   inputMode="numeric"
                   autoComplete="one-time-code"
                   placeholder="000000"
+                  aria-label="Six-digit code from the customer"
                   className="h-14 w-full rounded-[16px] border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-4 text-center font-display text-2xl font-extrabold tracking-[0.3em] outline-none focus:border-leaf-500 focus:ring-4 focus:ring-leaf-500/20"
                 />
                 <Button

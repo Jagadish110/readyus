@@ -5,6 +5,7 @@ import rateLimit from '@fastify/rate-limit';
 import { ZodError } from 'zod';
 import { config, isProduction } from './config.js';
 import { AppError } from './lib/errors.js';
+import { asService } from './lib/db.js';
 import { CashfreeError } from './lib/cashfree.js';
 import { customerRoutes } from './routes/customer.js';
 import { paymentRoutes } from './routes/payments.js';
@@ -84,7 +85,17 @@ export async function buildApp() {
 
   app.setNotFoundHandler((_request, reply) => reply.code(404).send({ error: 'Not found.' }));
 
+  // Liveness: the process is up. Readiness: it can also reach the database. Point uptime checks at /readyz.
   app.get('/healthz', async () => ({ ok: true }));
+  app.get('/readyz', async (_request, reply) => {
+    try {
+      await asService((q) => q.rows('select 1'));
+      return { ok: true };
+    } catch (error) {
+      app.log.error({ err: error }, 'readiness check failed');
+      return reply.code(503).send({ ok: false, error: 'Database not reachable.' });
+    }
+  });
 
   await app.register(customerRoutes, { prefix: '/v1' });
   await app.register(paymentRoutes, { prefix: '/v1/payments' });

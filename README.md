@@ -35,8 +35,7 @@ cp .env.example .env.local   # then fill in your Supabase keys
 npm run dev
 ```
 
-Open http://localhost:3000. The UI renders without Supabase; sign-in and data
-stay disabled until keys are present.
+Open http://localhost:3000. The website needs the Supabase keys in `.env.local` to render; without them it shows an error page.
 
 ## Connecting Supabase
 

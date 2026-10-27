@@ -44,3 +44,6 @@ next-env.d.ts
 # backend server
 /backend/node_modules
 /backend/dist
+e2e/.logs/
+test-results/
+playwright-report/

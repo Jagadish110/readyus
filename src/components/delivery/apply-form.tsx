@@ -42,16 +42,17 @@ export function DeliveryApplyForm() {
       onSubmit={submit}
       className="grid gap-3.5 rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)] sm:p-6"
     >
-      <input className={FIELD} value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" autoComplete="name" />
+      <input className={FIELD} value={name} onChange={(e) => setName(e.target.value)} placeholder="Full name" aria-label="Full name" autoComplete="name" />
       <input
         className={FIELD}
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
         placeholder="Phone number"
+        aria-label="Phone number"
         inputMode="tel"
         autoComplete="tel"
       />
-      <input className={FIELD} value={vehicle} onChange={(e) => setVehicle(e.target.value)} placeholder="Vehicle (bike, cycle, scooter)" />
+      <input className={FIELD} value={vehicle} onChange={(e) => setVehicle(e.target.value)} placeholder="Vehicle (bike, cycle, scooter)" aria-label="Vehicle" />
       {error && (
         <p role="alert" className="rounded-[16px] bg-danger/10 px-4 py-3 text-sm font-medium ring-1 ring-danger/30">
           {error}
