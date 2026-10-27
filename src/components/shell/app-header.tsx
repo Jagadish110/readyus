@@ -6,6 +6,7 @@ import { useLocation, RADIUS_OPTIONS } from '@/lib/state/location';
 import { useCart } from '@/lib/state/cart';
 import { LogoMark } from '@/components/brand/logo';
 import { cn } from '@/lib/utils';
+import { NotificationCenter } from '@/components/notifications/notification-center';
 import { AccountLink } from './account-link';
 import { CartIcon, ChevronIcon, PinIcon, SearchIcon } from './icons';
 
@@ -90,6 +91,8 @@ export function AppHeader() {
         >
           <SearchIcon className="size-[19px]" />
         </Link>
+
+        <NotificationCenter />
 
         <AccountLink />
 

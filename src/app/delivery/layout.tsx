@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Wordmark } from '@/components/brand/logo';
 import { Badge } from '@/components/ui/badge';
 import { createClient } from '@/lib/supabase/server';
+import { NotificationCenter } from '@/components/notifications/notification-center';
 import { signOutRider } from './actions';
 
 export default async function DeliveryLayout({ children }: { children: React.ReactNode }) {
@@ -19,11 +20,14 @@ export default async function DeliveryLayout({ children }: { children: React.Rea
             <Badge tone="leaf-soft">Delivery</Badge>
           </Link>
           {user ? (
+            <div className="flex items-center gap-3">
+            <NotificationCenter />
             <form action={signOutRider}>
               <button type="submit" className="text-sm font-bold text-[var(--text-muted)] hover:text-[var(--leaf-ink)]">
                 Log out
               </button>
             </form>
+            </div>
           ) : (
             <Link href="/" className="text-sm font-bold text-[var(--text-muted)] hover:text-[var(--leaf-ink)]">
               Shop site

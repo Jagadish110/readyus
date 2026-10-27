@@ -172,7 +172,27 @@ shop to "being verified" on our side until Cashfree says so. These are listed in
    **Check:** the shop disappears from `/browse`, the owner sees the red banner, and checkout for that shop says it is
    not taking orders. Orders already placed can still be completed. Set `trial_ends_at` back to the future to undo.
 
-## 10. Automated checks (run these before every release)
+## 11. Browser notifications
+
+Details in `docs/NOTIFICATIONS.md`. One-time: `cd backend && npm run vapid`, put the keys in `backend/.env`, restart the backend.
+
+1. Sign in as the **owner** in Chrome (desktop or Android). Tap the bell at the top right -> **Turn on alerts** -> Allow.
+   **Check:** it says "Alerts are on for this device."
+2. Tap **Send a test**. **Check:** within a few seconds a system pop-up "Test alert" appears. Close or minimise the browser window first, so the
+   pop-up is not suppressed because you are looking at the page.
+3. Place an order as the customer (section 3) while the owner's browser is **closed or in the background**.
+   **Check:** a pop-up "New order received" appears and stays until dismissed; tapping it opens `/business/orders`.
+4. With the owner page **open and in front**: place another order. **Check:** no system pop-up, but the bell count goes up, a banner slides in,
+   the new order appears, and (if "Sound alert" is on) the chime plays.
+5. **Rider:** sign in at `/delivery/login`, turn on alerts. The owner assigns an order. **Check:** the rider gets "New delivery for you".
+   Reassign it to someone else: the first rider gets "Delivery given to someone else".
+6. **Customer:** turn on alerts. Check pop-ups for accepted, assigned, out for delivery, delivered, and "Refund started" (decline an online-paid order, then run the refund job).
+7. **Blocked case:** block notifications for the site in browser settings. **Check:** the bell explains how to unblock and the inbox still fills.
+8. **iPhone:** in Safari open the site -> Share -> Add to Home Screen -> open it from the icon -> bell -> Turn on alerts. In plain Safari the bell shows the install instructions instead.
+9. **Turn off:** bell -> **Turn off**. **Check:** no further pop-ups on that device; other devices are unaffected.
+10. **Shared phone:** sign in as person A, turn alerts on, sign out, sign in as person B on the same browser and turn alerts on. **Check:** B's alerts arrive and A's no longer do.
+
+## 12. Automated checks (run these before every release)
 
 ```bash
 cd backend && npm test                                  # unit tests

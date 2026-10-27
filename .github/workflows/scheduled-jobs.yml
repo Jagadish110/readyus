@@ -35,8 +35,8 @@ jobs:
             echo
           }
           case "$SCHEDULE" in
-            '*/5 * * * *')   call /internal/orders/expire; call /internal/refunds/sweep ;;
+            '*/5 * * * *')   call /internal/orders/expire; call /internal/refunds/sweep; call /internal/push/drain ;;
             '17 * * * *')    call /internal/billing/reminders ;;
             '41 */4 * * *')  call /internal/billing/resync ;;
-            *)               call /internal/orders/expire; call /internal/refunds/sweep; call /internal/billing/reminders; call /internal/billing/resync ;;
+            *)               call /internal/orders/expire; call /internal/refunds/sweep; call /internal/push/drain; call /internal/billing/reminders; call /internal/billing/resync ;;
           esac

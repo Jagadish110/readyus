@@ -63,6 +63,21 @@ const schema = z.object({
   // The website, used as the return address after paying.
   SITE_URL: z.string().url().default('http://localhost:3000'),
 
+  // Browser notifications (Web Push). Generate a pair once with `npm run vapid` and keep the private
+  // key secret. Optional: without them the bell and inbox still work, only the pop-up alerts are off.
+  VAPID_PUBLIC_KEY: z.string().min(60).optional(),
+  VAPID_PRIVATE_KEY: secret(30).optional(),
+  // How the browser vendors can reach you if your pushes misbehave: mailto:you@yourdomain or an https address.
+  VAPID_SUBJECT: z
+    .string()
+    .regex(/^(mailto:[^\s@]+@[^\s@]+|https:\/\/\S+)$/, 'must look like mailto:you@example.com')
+    .default('mailto:support@localty.in'),
+  // For automated tests and local fakes only: accept push addresses on any host. Ignored in production.
+  PUSH_ALLOW_ANY_HOST: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+
   // Protects the scheduled refund sweep.
   CRON_SECRET: secret(16)
 });
@@ -75,6 +90,9 @@ const checked = schema.superRefine((value, ctx) => {
   // Cashfree secret keys carry their mode, so a mix-up is caught here instead of on a customer's payment.
   if (key && env === 'production' && key.includes('_test_')) {
     ctx.addIssue({ code: 'custom', path: ['CASHFREE_ENV'], message: 'CASHFREE_ENV is production but the secret key is a TEST key' });
+  }
+  if (Boolean(value.VAPID_PUBLIC_KEY) !== Boolean(value.VAPID_PRIVATE_KEY)) {
+    ctx.addIssue({ code: 'custom', path: ['VAPID_PUBLIC_KEY'], message: 'set both VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY, or neither' });
   }
   if (key && env === 'sandbox' && key.includes('_prod_')) {
     ctx.addIssue({ code: 'custom', path: ['CASHFREE_ENV'], message: 'CASHFREE_ENV is sandbox but the secret key is a PRODUCTION key' });

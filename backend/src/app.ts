@@ -16,6 +16,7 @@ import { publicRoutes } from './routes/public.js';
 import { accountRoutes } from './routes/account.js';
 import { billingRoutes } from './routes/billing.js';
 import { documentRoutes } from './routes/documents.js';
+import { pushRoutes } from './routes/push.js';
 import { riderRoutes } from './routes/rider.js';
 import { adminRoutes } from './routes/admin.js';
 
@@ -94,6 +95,7 @@ export async function buildApp() {
   await app.register(documentRoutes, { prefix: '/v1/seller/documents' });
   await app.register(publicRoutes, { prefix: '/v1/public' });
   await app.register(accountRoutes, { prefix: '/v1' });
+  await app.register(pushRoutes, { prefix: '/v1' });
   await app.register(riderRoutes, { prefix: '/v1/rider' });
   await app.register(adminRoutes, { prefix: '/v1/admin' });
   await app.register(internalRoutes, { prefix: '/internal' });

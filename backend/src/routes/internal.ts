@@ -2,6 +2,7 @@ import { timingSafeEqual } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { config } from '../config.js';
 import { syncSubscription } from '../lib/billing.js';
+import { drainPushQueue } from '../lib/push.js';
 import { cashfree, CashfreeError, toRupees } from '../lib/cashfree.js';
 import { asService } from '../lib/db.js';
 import { AppError } from '../lib/errors.js';
@@ -127,5 +128,11 @@ export const internalRoutes: FastifyPluginAsync = async (app) => {
       }
     }
     return { synced, failed };
+  });
+
+  /** The same pass the in-process worker runs, for hosts that cannot keep a worker alive (or as a safety net). */
+  app.post('/push/drain', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request) => {
+    requireCron(request);
+    return drainPushQueue();
   });
 };

@@ -68,6 +68,7 @@ Migrations are ordered and idempotent to apply in sequence.
 | `0026_subscriptions` | Monthly shop subscription: trial, grace, suspension, gating |
 | `0027_assign_delivery` | The shop assigns its own delivery partner (replaces the open claim) |
 | `0028_shop_documents` | FSSAI and GST documents, FSSAI-gated approval, expiry hides a food shop, licence shown to customers |
+| `0029_web_push` | Browser notifications: subscriptions, delivery queue on `notifications`, refund notice |
 
 ### Money
 

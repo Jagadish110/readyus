@@ -12,9 +12,9 @@ CI and a database test suite. Delivery partners have their own login (`/delivery
 
 ## Must have before real customers
 
-1. **Notifications that reach a phone.** Today they are rows inside the app. Needed: SMS or WhatsApp for new
-   orders (shops), rider assignment (riders), status (customers), subscription reminders. India SMS needs DLT
-   template registration: start early.
+1. **Notifications: browser alerts are built** (`docs/NOTIFICATIONS.md`): inbox bell plus Web Push on Chrome, Edge, Firefox, Android and Home-Screen iPhones.
+   Still to do: set the VAPID keys in production, test on the real phones shops will use, and decide whether an email fallback is wanted for
+   shops whose browser never receives alerts (SMS and WhatsApp were ruled out).
 2. **Owner KYC, remaining parts:** FSSAI and GSTIN are built (see `docs/COMPLIANCE.md`). Still to do: name match between
    certificate, PAN, owner and bank holder; shop licence and premises photos if wanted; document deletion on request.
    **Get the GST / TDS questions in `docs/COMPLIANCE.md` section 4 answered by a CA before launch.**

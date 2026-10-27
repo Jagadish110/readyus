@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Wordmark } from '@/components/brand/logo';
 import { BillingBanner } from '@/components/business/billing-banner';
 import { ComplianceBanner } from '@/components/business/compliance-banner';
+import { NotificationCenter } from '@/components/notifications/notification-center';
 import { BusinessNav } from '@/components/business/business-nav';
 
 export default function ConsoleLayout({ children }: { children: React.ReactNode }) {
@@ -12,12 +13,12 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
           <Link href="/business" aria-label="Seller dashboard">
             <Wordmark size={36} />
           </Link>
-          <Link
-            href="/"
-            className="text-sm font-bold text-[var(--text-muted)] hover:text-[var(--leaf-ink)] sm:order-last"
-          >
-            View shop site
-          </Link>
+          <div className="flex items-center gap-3 sm:order-last">
+            <Link href="/" className="text-sm font-bold text-[var(--text-muted)] hover:text-[var(--leaf-ink)]">
+              View shop site
+            </Link>
+            <NotificationCenter />
+          </div>
           {/* On a phone the tabs take a row of their own and scroll sideways if they ever outgrow it. */}
           <div className="no-scrollbar -mx-4 w-[calc(100%+2rem)] overflow-x-auto px-4 sm:mx-0 sm:w-auto sm:overflow-visible sm:px-0">
             <BusinessNav />

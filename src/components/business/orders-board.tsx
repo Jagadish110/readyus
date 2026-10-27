@@ -98,6 +98,15 @@ export function OrdersBoard() {
     };
   }, [refresh]);
 
+  // A push reaches the open page before the next poll would: refresh at once.
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'push') void refresh();
+    };
+    navigator.serviceWorker?.addEventListener('message', onMessage);
+    return () => navigator.serviceWorker?.removeEventListener('message', onMessage);
+  }, [refresh]);
+
   async function act(key: string, path: string, body: Record<string, unknown>) {
     setBusy(key);
     setError('');

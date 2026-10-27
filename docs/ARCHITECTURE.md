@@ -262,6 +262,9 @@ Recommendations:
 
 ## 8. Notifications
 
+> **Built as browser notifications (Web Push) plus an in-app inbox, not SMS or WhatsApp.** The design and the choices are in
+> `docs/NOTIFICATIONS.md`. The text below is the original proposal and is kept for reference.
+
 Today `notify()` writes a row. Nothing leaves the database. Add an **outbox**:
 
 ```
