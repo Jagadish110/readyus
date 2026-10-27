@@ -72,8 +72,13 @@ Localty's only income. Separate from order money, which never touches Localty.
   from discovery and `place_order()` refuses new orders; orders already placed carry on.
 - Success is never taken from the browser or a webhook body. After any signal the server fetches the
   subscription and its payments from Cashfree and records each charge once (`subscription_payments`).
-- Webhook: the same `/v1/webhooks/cashfree` URL; enable the subscription events in Cashfree's webhook
-  settings too (at least status-changed and payment events).
+- Webhook: our one `/v1/webhooks/cashfree` URL handles both kinds, but **Cashfree configures subscription
+  webhooks separately** (Dashboard -> Payment Gateway -> Developers -> Webhooks -> **Subscriptions**), so add
+  the URL there as well as under the payment webhooks. Enable at least the status-changed and payment events.
+  Confirm in the sandbox that subscription webhooks are signed the same way (`x-webhook-signature` with a
+  timestamp); if not, the handler rejects them with 401 and the 4-hourly resync job is what keeps billing correct.
+- **Invoices are not Cashfree's job.** Cashfree debits the mandate and tells us the result; the GST tax invoice
+  to the shop is Localty's own document (see `docs/COMPLIANCE.md`, section 6). Not built yet.
 - `platform_settings.billing_enforced = false` stops hiding any shop (emergency switch).
 
 | Route | What it does |

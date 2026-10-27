@@ -102,6 +102,23 @@ is enough), shop photos of premises, municipal trade licence. These can be added
 - **Automatic FSSAI lookup** if FSSAI publishes a stable API.
 - **GSTIN required** for items shops once your accountant decides.
 
+## 6. The subscription invoice is Localty's job, not Cashfree's
+
+A shop that pays the monthly fee is buying a service from Localty, so **Localty must give it a GST tax invoice**. Cashfree Subscriptions
+only moves the money: it creates the mandate, sends the customer the pre-debit notice that UPI AutoPay requires, debits on the due date and
+reports the result. Cashfree's own invoices (Dashboard -> Profile -> Invoices, raised around the 5th of the next month) bill **Localty** for
+Cashfree's fees; they are not Localty's invoices to shops, and they do not carry the shop's name or GSTIN. Nothing in Cashfree's documentation
+says it generates a tax invoice for the merchant's customers.
+
+What an invoice must show (confirm the exact list with your CA): Localty's legal name, address and GSTIN; the shop's name, address and
+GSTIN if it has one; a unique running number within the financial year; the date; a description of the service; the service accounting code; the
+value, then GST split into CGST and SGST (shop in the same state as Localty) or IGST (different state), and the total; the place of supply.
+
+What we have today: `subscription_payments` records every successful charge (amount, date, period). What is missing: Localty's own
+business details, invoice numbering, the invoice record created in the same transaction as the payment, a printable copy, and a page for
+the owner to download them. To build it we need from you: Localty's registered legal name, address, state and GSTIN; the service code
+and GST rate your CA confirms; and whether the Rs 499 price includes or excludes GST (the app currently says "+ GST").
+
 ## Sources
 - FSSAI display and registration rules for e-commerce food sellers: [ClearTax](https://cleartax.in/s/e-commerce-fssai-food-license-registration),
   [Tally Solutions guide](https://tallysolutions.com/business-guides/fssai-licence-requirements-for-manufacturers-restaurants-traders-e-commerce-more/),

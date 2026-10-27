@@ -23,7 +23,7 @@ must not overwrite each other.
 6. **Webhooks (optional but realistic).** Cashfree cannot reach `localhost`. Run a tunnel
    (`cloudflared tunnel --url http://localhost:4000` or ngrok), put the https address in `PUBLIC_API_URL`,
    and in the Cashfree dashboard -> Developers -> Webhooks add `https://<tunnel>/v1/webhooks/cashfree`
-   with the payment-success and subscription events. **Without it everything still works**: the website
+   with the payment-success event, and add the same URL under **Webhooks -> Subscriptions** (Cashfree keeps subscription webhooks in a separate place). **Without it everything still works**: the website
    asks the backend to re-check with Cashfree when the payment window closes.
 7. **Make yourself admin** (once), in the Supabase SQL editor, after signing up with the admin email:
    ```sql

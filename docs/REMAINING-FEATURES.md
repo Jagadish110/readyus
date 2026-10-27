@@ -18,7 +18,7 @@ CI and a database test suite. Delivery partners have their own login (`/delivery
 2. **Owner KYC, remaining parts:** FSSAI and GSTIN are built (see `docs/COMPLIANCE.md`). Still to do: name match between
    certificate, PAN, owner and bank holder; shop licence and premises photos if wanted; document deletion on request.
    **Get the GST / TDS questions in `docs/COMPLIANCE.md` section 4 answered by a CA before launch.**
-3. **GST invoices** for the monthly subscription (needs Localty's own GSTIN), and the subscription price decision (a placeholder, Rs 499). Open question: whether Localty itself owes GST on restaurant orders (Section 9(5)), see `docs/COMPLIANCE.md`.
+3. **GST invoices** for the monthly subscription. **Cashfree does not issue these** (it only invoices Localty for its own fees), so Localty must generate them: see `docs/COMPLIANCE.md` section 6. Needs Localty's legal name, address, GSTIN and state, the service code and rate from your CA, and the subscription price decision (a placeholder, Rs 499). Open question: whether Localty itself owes GST on restaurant orders (Section 9(5)), see `docs/COMPLIANCE.md`.
 4. **Gateway-fee decision** (who pays Cashfree's per-payment fee). Today Localty absorbs it.
 5. **Legal pages:** terms for shops, customers and riders, privacy policy (location data), refund and cancellation
    policy. **These pages do not exist yet**: the sign-in page already links to `/legal/terms` and `/legal/privacy`, and both currently show "not found". Have them written or reviewed by a lawyer; do not ship placeholder text.
