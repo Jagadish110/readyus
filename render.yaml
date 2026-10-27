@@ -1,0 +1,45 @@
+# Render Blueprint for the Localty backend. In Render: New > Blueprint > pick this repo.
+# Values marked `sync: false` are asked for in the Render dashboard and never stored in git.
+services:
+  - type: web
+    name: localty-api
+    runtime: docker
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    region: singapore # closest Render region to India
+    # The free plan sleeps when idle, which would drop payment webhooks and make the first request slow.
+    plan: starter
+    healthCheckPath: /readyz
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      # Render puts a proxy in front. Without this every visitor shares one IP and one rate-limit bucket.
+      - key: TRUST_PROXY
+        value: "true"
+      - key: ALLOWED_ORIGINS
+        value: https://www.localty.in,https://localty.in
+      - key: SITE_URL
+        value: https://www.localty.in
+      - key: CASHFREE_ENV
+        value: sandbox
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: DATABASE_URL # Supabase transaction pooler address
+        sync: false
+      - key: CASHFREE_APP_ID
+        sync: false
+      - key: CASHFREE_SECRET_KEY
+        sync: false
+      - key: PUBLIC_API_URL # this service's own https address, shown by Render after the first deploy
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: CRON_SECRET
+        sync: false

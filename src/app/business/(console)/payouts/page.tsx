@@ -38,7 +38,7 @@ const ACCOUNT_BADGE: Record<PayoutStatus, { tone: 'success' | 'warning' | 'dange
 
 const ACCOUNT_BODY: Record<PayoutStatus, string> = {
   activated: 'Customers can pay online. Their money goes straight to your bank account.',
-  under_review: 'Cashfree is checking your bank details. This page updates by itself, so you can leave it open. Until it is ready, customers pay you by UPI or cash.',
+  under_review: 'Cashfree is checking your bank details. This page updates by itself, so you can leave it open. Until it is ready, customers cannot pay online, and every order is paid online.',
   created: 'Your account is being set up. Save your bank details to finish.',
   needs_clarification: 'Cashfree could not accept these details yet. Fix what it says below and save again.',
   rejected: 'Cashfree could not approve these details. Check them and try again.'

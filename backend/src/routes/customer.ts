@@ -179,7 +179,8 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
           const result = await q.one<{ id: string }>('select place_order($1, $2, $3, $4) as id', [
             input.addressId,
             shop.sellerId,
-            input.payOnline,
+            // Every order is paid online; cash on delivery is gone, whatever the caller sends.
+            true,
             input.note
           ]);
           if (!result) throw new Error('ORDER_NOT_CREATED');

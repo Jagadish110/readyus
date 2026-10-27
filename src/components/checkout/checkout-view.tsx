@@ -16,7 +16,6 @@ import { cn, formatRupees } from '@/lib/utils';
 
 // No delivery or platform charge for now; the database enforces the same
 // (place_order ignores fees). Nothing here adds to the total.
-type PayChoice = 'cod' | 'online';
 type Who = { id: string } | null;
 
 export function CheckoutView() {
@@ -27,7 +26,6 @@ export function CheckoutView() {
   const [addresses, setAddresses] = useState<AddressRow[] | null>(null);
   const [addressId, setAddressId] = useState('');
   const [adding, setAdding] = useState(false);
-  const [pay, setPay] = useState<PayChoice>('cod');
   const [note, setNote] = useState('');
   const [placing, setPlacing] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
@@ -77,7 +75,7 @@ export function CheckoutView() {
       '/v1/checkout',
       {
         addressId,
-        payOnline: pay === 'online',
+        payOnline: true,
         note: note.trim(),
         shops: groups.map((group) => ({
           sellerId: group.sellerId,
@@ -246,31 +244,19 @@ export function CheckoutView() {
 
         <section className="animate-rise rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)] [animation-delay:100ms]">
           <h2 className="font-display text-base font-extrabold tracking-[-0.025em]">How you will pay</h2>
-          <div className="mt-3 grid gap-2.5">
-            <PayOption
-              id="cod"
-              active={pay === 'cod'}
-              onSelect={setPay}
-              title="Cash on delivery"
-              body="Pay the delivery partner when your order arrives."
-            />
-            <PayOption
-              id="online"
-              active={pay === 'online'}
-              onSelect={setPay}
-              title="Pay online"
-              body="UPI, cards or net banking. You pay right after placing the order."
-            />
+          <div className="mt-3 flex items-start gap-3 rounded-[18px] border-[1.5px] border-leaf-500 bg-[var(--leaf-soft)] p-3.5">
+            <Radio active />
+            <span>
+              <span className="block text-sm font-bold">Pay online</span>
+              <span className="block text-xs leading-relaxed text-[var(--text-muted)]">
+                UPI, cards or net banking. You pay right after placing the order.
+              </span>
+            </span>
           </div>
 
-          {pay === 'online' && (
-            <p className="mt-3 rounded-[18px] bg-warning/12 px-4 py-3 text-xs leading-relaxed font-medium text-[var(--text)] ring-1 ring-warning/35">
-              You will pay securely on the next screen. The shop starts your order once the payment
-              goes through, and you are refunded if they cannot take it.
-            </p>
-          )}
-          <p className="mt-3 text-xs text-[var(--text-muted)]">
-            Some shops take online payment only. If so, you will be asked to pay online after you place the order.
+          <p className="mt-3 rounded-[18px] bg-warning/12 px-4 py-3 text-xs leading-relaxed font-medium text-[var(--text)] ring-1 ring-warning/35">
+            You will pay securely on the next screen. The shop starts your order once the payment
+            goes through, and you are refunded if they cannot take it.
           </p>
         </section>
 
@@ -308,7 +294,7 @@ export function CheckoutView() {
         </dl>
 
         <div className="flex items-baseline justify-between border-t border-[var(--line)] pt-3">
-          <span className="font-bold">{pay === 'cod' ? 'Pay on delivery' : 'Pay online'}</span>
+          <span className="font-bold">Pay online</span>
           <span className="font-display text-xl font-extrabold tabular-nums text-brand-600">
             {formatRupees(subtotal)}
           </span>
@@ -340,7 +326,7 @@ export function CheckoutView() {
       <div className="fixed inset-x-0 bottom-[calc(4.4rem+env(safe-area-inset-bottom))] z-30 border-t border-[var(--line)] bg-[var(--surface)] px-4 py-3 shadow-[0_-8px_24px_rgb(28_22_20/0.08)] md:hidden">
         <div className="mx-auto flex max-w-lg items-center gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-semibold text-[var(--text-muted)]">{pay === 'cod' ? 'Pay on delivery' : 'Pay online'}</p>
+            <p className="text-xs font-semibold text-[var(--text-muted)]">Pay online</p>
             <p className="font-display text-lg font-extrabold tabular-nums text-brand-600">{formatRupees(subtotal)}</p>
           </div>
           <div className="flex-1">
@@ -376,36 +362,3 @@ function Radio({ active }: { active: boolean }) {
   );
 }
 
-function PayOption({
-  id,
-  active,
-  onSelect,
-  title,
-  body
-}: {
-  id: PayChoice;
-  active: boolean;
-  onSelect: (value: PayChoice) => void;
-  title: string;
-  body: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(id)}
-      aria-pressed={active}
-      className={cn(
-        'flex items-start gap-3 rounded-[18px] border-[1.5px] p-3.5 text-left transition-all duration-200',
-        active
-          ? 'border-leaf-500 bg-[var(--leaf-soft)]'
-          : 'border-[var(--line)] hover:border-leaf-300 hover:bg-[var(--tile)]'
-      )}
-    >
-      <Radio active={active} />
-      <span>
-        <span className="block text-sm font-bold">{title}</span>
-        <span className="block text-xs leading-relaxed text-[var(--text-muted)]">{body}</span>
-      </span>
-    </button>
-  );
-}

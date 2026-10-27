@@ -104,11 +104,9 @@ async function ShopDetail({ id }: { id: string }) {
                 {label}
               </li>
             ))}
-            {shop.cod_available && (
-              <li className="inline-flex shrink-0 items-center rounded-full bg-[var(--leaf-soft)] px-4 py-2 text-sm font-bold text-[var(--leaf-ink)] ring-1 ring-[var(--line)]">
-                Cash on delivery
-              </li>
-            )}
+            <li className="inline-flex shrink-0 items-center rounded-full bg-[var(--leaf-soft)] px-4 py-2 text-sm font-bold text-[var(--leaf-ink)] ring-1 ring-[var(--line)]">
+              Online payment
+            </li>
           </ul>
           {fssai && (
             <p className="mt-4 text-xs font-semibold text-[var(--text-muted)]">

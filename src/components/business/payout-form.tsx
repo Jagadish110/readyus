@@ -48,7 +48,7 @@ export function PayoutForm({ hasAccount, defaultName }: { hasAccount: boolean; d
     setError('');
     const response = await callPaymentsApi('/v1/seller/payout', {
       businessType: type,
-      ...(hasAccount ? {} : { contactName: text('contactName'), pan: text('pan') }),
+      ...(hasAccount ? { pan: text('pan') } : { contactName: text('contactName'), pan: text('pan') }),
       beneficiaryName: text('beneficiaryName'),
       accountNumber: text('accountNumber'),
       ifsc: text('ifsc')
@@ -106,6 +106,20 @@ export function PayoutForm({ hasAccount, defaultName }: { hasAccount: boolean; d
             <input
               name="pan"
               required
+              maxLength={10}
+              placeholder="ABCDE1234F"
+              className={fieldClass + ' uppercase'}
+              autoComplete="off"
+            />
+          </Field>
+        </div>
+      )}
+
+      {hasAccount && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Corrected PAN (optional)" hint="Only fill this if Cashfree said the PAN is invalid.">
+            <input
+              name="pan"
               maxLength={10}
               placeholder="ABCDE1234F"
               className={fieldClass + ' uppercase'}

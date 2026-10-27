@@ -125,7 +125,7 @@ async function ProductDetail({ id }: { id: string }) {
             <dl className="mt-2 grid grid-cols-2 gap-3 border-t pt-4 text-sm">
               <Fact label="Minimum order" value={formatRupees(shop.min_order_amount)} />
               <Fact label="Delivery fee" value="Free" />
-              <Fact label="Payment" value={shop.cod_available ? 'Online or cash' : 'Online only'} />
+              <Fact label="Payment" value="Online only" />
               <Fact label="Availability" value={product.stock > 0 ? "Available" : "Out of stock"} />
             </dl>
           )}

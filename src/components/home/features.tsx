@@ -7,7 +7,7 @@ const CHECKS = [
   'Live radius check — nothing is listed that cannot reach you',
   'Kitchen hours honoured, so a closed shop never takes an order',
   'Every price shown is the shop price, with no commission added',
-  'Cash on delivery wherever the shop supports it'
+  'Pay securely online by UPI, card or net banking'
 ];
 
 const COLLAGE: Array<{ art: DishKey; span: string }> = [

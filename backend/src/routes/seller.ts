@@ -24,6 +24,13 @@ const identitySchema = z.object({
     .regex(/^[A-Z]{5}[0-9]{4}[A-Z]$/, 'Enter a valid PAN, like ABCDE1234F.')
 });
 
+const correctedPanSchema = z.object({
+  pan: z
+    .union([z.literal(''), identitySchema.shape.pan])
+    .optional()
+    .transform((value) => value || undefined)
+});
+
 const bankSchema = z.object({
   beneficiaryName: z.string().trim().min(2).max(100),
   accountNumber: z.string().trim().regex(/^[0-9]{9,18}$/, 'Account number must be 9 to 18 digits.'),
@@ -134,9 +141,12 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
 
     let vendor: CashfreeVendor;
     if (!identity) {
+      // The PAN was fixed at creation; an owner whose PAN Cashfree rejected can send a corrected one.
+      const correction = correctedPanSchema.parse(request.body).pan;
       vendor = await cashfree<CashfreeVendor>('PATCH', `/easy-split/vendors/${encodeURIComponent(vendorId)}`, {
         bank: bankBlock,
-        verify_account: config.CASHFREE_VERIFY_VENDOR_BANK
+        verify_account: config.CASHFREE_VERIFY_VENDOR_BANK,
+        ...(correction ? { kyc_details: { pan: correction } } : {})
       });
     } else {
       const create = {

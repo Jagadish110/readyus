@@ -21,7 +21,7 @@ export default function TermsPage() {
           <li>You can browse without an account. You need one to place an order.</li>
           <li>Give a correct address and phone number. The delivery partner needs them to reach you.</li>
           <li>The price you see is the shop&rsquo;s price. You pay the order total shown at checkout.</li>
-          <li>You can pay online, or in cash on delivery if the shop allows it.</li>
+          <li>Every order is paid online when you place it.</li>
           <li>You get a 6-digit code on your order page. Tell it to the delivery partner only when you have received your order.</li>
           <li>You can cancel on the order page until the shop starts preparing it; a Cancel button shows while you can. After that, ask the shop, or report a problem on the order page.</li>
           <li>Do not misuse the service: no false orders, no abuse of shops or delivery partners, no attempts to get around payments.</li>
@@ -44,7 +44,7 @@ export default function TermsPage() {
         <h2>For delivery partners</h2>
         <ul>
           <li>You deliver for the shops whose team you joined. The shop assigns each order to you.</li>
-          <li>Hand an order over only to the person who gives you the correct 6-digit code. Collect cash exactly as shown, and hand it to the shop.</li>
+          <li>Hand an order over only to the person who gives you the correct 6-digit code. You never collect money; every order is already paid online.</li>
           <li>Your location is shared with the customer only while you are delivering an order.</li>
         </ul>
       </section>

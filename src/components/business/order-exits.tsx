@@ -226,7 +226,8 @@ export function CashPanel() {
     await load();
   }
 
-  if (!rows) return null;
+  // Cash on delivery is gone; this only appears while older cash orders are still owed.
+  if (!rows || rows.length === 0) return null;
   const riders = [...new Map(rows.map((row) => [row.agent_id, row.rider_name])).entries()];
 
   return (

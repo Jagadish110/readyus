@@ -3,7 +3,7 @@ const CLAIMS = [
   'No platform fee',
   'No price mark-up',
   'Shops within your radius',
-  'Cash on delivery',
+  'Secure online payment',
   'Verified kitchens'
 ];
 

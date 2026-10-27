@@ -86,8 +86,14 @@ export function OrdersBoard() {
     const result = await api<{ orders: SellerOrder[] }>('GET', '/v1/seller/orders');
     if (result.ok) setOrders(result.data.orders);
     else setOrders((current) => current ?? []);
-    const team = await api<{ partners: Partner[] }>('GET', '/v1/seller/fleet');
-    if (team.ok) setPartners(team.data.partners.filter((partner) => partner.agent));
+  }, []);
+
+  // The rider list barely changes, so it is read once, not on every poll.
+  useEffect(() => {
+    void (async () => {
+      const team = await api<{ partners: Partner[] }>('GET', '/v1/seller/fleet');
+      if (team.ok) setPartners(team.data.partners.filter((partner) => partner.agent));
+    })();
   }, []);
 
   useEffect(() => {
