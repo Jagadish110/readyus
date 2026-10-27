@@ -86,7 +86,8 @@ export const riderRoutes: FastifyPluginAsync = async (app) => {
         const map = await q.one('select * from order_map($1)', [assignment.order_id]);
         if (map) maps[assignment.order_id] = map;
       }
-      return { active, history, maps };
+      const cash = await q.rows('select * from my_cash_to_hand_over()');
+      return { active, history, maps, cash };
     });
   });
 
@@ -109,6 +110,37 @@ export const riderRoutes: FastifyPluginAsync = async (app) => {
     const { code } = z.object({ code: z.string().trim().min(4).max(20) }).parse(request.body);
     try {
       await asUser(user.id, (q) => q.rows('select redeem_delivery_invite($1)', [code.toUpperCase()]));
+    } catch (error) {
+      ruleError(error);
+    }
+    return { ok: true };
+  });
+
+  /** The rider cannot take it after all. Only before pickup; the shop is told and picks someone else. */
+  app.post('/deliveries/:id/release', action, async (request) => {
+    const user = await requireUser(request);
+    const { id } = idParams.parse(request.params);
+    const { reason } = z.object({ reason: z.string().trim().max(200).default('') }).parse(request.body);
+    try {
+      await asUser(user.id, (q) => q.rows('select release_delivery($1, $2)', [id, reason]));
+    } catch (error) {
+      ruleError(error);
+    }
+    return { ok: true };
+  });
+
+  /** The order could not be handed over. The rider picks what happened; the rules decide the refund. */
+  app.post('/deliveries/:id/failed', action, async (request) => {
+    const user = await requireUser(request);
+    const { id } = idParams.parse(request.params);
+    const { cause, note } = z
+      .object({
+        cause: z.enum(['customer_unreachable', 'customer_refused', 'wrong_address', 'rider_problem']),
+        note: z.string().trim().max(200).default('')
+      })
+      .parse(request.body);
+    try {
+      await asUser(user.id, (q) => q.rows('select report_delivery_failed($1, $2, $3)', [id, cause, note]));
     } catch (error) {
       ruleError(error);
     }

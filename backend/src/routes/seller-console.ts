@@ -13,7 +13,7 @@ const idParams = z.object({ id: uuid });
 const BUCKET = 'product-images';
 const IMAGE_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 
-const SHOP_SQL = `select id, shop_name, listing_mode, status, public_visible, review_note, business_open,
+const SHOP_SQL = `select id, shop_name, listing_mode, status, public_visible, review_note, business_open, auto_accept,
                          service_radius_km, open_time, close_time
                   from sellers`;
 
@@ -66,6 +66,7 @@ const productFields = (shopId: string) =>
 const settingsSchema = z
   .object({
     business_open: z.boolean(),
+    auto_accept: z.boolean(),
     service_radius_km: z.number().min(0.5).max(50),
     open_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
     close_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/)
@@ -272,7 +273,7 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
       return {
         orders: await q.rows(
           `select o.id, o.order_code, o.status, o.total_paise, o.payment_mode, o.required_online_paise,
-                  o.created_at, o.customer_note, o.verified_prepaid_paise, o.accept_deadline_at,
+                  o.created_at, o.customer_note, o.verified_prepaid_paise, o.refunded_paise, o.refund_target_paise, o.accept_deadline_at,
                   -- Only what the shop needs to hand the order over.
                   jsonb_build_object('recipient', o.delivery_address -> 'recipient',
                                      'line1', o.delivery_address -> 'line1',
@@ -340,6 +341,87 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
     const { agentId } = z.object({ agentId: uuid }).parse(request.body);
     try {
       await asUser(user.id, (q) => q.rows('select assign_delivery($1, $2)', [id, agentId]));
+    } catch (error) {
+      ruleError(error);
+    }
+    return { ok: true };
+  });
+
+  /** The shop cannot make an order it accepted. Stock goes back; an online payment is refunded; the rider is freed. */
+  app.post('/orders/:id/cancel', decision, async (request) => {
+    const user = await requireUser(request);
+    const { id } = idParams.parse(request.params);
+    const { reason } = z.object({ reason: z.string().trim().max(200).default('') }).parse(request.body);
+    try {
+      await asUser(user.id, (q) => q.rows('select seller_cancel_order($1, $2)', [id, reason]));
+    } catch (error) {
+      ruleError(error);
+    }
+    return { ok: true };
+  });
+
+  /** Nobody could hand the order over. Fault of the shop or rider refunds it; the customer's fault does not. */
+  app.post('/orders/:id/delivery-failed', decision, async (request) => {
+    const user = await requireUser(request);
+    const { id } = idParams.parse(request.params);
+    const { cause, note } = z
+      .object({
+        cause: z.enum(['customer_unreachable', 'customer_refused', 'wrong_address', 'rider_problem', 'shop_problem']),
+        note: z.string().trim().max(200).default('')
+      })
+      .parse(request.body);
+    try {
+      await asUser(user.id, (q) => q.rows('select report_delivery_failed($1, $2, $3)', [id, cause, note]));
+    } catch (error) {
+      ruleError(error);
+    }
+    return { ok: true };
+  });
+
+  /** Returns all or part of an online payment (for example a missing item). The refund job pays it out. */
+  app.post('/orders/:id/refund', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (request) => {
+    const user = await requireUser(request);
+    const { id } = idParams.parse(request.params);
+    const { amountPaise, reason } = z
+      .object({ amountPaise: z.number().int().min(1).max(10_000_000), reason: z.string().trim().max(200).default('') })
+      .parse(request.body);
+    try {
+      await asUser(user.id, (q) => q.rows('select seller_request_refund($1, $2, $3)', [id, amountPaise, reason]));
+    } catch (error) {
+      ruleError(error);
+    }
+    return { ok: true };
+  });
+
+  // ---------- Cash the riders are holding ----------
+
+  app.get('/cash', async (request) => {
+    const user = await requireUser(request);
+    return asUser(user.id, async (q) => ({ rows: await q.rows('select * from cash_with_riders()') }));
+  });
+
+  app.post('/cash/confirm', decision, async (request) => {
+    const user = await requireUser(request);
+    const { agentId, orderId } = z.object({ agentId: uuid, orderId: uuid.optional() }).parse(request.body);
+    return asUser(user.id, async (q) => {
+      const row = await q.one<{ n: number }>('select confirm_cash_handover($1, $2) as n', [agentId, orderId ?? null]);
+      return { ok: true, confirmed: row?.n ?? 0 };
+    });
+  });
+
+  // ---------- Problems customers reported ----------
+
+  app.get('/issues', async (request) => {
+    const user = await requireUser(request);
+    return asUser(user.id, async (q) => ({ issues: await q.rows('select * from seller_order_issues()') }));
+  });
+
+  app.post('/issues/:id/resolve', decision, async (request) => {
+    const user = await requireUser(request);
+    const { id } = idParams.parse(request.params);
+    const { note } = z.object({ note: z.string().trim().max(500).default('') }).parse(request.body);
+    try {
+      await asUser(user.id, (q) => q.rows('select resolve_order_issue($1, $2)', [id, note]));
     } catch (error) {
       ruleError(error);
     }

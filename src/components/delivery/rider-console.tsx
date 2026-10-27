@@ -37,6 +37,8 @@ export function RiderConsole({ name, fleetNames }: { name: string; fleetNames: s
   const router = useRouter();
   const fleets = fleetNames;
   const [history, setHistory] = useState<Done[]>([]);
+  const [cash, setCash] = useState<Array<{ shop_name: string; orders: number; cash_paise: number }>>([]);
+  const [exit, setExit] = useState<string | null>(null);
   const [active, setActive] = useState<Active[]>([]);
   const [maps, setMaps] = useState<Record<string, MapInfo>>({});
   const [loaded, setLoaded] = useState(false);
@@ -53,12 +55,13 @@ export function RiderConsole({ name, fleetNames }: { name: string; fleetNames: s
   const [geoError, setGeoError] = useState('');
 
   const refresh = useCallback(async () => {
-    const result = await api<{ active: Active[]; history: Done[]; maps: Record<string, MapInfo> }>(
+    const result = await api<{ active: Active[]; history: Done[]; maps: Record<string, MapInfo>; cash: Array<{ shop_name: string; orders: number; cash_paise: number }> }>(
       'GET',
       '/v1/rider/deliveries'
     );
     if (result.ok) {
       setHistory(result.data.history);
+      setCash(result.data.cash ?? []);
       setActive(result.data.active);
       setMaps(result.data.maps);
     }
@@ -145,6 +148,19 @@ export function RiderConsole({ name, fleetNames }: { name: string; fleetNames: s
           {fleets.length ? `Delivering for ${fleets.join(', ')}.` : 'You are not on a shop’s delivery team yet.'}
         </p>
       </div>
+
+      {cash.length > 0 && (
+        <section className="grid gap-1.5 rounded-[22px] bg-warning/12 p-4 text-sm ring-1 ring-warning/35">
+          <h2 className="font-display text-base font-extrabold tracking-[-0.025em]">Cash to hand over</h2>
+          {cash.map((row) => (
+            <p key={row.shop_name}>
+              Give <span className="font-extrabold tabular-nums">{formatPaise(row.cash_paise)}</span> to {row.shop_name}{' '}
+              <span className="text-[var(--text-muted)]">({row.orders} {row.orders === 1 ? 'order' : 'orders'})</span>
+            </p>
+          ))}
+          <p className="text-xs text-[var(--text-muted)]">The shop marks it received once you hand it over.</p>
+        </section>
+      )}
 
       {error && (
         <p role="alert" className="rounded-[16px] bg-danger/10 px-4 py-3 text-sm font-medium ring-1 ring-danger/30">
@@ -255,6 +271,54 @@ export function RiderConsole({ name, fleetNames }: { name: string; fleetNames: s
                 Navigate in Google Maps
               </a>
             )}
+
+            <div className="grid gap-2">
+              {exit === assignment.order_id ? (
+                <div className="grid gap-2 rounded-[18px] bg-[var(--tile)] p-3.5">
+                  <p className="text-sm font-bold">{toShop ? 'Why can you not take it?' : 'What happened?'}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(toShop
+                      ? [
+                          ['release', 'My vehicle has a problem'],
+                          ['release', 'It is too far'],
+                          ['release', 'I am not available']
+                        ]
+                      : [
+                          ['customer_unreachable', 'Customer not reachable'],
+                          ['customer_refused', 'Customer refused it'],
+                          ['wrong_address', 'Wrong address'],
+                          ['rider_problem', 'I had a problem']
+                        ]
+                    ).map(([key, label]) => (
+                      <Button
+                        key={label}
+                        size="sm"
+                        variant="outline"
+                        loading={busy === `exit-${assignment.order_id}-${label}`}
+                        onClick={() =>
+                          act(`exit-${assignment.order_id}-${label}`, async () => {
+                            const done = toShop
+                              ? await post(`/v1/rider/deliveries/${assignment.order_id}/release`, { reason: label })
+                              : await post(`/v1/rider/deliveries/${assignment.order_id}/failed`, { cause: key });
+                            if (done.ok) setExit(null);
+                            return done;
+                          })
+                        }
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                    <Button size="sm" variant="ghost" onClick={() => setExit(null)}>
+                      Back
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button size="sm" variant="ghost" className="justify-self-start text-danger" onClick={() => setExit(assignment.order_id)}>
+                  {toShop ? 'I cannot take this order' : 'I could not deliver it'}
+                </Button>
+              )}
+            </div>
 
             {toShop ? (
               <Button

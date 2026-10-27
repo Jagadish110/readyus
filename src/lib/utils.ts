@@ -40,3 +40,17 @@ export function discountPercent(price: number, mrp: number | null | undefined) {
   if (!mrp || mrp <= price) return null;
   return Math.round(((mrp - price) / mrp) * 100);
 }
+
+/** '09:00' or '21:30:00' as '9:00 am' / '9:30 pm'. Anything unreadable comes back unchanged. */
+export function formatHour(value: string | undefined | null): string {
+  const match = /^(\d{1,2}):(\d{2})/.exec(value ?? '');
+  if (!match) return value ?? '';
+  const hour = Number(match[1]);
+  return `${hour % 12 || 12}:${match[2]} ${hour >= 12 ? 'pm' : 'am'}`;
+}
+
+/** What a closed shop's hours say, e.g. "Opens 9:00 am"; null when there are no hours or it is open all day. */
+export function opensAt(open: string | undefined, close: string | undefined): string | null {
+  if (!open || !close || open.slice(0, 5) === close.slice(0, 5)) return null;
+  return `Opens ${formatHour(open)}`;
+}

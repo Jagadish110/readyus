@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { asAnon, asService, asUser } from '../src/lib/db.js';
-import { addFssai, HAS_DB, makeCustomer, makeShop, makeUser, placeOrder } from './db/helpers.js';
+import { addFssai, HAS_DB, makeAdmin, makeCustomer, makeShop, placeOrder } from './db/helpers.js';
 
 const sql = (userId: string, text: string, values: unknown[] = []) => asUser(userId, (q) => q.rows(text, values));
 const submit = (userId: string, sellerId: string, kind = 'fssai', number = '12345678901234', days = 400, file?: string) =>
@@ -9,12 +9,6 @@ const docStatus = (sellerId: string, kind = 'fssai') =>
   asService((q) => q.one<{ status: string }>('select status from seller_documents where seller_id = $1 and kind = $2', [sellerId, kind])).then((r) => r?.status ?? null);
 const discoverable = (sellerId: string) =>
   asAnon((q) => q.rows<{ id: string }>('select id from nearby_sellers(17.3855, 78.4880, 5, null, false, null, 1000, 0)')).then((rows) => rows.some((row) => row.id === sellerId));
-
-async function makeAdmin() {
-  const id = await makeUser('admin');
-  await asService((q) => q.rows(`insert into user_roles (user_id, role) values ($1, 'admin') on conflict do nothing`, [id]));
-  return id;
-}
 
 describe.skipIf(!HAS_DB)('FSSAI and GST documents (database)', () => {
   it('lets the owner send a document and shows it as waiting for review', async () => {

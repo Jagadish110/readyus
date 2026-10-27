@@ -7,7 +7,7 @@ import { ProductCard } from '@/components/marketplace/product-card';
 import { SectionTitle } from '@/components/ui/card';
 import { ShopArt } from '@/components/marketplace/shop-art';
 import { ClockIcon, PinIcon, StarIcon } from '@/components/shell/icons';
-import { deliveryMinutes, formatDistance, formatRupees } from '@/lib/utils';
+import { deliveryMinutes, formatDistance, formatRupees, opensAt } from '@/lib/utils';
 
 export default async function ShopPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -53,7 +53,7 @@ async function ShopDetail({ id }: { id: string }) {
             }
           >
             <span aria-hidden className={'size-2 rounded-full ' + (shop.business_open ? 'bg-white' : 'bg-ink-400')} />
-            {shop.business_open ? 'Open now' : 'Closed right now'}
+            {shop.business_open ? 'Open now' : opensAt(shop.open_time, shop.close_time) ? `Closed · ${opensAt(shop.open_time, shop.close_time)}` : 'Closed right now'}
           </span>
         </div>
 

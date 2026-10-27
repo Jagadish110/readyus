@@ -45,6 +45,7 @@ export type ShopRow = {
   public_visible: boolean;
   review_note: string;
   business_open: boolean;
+  auto_accept: boolean;
   service_radius_km: number | string;
   open_time: string;
   close_time: string;
@@ -72,7 +73,7 @@ export type ProductRow = {
 };
 
 export const SHOP_COLUMNS =
-  'id, shop_name, listing_mode, status, public_visible, review_note, business_open, service_radius_km, open_time, close_time';
+  'id, shop_name, listing_mode, status, public_visible, review_note, business_open, auto_accept, service_radius_km, open_time, close_time';
 
 export const PRODUCT_COLUMNS =
   'id, name, description, category_key, listing_mode, price, mrp, unit, stock, images, veg_type, spice_level, prep_minutes, available, approval_status, review_note, rating, rating_count';

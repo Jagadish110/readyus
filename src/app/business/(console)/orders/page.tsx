@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { requireShop } from '@/lib/business/shop';
 import { OrdersBoard } from '@/components/business/orders-board';
 import { FleetPanel } from '@/components/business/fleet-panel';
+import { CashPanel } from '@/components/business/order-exits';
 import { Eyebrow } from '@/components/ui/card';
 
 export const metadata: Metadata = { title: 'Orders' };
@@ -22,6 +23,7 @@ export default async function BusinessOrdersPage() {
         </p>
       </div>
       <OrdersBoard />
+      <CashPanel />
       <FleetPanel />
     </div>
   );

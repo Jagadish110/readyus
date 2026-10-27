@@ -16,6 +16,7 @@ export function ShopControls({ shop }: { shop: ShopRow }) {
   const [pending, startTransition] = useTransition();
 
   const [open, setOpen] = useState(shop.business_open);
+  const [auto, setAuto] = useState(shop.auto_accept);
   const [radius, setRadius] = useState(String(Number(shop.service_radius_km)));
   const [openTime, setOpenTime] = useState(shop.open_time);
   const [closeTime, setCloseTime] = useState(shop.close_time);
@@ -35,6 +36,14 @@ export function ShopControls({ shop }: { shop: ShopRow }) {
     setOpen(next);
     startTransition(() => {
       void save({ business_open: next }, next ? 'You are open for orders.' : 'You are closed.');
+    });
+  }
+
+  function toggleAuto() {
+    const next = !auto;
+    setAuto(next);
+    startTransition(() => {
+      void save({ auto_accept: next }, next ? 'New orders are now accepted for you.' : 'You will accept each order yourself.');
     });
   }
 
@@ -81,6 +90,26 @@ export function ShopControls({ shop }: { shop: ShopRow }) {
         </button>
       </div>
 
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="font-display text-base font-extrabold tracking-[-0.03em]">Accept orders automatically</h2>
+          <p className="text-sm text-[var(--text-muted)]">
+            New orders are accepted the moment they arrive (online orders once paid). Use it only if you can always make what is on your menu.
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={auto}
+          aria-label="Accept orders automatically"
+          disabled={!approved || pending}
+          onClick={toggleAuto}
+          className={cn('relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:opacity-50', auto ? 'bg-leaf-600' : 'bg-ink-300')}
+        >
+          <span className={cn('absolute top-1 left-1 size-6 rounded-full bg-white shadow transition-transform', auto && 'translate-x-6')} />
+        </button>
+      </div>
+
       <hr className="border-[var(--line)]" />
 
       <form
@@ -106,6 +135,9 @@ export function ShopControls({ shop }: { shop: ShopRow }) {
             Customers farther than this from your pin will not see your shop.
           </span>
         </label>
+        <p className="text-xs font-medium text-[var(--text-muted)]">
+          Opening hours are India time. Outside them your shop shows as closed and cannot take orders, even with the switch above on.
+        </p>
         <div className="grid grid-cols-2 gap-3">
           <label className="grid gap-1.5 text-sm font-bold">
             Opens

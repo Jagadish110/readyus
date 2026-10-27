@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { NearbySeller } from '@/lib/database.types';
 import { ShopArt } from '@/components/marketplace/shop-art';
-import { cn, deliveryMinutes, formatDistance, formatRupees } from '@/lib/utils';
+import { cn, deliveryMinutes, formatDistance, formatRupees, opensAt } from '@/lib/utils';
 import { ClockIcon, PinIcon, StarIcon } from '@/components/shell/icons';
 
 /**
@@ -35,7 +35,7 @@ export function ShopCard({ shop }: { shop: NearbySeller }) {
         </span>
         {!shop.business_open && (
           <span className="absolute top-3 left-3 rounded-full bg-ink-900/85 px-2.5 py-1 text-[0.7rem] font-bold text-white">
-            Closed now
+            {opensAt(shop.open_time, shop.close_time) ? `Closed · ${opensAt(shop.open_time, shop.close_time)}` : 'Closed now'}
           </span>
         )}
 

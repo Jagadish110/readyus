@@ -1,5 +1,6 @@
 'use client';
 
+import { OrderHelp } from './order-help';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api/client';
@@ -457,6 +458,14 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
           {order.customer_note && <p className="mt-2 text-[var(--text-muted)]">Note: {order.customer_note}</p>}
         </div>
       </section>
+
+      <OrderHelp
+        orderId={orderId}
+        status={status}
+        shopPhone={order.seller?.phone ?? null}
+        cancelReason={order.cancel_reason ?? ''}
+        paidOnline={order.verified_prepaid_paise > 0}
+      />
 
       {canCancel(status) && (
         <div className="animate-rise">

@@ -200,6 +200,30 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
     return { ok: true };
   });
 
+  /** "Something went wrong with this order": reaches the shop and the admins. */
+  app.post('/orders/:id/issue', { config: { rateLimit: { max: 10, timeWindow: '1 hour' } } }, async (request) => {
+    const user = await requireUser(request);
+    const { id } = idParams.parse(request.params);
+    const { kind, message } = z
+      .object({
+        kind: z.enum(['missing_item', 'wrong_item', 'quality', 'late', 'not_delivered', 'payment', 'other']),
+        message: z.string().trim().max(500).default('')
+      })
+      .parse(request.body);
+    try {
+      await asUser(user.id, (q) => q.rows('select report_order_issue($1, $2, $3)', [id, kind, message]));
+    } catch (error) {
+      asAppError(error);
+    }
+    return { ok: true };
+  });
+
+  app.get('/orders/:id/issues', async (request) => {
+    const user = await requireUser(request);
+    const { id } = idParams.parse(request.params);
+    return asUser(user.id, async (q) => ({ issues: await q.rows('select * from my_order_issues($1)', [id]) }));
+  });
+
   app.post('/orders/:id/claim-payment', { config: { rateLimit: { max: 20, timeWindow: '1 minute' } } }, async (request) => {
     const user = await requireUser(request);
     const { id } = idParams.parse(request.params);

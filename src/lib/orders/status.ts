@@ -15,7 +15,8 @@ export type OrderStatus =
   | 'rejected'
   | 'cancelled_by_customer'
   | 'cancelled'
-  | 'timed_out';
+  | 'timed_out'
+  | 'delivery_failed';
 
 export const TIMELINE = [
   { key: 'placed', label: 'Order placed', hint: 'Waiting for the shop to accept' },
@@ -45,7 +46,7 @@ export function stepOf(status: OrderStatus): number {
   }
 }
 
-const ENDED = new Set<OrderStatus>(['rejected', 'cancelled_by_customer', 'cancelled', 'timed_out']);
+const ENDED = new Set<OrderStatus>(['rejected', 'cancelled_by_customer', 'cancelled', 'timed_out', 'delivery_failed']);
 
 export const isEnded = (status: OrderStatus) => ENDED.has(status);
 export const isActive = (status: OrderStatus) => !ENDED.has(status) && status !== 'delivered';
@@ -69,7 +70,8 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   rejected: 'Declined by the shop',
   cancelled_by_customer: 'Cancelled',
   cancelled: 'Cancelled',
-  timed_out: 'Shop did not respond'
+  timed_out: 'Shop did not respond',
+  delivery_failed: 'Could not be delivered'
 };
 
 export const STATUS_TONE: Record<
@@ -90,7 +92,8 @@ export const STATUS_TONE: Record<
   rejected: 'danger',
   cancelled_by_customer: 'neutral',
   cancelled: 'neutral',
-  timed_out: 'neutral'
+  timed_out: 'neutral',
+  delivery_failed: 'danger'
 };
 
 /**

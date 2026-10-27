@@ -16,6 +16,8 @@ export function ProductCard({ product, showShop = true }: { product: NearbyProdu
   const quantity = quantityOf(product.id);
   const off = discountPercent(product.price, product.mrp);
   const soldOut = product.stock <= 0;
+  // A closed shop cannot take an order, so it cannot take a cart either; the shop page says when it opens.
+  const closed = product.business_open === false;
 
   function addToCart() {
     add({
@@ -130,11 +132,11 @@ export function ProductCard({ product, showShop = true }: { product: NearbyProdu
           {quantity === 0 ? (
             <button
               type="button"
-              disabled={soldOut}
+              disabled={soldOut || closed}
               onClick={addToCart}
               className="h-10 shrink-0 rounded-full bg-brand-500 px-4 text-sm font-extrabold tracking-wide text-white shadow-[0_8px_20px_rgb(255_77_28/0.3)] transition-[transform,background-color,box-shadow] duration-150 ease-[var(--ease-spring)] hover:-translate-y-0.5 hover:bg-brand-600 active:scale-95 disabled:pointer-events-none disabled:opacity-50"
             >
-              ADD
+              {closed ? 'CLOSED' : 'ADD'}
             </button>
           ) : (
             <div className="flex h-10 shrink-0 items-center gap-1 rounded-full bg-brand-500 px-1 text-white shadow-[0_8px_20px_rgb(255_77_28/0.3)]">

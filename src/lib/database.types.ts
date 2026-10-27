@@ -49,6 +49,9 @@ export type NearbySeller = {
   rating: number;
   rating_count: number;
   business_open: boolean;
+  /** 'HH:MM', India time. Absent on sample data. */
+  open_time?: string;
+  close_time?: string;
   eta_minutes: number;
   min_order_amount: number;
   delivery_fee: number;

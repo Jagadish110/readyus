@@ -7,6 +7,7 @@ import { STATUS_LABEL, STATUS_TONE, type OrderStatus } from '@/lib/orders/status
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatPaise } from '@/lib/utils';
+import { CancelBox, FailBox, IssuesList, RefundForm } from './order-exits';
 
 type SellerOrder = {
   id: string;
@@ -16,6 +17,8 @@ type SellerOrder = {
   payment_mode: 'full_prepaid' | 'normal_cod' | 'cod_partial_prepayment';
   required_online_paise: number;
   verified_prepaid_paise: number;
+  refunded_paise: number;
+  refund_target_paise: number;
   accept_deadline_at: string | null;
   created_at: string;
   customer_note: string;
@@ -140,7 +143,7 @@ export function OrdersBoard() {
   const ready = orders.filter((o) => o.status === 'packed');
   const onWay = orders.filter((o) => ['assigned', 'out_for_delivery'].includes(o.status));
   const recent = orders
-    .filter((o) => ['delivered', 'rejected', 'cancelled_by_customer', 'cancelled', 'timed_out'].includes(o.status))
+    .filter((o) => ['delivered', 'rejected', 'cancelled_by_customer', 'cancelled', 'timed_out', 'delivery_failed'].includes(o.status))
     .slice(0, 8);
 
   const nothing = !decide.length && !verify.length && !waitingPay.length && !kitchen.length && !ready.length && !onWay.length;
@@ -166,6 +169,8 @@ export function OrdersBoard() {
           No orders in progress. New orders appear here the moment a customer places one.
         </p>
       )}
+
+      <IssuesList />
 
       <Group title="Needs your decision" count={decide.length}>
         {decide.map((order) => (
@@ -258,6 +263,7 @@ export function OrdersBoard() {
                 Mark ready for pickup
               </Button>
             )}
+            <CancelBox orderId={order.id} busy={busy} run={act} />
           </OrderCard>
         ))}
       </Group>
@@ -271,6 +277,7 @@ export function OrdersBoard() {
               label="Assign rider"
               onAssign={(agentId) => act(`assign-${order.id}`, `/v1/seller/orders/${order.id}/assign`, { agentId })}
             />
+            <CancelBox orderId={order.id} busy={busy} run={act} />
           </OrderCard>
         ))}
       </Group>
@@ -305,6 +312,8 @@ export function OrdersBoard() {
                 </div>
               </details>
             )}
+            {order.status === 'assigned' && <CancelBox orderId={order.id} busy={busy} run={act} />}
+            <FailBox orderId={order.id} busy={busy} run={act} />
           </OrderCard>
         ))}
       </Group>
@@ -317,7 +326,17 @@ export function OrdersBoard() {
 
       <Group title="Recent" count={recent.length}>
         {recent.map((order) => (
-          <OrderCard key={order.id} order={order} />
+          <OrderCard key={order.id} order={order}>
+            {order.status === 'delivered' && (
+              <RefundForm
+                orderId={order.id}
+                paidPaise={order.verified_prepaid_paise}
+                refundedPaise={order.refunded_paise}
+                targetPaise={order.refund_target_paise}
+                onDone={() => void refresh()}
+              />
+            )}
+          </OrderCard>
         ))}
       </Group>
     </div>
