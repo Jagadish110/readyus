@@ -21,7 +21,11 @@ type SellerOrder = {
   customer_note: string;
   delivery_address: { recipient?: string; line1?: string; city?: string };
   order_items: Array<{ name: string; quantity: number }>;
+  /** Who is delivering it, once the shop has chosen. */
+  delivery: { agent_id: string; status: 'claimed' | 'picked_up' | 'delivered'; name: string; phone: string } | null;
 };
+
+type Partner = { id: string; agent_id: string; agent: { full_name: string; phone: string; vehicle: string } | null };
 
 /** A short two-tone chime, made in the browser so no sound file is needed. */
 function chime() {
@@ -48,6 +52,7 @@ export function OrdersBoard() {
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [declining, setDeclining] = useState<string | null>(null);
+  const [partners, setPartners] = useState<Partner[]>([]);
   const [now, setNow] = useState(() => Date.now());
   const [sound, setSound] = useState(false);
   const seen = useRef<Set<string> | null>(null);
@@ -78,6 +83,8 @@ export function OrdersBoard() {
     const result = await api<{ orders: SellerOrder[] }>('GET', '/v1/seller/orders');
     if (result.ok) setOrders(result.data.orders);
     else setOrders((current) => current ?? []);
+    const team = await api<{ partners: Partner[] }>('GET', '/v1/seller/fleet');
+    if (team.ok) setPartners(team.data.partners.filter((partner) => partner.agent));
   }, []);
 
   useEffect(() => {
@@ -121,12 +128,13 @@ export function OrdersBoard() {
   const verify = orders.filter((o) => o.status === 'customer_claimed_paid');
   const waitingPay = orders.filter((o) => o.status === 'payment_required' || o.status === 'payment_rejected');
   const kitchen = orders.filter((o) => o.status === 'accepted' || o.status === 'preparing');
-  const onWay = orders.filter((o) => ['packed', 'assigned', 'out_for_delivery'].includes(o.status));
+  const ready = orders.filter((o) => o.status === 'packed');
+  const onWay = orders.filter((o) => ['assigned', 'out_for_delivery'].includes(o.status));
   const recent = orders
     .filter((o) => ['delivered', 'rejected', 'cancelled_by_customer', 'cancelled', 'timed_out'].includes(o.status))
     .slice(0, 8);
 
-  const nothing = !decide.length && !verify.length && !waitingPay.length && !kitchen.length && !onWay.length;
+  const nothing = !decide.length && !verify.length && !waitingPay.length && !kitchen.length && !ready.length && !onWay.length;
 
   return (
     <div className="grid gap-6">
@@ -245,19 +253,50 @@ export function OrdersBoard() {
         ))}
       </Group>
 
-      <Group title="Out of the kitchen" count={onWay.length}>
+      <Group title="Ready: choose who delivers" count={ready.length}>
+        {ready.map((order) => (
+          <OrderCard key={order.id} order={order} note="Packed. Choose a rider from your team to take it.">
+            <RiderPicker
+              partners={partners}
+              busy={busy === `assign-${order.id}`}
+              label="Assign rider"
+              onAssign={(agentId) => act(`assign-${order.id}`, `/v1/seller/orders/${order.id}/assign`, { agentId })}
+            />
+          </OrderCard>
+        ))}
+      </Group>
+
+      <Group title="Out for delivery" count={onWay.length}>
         {onWay.map((order) => (
           <OrderCard
             key={order.id}
             order={order}
             note={
-              order.status === 'packed'
-                ? 'Waiting for a delivery partner from your team to take it.'
-                : order.status === 'assigned'
-                  ? 'A delivery partner is coming to collect it.'
-                  : 'On its way to the customer.'
+              order.status === 'assigned'
+                ? `${order.delivery?.name ?? 'Your rider'} has been told and is coming to collect it.`
+                : `${order.delivery?.name ?? 'Your rider'} is on the way to the customer.`
             }
-          />
+          >
+            {order.delivery?.phone && (
+              <a href={`tel:${order.delivery.phone}`} className="w-fit text-sm font-bold text-[var(--leaf-ink)] underline">
+                Call {order.delivery.name}
+              </a>
+            )}
+            {/* Until the rider has the food, the shop can still hand it to someone else. */}
+            {order.status === 'assigned' && (
+              <details className="text-sm">
+                <summary className="cursor-pointer font-bold text-[var(--leaf-ink)]">Change rider</summary>
+                <div className="mt-2">
+                  <RiderPicker
+                    partners={partners.filter((partner) => partner.agent_id !== order.delivery?.agent_id)}
+                    busy={busy === `assign-${order.id}`}
+                    label="Change rider"
+                    onAssign={(agentId) => act(`assign-${order.id}`, `/v1/seller/orders/${order.id}/assign`, { agentId })}
+                  />
+                </div>
+              </details>
+            )}
+          </OrderCard>
         ))}
       </Group>
 
@@ -272,6 +311,52 @@ export function OrdersBoard() {
           <OrderCard key={order.id} order={order} />
         ))}
       </Group>
+    </div>
+  );
+}
+
+/** Pick one of the shop's own riders. With no riders yet, points at where to add them. */
+function RiderPicker({
+  partners,
+  busy,
+  label,
+  onAssign
+}: {
+  partners: Partner[];
+  busy: boolean;
+  label: string;
+  onAssign: (agentId: string) => void;
+}) {
+  const [agentId, setAgentId] = useState('');
+  if (partners.length === 0) {
+    return (
+      <p className="rounded-[16px] bg-warning/12 px-4 py-3 text-sm font-medium ring-1 ring-warning/35">
+        You have no riders on your team yet.{' '}
+        <a href="#delivery-team" className="font-bold underline">
+          Add a rider
+        </a>{' '}
+        with a rider code, then come back to assign this order.
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2.5">
+      <select
+        value={agentId}
+        onChange={(event) => setAgentId(event.target.value)}
+        aria-label="Choose a rider"
+        className="h-12 min-w-0 flex-1 rounded-[16px] border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-3.5 text-base font-semibold outline-none focus:border-leaf-500 focus:ring-4 focus:ring-leaf-500/20"
+      >
+        <option value="">Choose a rider…</option>
+        {partners.map((partner) => (
+          <option key={partner.id} value={partner.agent_id}>
+            {partner.agent?.full_name} · {partner.agent?.vehicle}
+          </option>
+        ))}
+      </select>
+      <Button variant="leaf" loading={busy} disabled={!agentId} onClick={() => onAssign(agentId)}>
+        {label}
+      </Button>
     </div>
   );
 }

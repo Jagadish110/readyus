@@ -278,7 +278,12 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
                                      'line1', o.delivery_address -> 'line1',
                                      'city', o.delivery_address -> 'city') as delivery_address,
                   coalesce((select jsonb_agg(jsonb_build_object('name', i.name, 'quantity', i.quantity))
-                            from order_items i where i.order_id = o.id), '[]'::jsonb) as order_items
+                            from order_items i where i.order_id = o.id), '[]'::jsonb) as order_items,
+                  -- Who is delivering it, once the shop has chosen.
+                  (select jsonb_build_object('agent_id', da.agent_id, 'status', da.status,
+                                             'name', a.full_name, 'phone', a.phone)
+                   from delivery_assignments da join delivery_agents a on a.id = da.agent_id
+                   where da.order_id = o.id) as delivery
            from orders o where o.seller_id = $1
            order by o.created_at desc limit 60`,
           [shop.id]
@@ -328,6 +333,19 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
     return { ok: true };
   });
 
+  /** The shop picks who delivers a packed order, and may change the rider until it is picked up. */
+  app.post('/orders/:id/assign', decision, async (request) => {
+    const user = await requireUser(request);
+    const { id } = idParams.parse(request.params);
+    const { agentId } = z.object({ agentId: uuid }).parse(request.body);
+    try {
+      await asUser(user.id, (q) => q.rows('select assign_delivery($1, $2)', [id, agentId]));
+    } catch (error) {
+      ruleError(error);
+    }
+    return { ok: true };
+  });
+
   app.post('/orders/:id/stage', decision, async (request) => {
     const user = await requireUser(request);
     const { id } = idParams.parse(request.params);
@@ -348,7 +366,7 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
       const shop = await ownShop(q, user.id);
       const [partners, invites] = await Promise.all([
         q.rows(
-          `select r.id, jsonb_build_object('full_name', a.full_name, 'phone', a.phone, 'vehicle', a.vehicle) as agent
+          `select r.id, r.agent_id, jsonb_build_object('full_name', a.full_name, 'phone', a.phone, 'vehicle', a.vehicle) as agent
            from delivery_relationships r left join delivery_agents a on a.id = r.agent_id
            where r.seller_id = $1 and r.active`,
           [shop.id]

@@ -63,6 +63,10 @@ Migrations are ordered and idempotent to apply in sequence.
 | `0008_marketplace` | `nearby_sellers`, `nearby_products`, `nearby_categories` |
 | `0009_rls` | Row level security for every table |
 | `0010_functions` | Order lifecycle, payments, delivery, admin review |
+| `0011`-`0024` | Hardening, images, order flow and live tracking, Cashfree payments (see each file's header) |
+| `0025_foundation_hardening` | Stronger delivery code with lockout, expiry of ignored paid orders and abandoned payments |
+| `0026_subscriptions` | Monthly shop subscription: trial, grace, suspension, gating |
+| `0027_assign_delivery` | The shop assigns its own delivery partner (replaces the open claim) |
 
 ### Money
 

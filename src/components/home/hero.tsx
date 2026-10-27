@@ -15,7 +15,7 @@ export function Hero() {
     <section className="mx-auto max-w-7xl px-5 pt-8 pb-16 sm:px-8 lg:px-10 lg:pt-12">
       <p className="animate-rise inline-flex items-center gap-2.5 rounded-full border border-leaf-200 bg-[var(--leaf-soft)] px-4 py-2 text-eyebrow text-[var(--leaf-ink)] uppercase">
         <span className="animate-ping-ring size-1.5 rounded-full bg-leaf-500" />
-        Local marketplace · Hyderabad
+        Local marketplace
       </p>
 
       <h1 className="animate-rise mt-6 max-w-[18ch] font-display text-[clamp(2.4rem,6.2vw,4.6rem)] leading-[0.95] font-extrabold tracking-[-0.055em] [animation-delay:90ms]">

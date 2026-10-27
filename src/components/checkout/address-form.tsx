@@ -42,7 +42,7 @@ export function AddressForm({ startPin, makeDefault, onSaved, onCancel }: Props)
   const [line1, setLine1] = useState('');
   const [line2, setLine2] = useState('');
   const [landmark, setLandmark] = useState('');
-  const [city, setCity] = useState('Hyderabad');
+  const [city, setCity] = useState('');
   const [pincode, setPincode] = useState('');
   const [pin, setPin] = useState<LatLng | null>(startPin);
   const [locating, setLocating] = useState(false);

@@ -8,7 +8,7 @@ export function SampleAreaButton() {
   const { useSampleLocation: pickSampleLocation } = useLocation();
   return (
     <Button type="button" variant="leaf" size="md" onClick={() => pickSampleLocation()}>
-      See the Abids sample area
+      See sample shops
     </Button>
   );
 }

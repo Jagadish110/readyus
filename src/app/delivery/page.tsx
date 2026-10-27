@@ -14,7 +14,7 @@ export default async function DeliveryPage() {
   const {
     data: { user }
   } = await supabase.auth.getUser();
-  if (!user) redirect('/sign-in?next=/delivery');
+  if (!user) redirect('/delivery/login?next=/delivery');
 
   const me = await serverApi<{ agent: Agent | null; fleets: string[] }>('/v1/rider/me');
   if (!me.ok) throw new Error('We could not load your delivery profile right now. Please try again.');

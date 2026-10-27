@@ -38,8 +38,8 @@ slow networks, screen readers, Telugu or Hindi text, or any test with real users
    route. Add shop phone and a help link (and show the rider's phone once assigned, if not already).
 4. **The home page is about 10,700 px long on a phone.** Cut it to hero, how it works, a few shops,
    and the shop-owner pitch.
-5. **No language options.** The first customers are in Hyderabad: Telugu, Hindi and Urdu for the
-   owner console especially. Strings are inline in components, so this needs an i18n pass.
+5. **No language options.** This is an India-wide platform: Hindi plus the main regional languages,
+   for the owner console and rider page especially. Strings are inline in components, so this needs an i18n pass.
 6. **Owner onboarding is a pile of cards.** Show one checklist: details, documents, approval,
    bank, plan, first dish, go live.
 7. **Accessibility not audited.** Check colour contrast on the muted grey text, focus outlines,

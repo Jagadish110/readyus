@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { asService, asUser } from '../src/lib/db.js';
-import { HAS_DB, makeCustomer, makeRider, makeShop, orderRow, placeOrder, stockOf } from './db/helpers.js';
+import { agentOf, HAS_DB, makeCustomer, makeRider, makeShop, orderRow, placeOrder, stockOf } from './db/helpers.js';
 
 describe.skipIf(!HAS_DB)('order lifecycle (database)', () => {
   /** Takes an order from placed to picked up, the way the shop and the rider do. */
@@ -8,10 +8,11 @@ describe.skipIf(!HAS_DB)('order lifecycle (database)', () => {
     const shop = await makeShop();
     const customer = await makeCustomer();
     const rider = await makeRider(shop.sellerId);
+    const riderAgent = await agentOf(rider);
     const orderId = await placeOrder(customer, shop);
     await asUser(shop.userId, (q) => q.rows('select seller_decide_order($1, true)', [orderId]));
     await asUser(shop.userId, (q) => q.rows(`select seller_set_stage($1, 'packed')`, [orderId]));
-    await asUser(rider, (q) => q.rows('select claim_delivery($1)', [orderId]));
+    await asUser(shop.userId, (q) => q.rows('select assign_delivery($1, $2)', [orderId, riderAgent]));
     await asUser(rider, (q) => q.rows('select pickup_delivery($1)', [orderId]));
     return { orderId, rider, shop };
   }

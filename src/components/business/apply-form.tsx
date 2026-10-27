@@ -34,7 +34,7 @@ export function ApplyForm() {
   const [phone, setPhone] = useState('');
   const [category, setCategory] = useState('');
   const [address, setAddress] = useState('');
-  const [city, setCity] = useState('Hyderabad');
+  const [city, setCity] = useState('');
   const [pincode, setPincode] = useState('');
   const [pin, setPin] = useState<Pin>(null);
   const [locating, setLocating] = useState(false);

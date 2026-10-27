@@ -91,3 +91,7 @@ export async function makeRider(sellerId: string) {
   });
   return userId;
 }
+
+/** The delivery profile id of a rider's user (what a shop assigns an order to). */
+export const agentOf = (userId: string) =>
+  asService((q) => q.one<{ id: string }>('select id from delivery_agents where user_id = $1', [userId])).then((row) => row!.id);

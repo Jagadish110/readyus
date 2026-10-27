@@ -13,15 +13,11 @@ import { Button } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/card';
 import { formatPaise } from '@/lib/utils';
 
-type Available = {
+type Done = {
   order_id: string;
-  order_code: string;
-  seller_name: string;
-  city: string;
-  distance_km: number | string | null;
-  total_paise: number;
   cash_due_paise: number;
-  packed_at: string | null;
+  delivered_at: string | null;
+  order: { order_code: string; seller: { shop_name: string } | null } | null;
 };
 
 type Active = {
@@ -40,7 +36,7 @@ const REPORT_EVERY_MS = 10_000;
 export function RiderConsole({ name, fleetNames }: { name: string; fleetNames: string[] }) {
   const router = useRouter();
   const fleets = fleetNames;
-  const [available, setAvailable] = useState<Available[]>([]);
+  const [history, setHistory] = useState<Done[]>([]);
   const [active, setActive] = useState<Active[]>([]);
   const [maps, setMaps] = useState<Record<string, MapInfo>>({});
   const [loaded, setLoaded] = useState(false);
@@ -57,12 +53,12 @@ export function RiderConsole({ name, fleetNames }: { name: string; fleetNames: s
   const [geoError, setGeoError] = useState('');
 
   const refresh = useCallback(async () => {
-    const result = await api<{ available: Available[]; active: Active[]; maps: Record<string, MapInfo> }>(
+    const result = await api<{ active: Active[]; history: Done[]; maps: Record<string, MapInfo> }>(
       'GET',
       '/v1/rider/deliveries'
     );
     if (result.ok) {
-      setAvailable(result.data.available);
+      setHistory(result.data.history);
       setActive(result.data.active);
       setMaps(result.data.maps);
     }
@@ -208,7 +204,7 @@ export function RiderConsole({ name, fleetNames }: { name: string; fleetNames: s
               <h2 className="font-display text-lg font-extrabold tracking-[-0.03em]">
                 {order?.order_code}
               </h2>
-              <Badge tone="leaf-soft">{toShop ? 'Go to the shop' : 'Take it to the customer'}</Badge>
+              <Badge tone="leaf-soft">{toShop ? 'Assigned to you: collect it' : 'Take it to the customer'}</Badge>
             </div>
 
             <div className="grid gap-1 text-sm">
@@ -309,50 +305,43 @@ export function RiderConsole({ name, fleetNames }: { name: string; fleetNames: s
         );
       })}
 
-      <section className="grid gap-3">
-        <h2 className="text-xs font-extrabold tracking-[0.16em] text-[var(--text-muted)] uppercase">
-          Ready for pickup
-        </h2>
-        {!loaded ? (
-          <div className="skeleton h-24 rounded-[26px]" />
-        ) : available.length === 0 ? (
-          <p className="rounded-[26px] bg-[var(--surface)] p-5 text-sm text-[var(--text-muted)] shadow-sm ring-1 ring-[var(--line)]">
+      {active.length === 0 && (
+        <section className="grid gap-2 rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)]">
+          <h2 className="font-display text-lg font-extrabold tracking-[-0.03em]">
+            {!loaded ? 'Checking for deliveries…' : 'No delivery assigned to you right now'}
+          </h2>
+          <p className="text-sm text-[var(--text-muted)]">
             {fleets.length
-              ? 'No orders are waiting right now. This list refreshes by itself.'
-              : 'Join a shop’s team to see its orders here.'}
+              ? 'When a shop assigns you an order it appears here with the shop, the customer and the route. This page refreshes by itself, so you can leave it open.'
+              : 'Join a shop’s team first. Then the shop can assign orders to you.'}
           </p>
-        ) : (
-          <ul className="grid gap-3">
-            {available.map((order) => (
+        </section>
+      )}
+
+      {history.length > 0 && (
+        <section className="grid gap-3">
+          <h2 className="text-xs font-extrabold tracking-[0.16em] text-[var(--text-muted)] uppercase">Recently delivered</h2>
+          <ul className="grid gap-2">
+            {history.map((done) => (
               <li
-                key={order.order_id}
-                className="grid gap-3 rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)]"
+                key={done.order_id}
+                className="flex items-center justify-between gap-3 rounded-[20px] bg-[var(--surface)] px-4 py-3 text-sm shadow-xs ring-1 ring-[var(--line)]"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-display text-base font-extrabold tracking-[-0.025em]">{order.seller_name}</p>
-                    <p className="text-xs text-[var(--text-muted)]">
-                      {order.order_code} &middot; {order.distance_km ? `${order.distance_km} km` : order.city}
-                      {order.packed_at && ` · packed ${timeAgo(order.packed_at, now)}`}
-                    </p>
-                  </div>
-                  <span className="shrink-0 text-sm font-extrabold tabular-nums text-brand-600">
-                    {order.cash_due_paise > 0 ? `Cash ${formatPaise(order.cash_due_paise)}` : 'Paid'}
+                <span className="min-w-0">
+                  <span className="block font-bold">{done.order?.order_code}</span>
+                  <span className="block truncate text-xs text-[var(--text-muted)]">
+                    {done.order?.seller?.shop_name}
+                    {done.delivered_at && ` · ${timeAgo(done.delivered_at, now)}`}
                   </span>
-                </div>
-                <Button
-                  variant="leaf"
-                  loading={busy === `claim-${order.order_id}`}
-                  disabled={active.length > 0}
-                  onClick={() => act(`claim-${order.order_id}`, () => post(`/v1/rider/deliveries/${order.order_id}/claim`))}
-                >
-                  {active.length > 0 ? 'Finish your current delivery first' : 'Take this delivery'}
-                </Button>
+                </span>
+                <span className="shrink-0 text-xs font-extrabold text-[var(--leaf-ink)]">
+                  {done.cash_due_paise > 0 ? `Cash ${formatPaise(done.cash_due_paise)}` : 'Paid online'}
+                </span>
               </li>
             ))}
           </ul>
-        )}
-      </section>
+        </section>
+      )}
     </div>
   );
 }

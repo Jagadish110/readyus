@@ -5,12 +5,12 @@
  * shapes match the rows the real queries return, so swapping to live data is a
  * change of source only, never of component code.
  *
- * Coordinates sit around Abids, Hyderabad so the radius rules behave sensibly.
+ * Coordinates sit around a sample point so the radius rules behave sensibly.
  */
 
 import type { NearbyProduct, NearbySeller } from '@/lib/database.types';
 
-export const FIXTURE_ORIGIN = { lat: 17.385, lng: 78.4867, label: 'Abids, Hyderabad' };
+export const FIXTURE_ORIGIN = { lat: 17.385, lng: 78.4867, label: 'Sample area' };
 
 type SellerSeed = Omit<NearbySeller, 'distance_km'> & { distance_km: number };
 
@@ -22,7 +22,7 @@ export const FIXTURE_SELLERS: SellerSeed[] = [
     listing_mode: 'food',
     description: 'Dum biryani cooked in sealed handis since 1998. Family packs available.',
     address: 'Opp. GPO, Abids',
-    city: 'Hyderabad',
+    city: 'Sample city',
     photo_url: null,
     banner_url: null,
     rating: 4.6,
@@ -42,7 +42,7 @@ export const FIXTURE_SELLERS: SellerSeed[] = [
     listing_mode: 'food',
     description: 'Idli, dosa and pesarattu from 6am. Filter coffee all day.',
     address: 'Bank Street, Koti',
-    city: 'Hyderabad',
+    city: 'Sample city',
     photo_url: null,
     banner_url: null,
     rating: 4.4,
@@ -62,7 +62,7 @@ export const FIXTURE_SELLERS: SellerSeed[] = [
     listing_mode: 'food',
     description: 'Irani chai, Osmania biscuits and fresh bakes through the day.',
     address: 'Pathergatti Road',
-    city: 'Hyderabad',
+    city: 'Sample city',
     photo_url: null,
     banner_url: null,
     rating: 4.7,
@@ -82,7 +82,7 @@ export const FIXTURE_SELLERS: SellerSeed[] = [
     listing_mode: 'items',
     description: 'Daily staples, pulses, oils and household supplies.',
     address: 'Troop Bazaar, Abids',
-    city: 'Hyderabad',
+    city: 'Sample city',
     photo_url: null,
     banner_url: null,
     rating: 4.3,
@@ -102,7 +102,7 @@ export const FIXTURE_SELLERS: SellerSeed[] = [
     listing_mode: 'items',
     description: 'Picked each morning from Gaddiannaram market.',
     address: 'Nampally Station Road',
-    city: 'Hyderabad',
+    city: 'Sample city',
     photo_url: null,
     banner_url: null,
     rating: 4.5,

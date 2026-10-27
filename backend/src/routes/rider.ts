@@ -52,14 +52,16 @@ export const riderRoutes: FastifyPluginAsync = async (app) => {
     return { ok: true };
   });
 
-  /** Open deliveries, the rider's active ones, and the route for each active one. */
+  /**
+   * The deliveries the shops have assigned to this rider, the route for each one in progress,
+   * and the last few finished.
+   */
   app.get('/deliveries', async (request) => {
     const user = await requireUser(request);
     return asUser(user.id, async (q) => {
-      const [available, active] = await Promise.all([
-        q.rows('select * from available_deliveries()'),
+      const rows = (status: string, order: string, limit: number) =>
         q.rows<{ order_id: string }>(
-          `select da.order_id, da.status, da.cash_due_paise,
+          `select da.order_id, da.status, da.cash_due_paise, da.claimed_at, da.picked_up_at, da.delivered_at,
                   jsonb_build_object(
                     'order_code', o.order_code,
                     'delivery_address', o.delivery_address,
@@ -68,8 +70,14 @@ export const riderRoutes: FastifyPluginAsync = async (app) => {
            from delivery_assignments da
            join orders o on o.id = da.order_id
            join sellers s on s.id = o.seller_id
-           where da.agent_id = current_agent_id() and da.status in ('claimed', 'picked_up')`
-        )
+           where da.agent_id = current_agent_id() and da.status::text = any(string_to_array($1, ','))
+           order by ${order} limit ${limit}`,
+          [status]
+        );
+
+      const [active, history] = await Promise.all([
+        rows('claimed,picked_up', 'da.claimed_at asc', 20),
+        rows('delivered', 'da.delivered_at desc', 10)
       ]);
 
       // Coordinates for the route come from the same function the customer's map uses.
@@ -78,7 +86,7 @@ export const riderRoutes: FastifyPluginAsync = async (app) => {
         const map = await q.one('select * from order_map($1)', [assignment.order_id]);
         if (map) maps[assignment.order_id] = map;
       }
-      return { available, active, maps };
+      return { active, history, maps };
     });
   });
 
@@ -101,17 +109,6 @@ export const riderRoutes: FastifyPluginAsync = async (app) => {
     const { code } = z.object({ code: z.string().trim().min(4).max(20) }).parse(request.body);
     try {
       await asUser(user.id, (q) => q.rows('select redeem_delivery_invite($1)', [code.toUpperCase()]));
-    } catch (error) {
-      ruleError(error);
-    }
-    return { ok: true };
-  });
-
-  app.post('/deliveries/:id/claim', action, async (request) => {
-    const user = await requireUser(request);
-    const { id } = idParams.parse(request.params);
-    try {
-      await asUser(user.id, (q) => q.rows('select claim_delivery($1)', [id]));
     } catch (error) {
       ruleError(error);
     }

@@ -37,12 +37,13 @@ export function FleetPanel() {
   const open = invites.filter((invite) => !invite.used_at && new Date(invite.expires_at) > new Date());
 
   return (
-    <section className="grid gap-4 rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)] sm:p-6">
+    <section id="delivery-team" className="grid scroll-mt-24 gap-4 rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)] sm:p-6">
       <div>
         <h2 className="font-display text-lg font-extrabold tracking-[-0.03em]">Your delivery team</h2>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Riders take orders only from shops whose team they joined. Give a rider a code; they enter it at{' '}
-          <span className="font-bold">/delivery</span>. Each code works once and lasts a week.
+          You choose who delivers each order. To add a rider: they sign up at{' '}
+          <span className="font-bold">/delivery/login</span>, then enter a code from here. Each code works once and
+          lasts a week. When an order is ready, assign it to a rider on the orders list above.
         </p>
       </div>
 

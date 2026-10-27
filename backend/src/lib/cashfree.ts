@@ -138,6 +138,7 @@ export function toPayoutStatus(vendorStatus: string | undefined): PayoutStatus {
     case 'BANK_VALIDATION_FAILED':
     case 'BENE_CREATION_FAILED':
     case 'ACTION_REQUIRED':
+    case 'ON_HOLD':
       return 'needs_clarification';
     case 'BLOCKED':
     case 'DELETED':

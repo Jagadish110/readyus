@@ -14,6 +14,9 @@ const GUARDED: Array<{ prefix: string; role: string }> = [
 // Guests may browse and build a cart; an account is needed only to order.
 const CUSTOMER_ONLY = ['/checkout', '/orders', '/account', '/favourites'];
 
+/** Pages under a guarded prefix that must stay open to someone who is not signed in. */
+const PUBLIC = ['/delivery/login'];
+
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -42,12 +45,15 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
+  if (PUBLIC.includes(path)) return response;
+
   const guarded = GUARDED.find((entry) => path.startsWith(entry.prefix));
   const needsCustomer = CUSTOMER_ONLY.some((prefix) => path.startsWith(prefix));
 
   if ((guarded || needsCustomer) && !user) {
     const signIn = request.nextUrl.clone();
-    signIn.pathname = '/sign-in';
+    // Delivery partners have their own login; everyone else uses the customer one.
+    signIn.pathname = guarded?.prefix === '/delivery' ? '/delivery/login' : '/sign-in';
     signIn.search = `?next=${encodeURIComponent(path)}`;
     return NextResponse.redirect(signIn);
   }

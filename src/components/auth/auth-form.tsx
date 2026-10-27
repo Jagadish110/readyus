@@ -35,10 +35,39 @@ function GoogleMark({ className }: { className?: string }) {
   );
 }
 
-export function AuthForm({ mode }: { mode: Mode }) {
+type Audience = 'customer' | 'rider';
+
+/** Words and links that differ for delivery partners, who have their own door at /delivery/login. */
+const COPY: Record<Audience, { eyebrow: string; signUp: string; signIn: string; signUpBody: string; signInBody: string; home: string; signInHref: string; signUpHref: string; next: string }> = {
+  customer: {
+    eyebrow: 'Localty account',
+    signUp: 'Create your account',
+    signIn: 'Welcome back',
+    signUpBody: 'One account works for shopping, selling and delivering.',
+    signInBody: 'Log in to pick up where you left off.',
+    home: '/browse',
+    signInHref: '/sign-in',
+    signUpHref: '/sign-up',
+    next: '/browse'
+  },
+  rider: {
+    eyebrow: 'Delivery partner',
+    signUp: 'Create a delivery account',
+    signIn: 'Delivery partner log in',
+    signUpBody: 'Sign up, then ask a shop for its rider code. The shop assigns you orders.',
+    signInBody: 'Log in to see the orders shops have assigned to you.',
+    home: '/',
+    signInHref: '/delivery/login',
+    signUpHref: '/delivery/login?mode=sign-up',
+    next: '/delivery'
+  }
+};
+
+export function AuthForm({ mode, audience = 'customer' }: { mode: Mode; audience?: Audience }) {
+  const copy = COPY[audience];
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get('next') || '/browse';
+  const next = params.get('next') || copy.next;
 
   const [method, setMethod] = useState<Method>('phone');
   const [phone, setPhone] = useState('');
@@ -142,14 +171,12 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
   return (
     <div>
-      <p className="text-eyebrow uppercase text-[var(--leaf-ink)]">Localty account</p>
+      <p className="text-eyebrow uppercase text-[var(--leaf-ink)]">{copy.eyebrow}</p>
       <h1 className="mt-2 font-display text-[1.9rem] leading-tight font-extrabold tracking-[-0.04em]">
-        {isSignUp ? 'Create your account' : 'Welcome back'}
+        {isSignUp ? copy.signUp : copy.signIn}
       </h1>
       <p className="mt-2 text-sm text-[var(--text-muted)]">
-        {isSignUp
-          ? 'One account works for shopping, selling and delivering.'
-          : 'Log in to pick up where you left off.'}
+        {isSignUp ? copy.signUpBody : copy.signInBody}
       </p>
 
       <Button
@@ -281,14 +308,14 @@ export function AuthForm({ mode }: { mode: Mode }) {
 
       <p className="mt-6 text-center text-sm text-[var(--text-muted)]">
         {isSignUp ? 'Already have an account? ' : 'New to Localty? '}
-        <Link href={isSignUp ? '/sign-in' : '/sign-up'} className="font-bold text-[var(--leaf-ink)] hover:underline">
+        <Link href={isSignUp ? copy.signInHref : copy.signUpHref} className="font-bold text-[var(--leaf-ink)] hover:underline">
           {isSignUp ? 'Log in' : 'Create one'}
         </Link>
       </p>
 
       <p className="mt-3 text-center">
-        <Link href="/browse" className="text-sm font-semibold text-[var(--text-muted)] hover:text-[var(--leaf-ink)]">
-          Continue as guest
+        <Link href={copy.home} className="text-sm font-semibold text-[var(--text-muted)] hover:text-[var(--leaf-ink)]">
+          {audience === 'rider' ? 'Back to Localty' : 'Continue as guest'}
         </Link>
       </p>
     </div>

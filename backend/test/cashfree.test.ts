@@ -41,6 +41,7 @@ describe('vendor status mapping', () => {
     expect(toPayoutStatus('ACTIVE')).toBe('activated');
     expect(toPayoutStatus('in_bank_validation')).toBe('under_review');
     expect(toPayoutStatus('BANK_VALIDATION_FAILED')).toBe('needs_clarification');
+    expect(toPayoutStatus('ON_HOLD')).toBe('needs_clarification');
     expect(toPayoutStatus('BLOCKED')).toBe('rejected');
     expect(toPayoutStatus(undefined)).toBe('created');
   });

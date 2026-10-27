@@ -115,6 +115,7 @@ share to its vendor, so Localty never holds the money.
 | `POST /v1/payments/verify` | Checks with Cashfree whether the order is paid and records it |
 | `POST /v1/webhooks/cashfree` | Signed webhook; does the same check |
 | `POST /v1/seller/payout` | Creates or updates the shop's vendor from its bank details |
+| `POST /v1/seller/orders/:id/assign` | The shop assigns one of its own riders to a packed order (and may change the rider until pickup) |
 | `POST /internal/refunds/sweep` | Refunds orders that ended without delivery |
 
 ## Deploy

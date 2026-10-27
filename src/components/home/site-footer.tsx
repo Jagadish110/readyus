@@ -37,9 +37,8 @@ export function SiteFooter() {
         <div>
           <Wordmark size={40} />
           <p className="mt-4 max-w-[36ch] text-sm leading-relaxed text-[var(--text-muted)]">
-            A hyperlocal marketplace for Hyderabad. Zero commission to the shop, zero fees to you.
+            A hyperlocal marketplace for food and everyday essentials. Zero commission to the shop, zero fees to you.
           </p>
-          <p className="mt-5 text-sm text-[var(--text-muted)]">Abids, Hyderabad · 500001</p>
 
           <div className="mt-6">
             <span className="block text-[0.74rem] font-extrabold tracking-[0.16em] text-ink-500 uppercase">
