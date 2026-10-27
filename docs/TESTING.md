@@ -10,9 +10,10 @@ must not overwrite each other.
    (`0001` ... `0028`), or `supabase db push`. Optional: run `supabase/seed.sql` for five demo shops.
 2. **Supabase Auth settings.** Authentication -> Providers -> Email: for testing, turn **off**
    "Confirm email" so sign-up logs you straight in.
-3. **Cashfree sandbox account** (merchant.cashfree.com, "Test" mode). Ask Cashfree to enable
-   **Easy Split** (online payments with money going straight to shops) and **Subscriptions** (the
-   shop's monthly fee). Copy the sandbox App ID and Secret Key.
+3. **Cashfree sandbox account** (merchant.cashfree.com, "Test" mode). In the sandbox you can switch on
+   **Easy Split** (online payments with money going straight to shops) yourself with Cashfree's "Enable Easy Split" sandbox API; also turn on
+   **Subscriptions** (the shop's monthly fee) in the sandbox dashboard. In **production**, Easy Split is switched on by your Cashfree account manager
+   after your business is verified, so request it as soon as you register. Copy the sandbox App ID and Secret Key.
 4. **Backend:** `cd backend && cp .env.example .env`, fill it in (Supabase URL, service role key,
    `DATABASE_URL` from Supabase -> Connect -> Transaction pooler, the Cashfree keys with
    `CASHFREE_ENV=sandbox`, `CRON_SECRET`, `SITE_URL=http://localhost:3000`), then `npm install && npm run dev`
