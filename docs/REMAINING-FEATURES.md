@@ -43,6 +43,45 @@ CI and a database test suite. Delivery partners have their own login (`/delivery
 17. Reconciliation: daily comparison of our payment records with Cashfree's settlement report.
 18. Search, favourites, repeat order, coupons (if wanted; coupons would reduce shop revenue, decide who funds them).
 
+## Audit of what is missing (each item checked in the code)
+
+**A. Orders can get stuck: fix before any real customer**
+1. **A shop cannot cancel after accepting.** Only "decline" exists, and only while the order is waiting. A shop that runs out of an item after
+   accepting has no way out; the customer can cancel only until the shop accepts. Needs: shop cancel with a reason (stock back, refund queued,
+   customer notified) and a clear rule for when the customer can still cancel.
+2. **No failed-delivery path.** If the customer does not answer or the rider cannot deliver, the order stays "out for delivery" forever
+   (the shop cannot change the rider after pickup). Needs: "could not deliver" by rider or shop, with a reason, a decision on refund (online-paid
+   food that was cooked is usually not refunded; that is a policy for the terms) and cash handling.
+3. **Opening hours are stored but never applied.** `open_time` and `close_time` are saved; only the manual "Taking orders" switch decides. A shop
+   that forgets to close takes orders at 3 am. Needs: apply the hours (in India time) and show "Opens at 9 am" to customers.
+4. **A rider cannot decline or hand back an assignment.** Only the shop can change the rider.
+
+**B. Broken or dead things users can see**
+5. Footer links to `/favourites`, `/legal/terms`, `/legal/privacy` and `/legal/refunds` all show "not found"; the sign-in page and the account page link to the legal ones too.
+   Favourites tables exist but there is no page or button.
+6. No way to **delete a product** (only mark it sold out); no way to **edit or delete a saved address** (addresses are only added at checkout); the account page shows only a name, phone and sign out.
+7. `sellers.auto_accept` exists but nothing uses it; shops with a steady menu will want auto-accept.
+8. Customers get no general "Call the shop" button (the shop's phone appears only in one payment message).
+
+**C. Admin and operations**
+9. The admin area is one page (approvals). Missing: list of shops with plan state and documents, rider list, order search, refund failures, suspend a shop or a rider,
+   grant or remove admin (today: SQL). Ops cannot answer "what happened to order X?" without database access.
+10. No deploy files (Dockerfile or host config), and `/healthz` does not check the database, so a broken database still looks healthy. Add `/readyz`.
+11. No error tracking, uptime alerts, backups plan or staging environment; no browser tests for the website in CI (the backend has 113 tests; the pages have none).
+12. The website sends no security headers (frame, content-type, referrer policy, content security policy). A strict CSP needs care for the Cashfree and Google Maps scripts.
+
+**D. Money and trust**
+13. **Cash held by riders is not tracked.** Cash collected on delivery belongs to the shop but is physically with the rider; there is no daily "cash to hand over" screen
+    or confirmation. Shops will dispute this within a week.
+14. No refund or compensation by the shop after delivery (missing item), no customer complaint route, no review replies or review moderation.
+15. Customers get no receipt for an order (items, total, shop FSSAI number) and nothing to download.
+
+**E. Privacy and sign-in**
+16. **Login by mobile OTP needs an SMS provider** (Supabase Phone auth: cost, plus DLT registration in India) and it is the first option on the sign-in page. Decide: keep it, or lead with Google
+    and email so no SMS is needed at all.
+17. No account deletion or data download (needed for the DPDP Act), no consent line for location, no retention rule for documents and order data.
+18. The `notification_devices` table from the first version is unused; remove it.
+
 ## Later
 
 Auto-assignment of riders, batching, third-party logistics for shops with no riders, push notifications, native apps,
