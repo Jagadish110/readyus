@@ -1,6 +1,27 @@
 # Render Blueprint for the Localty backend. In Render: New > Blueprint > pick this repo.
 # Values marked `sync: false` are asked for in the Render dashboard and never stored in git.
 services:
+  # The Next.js website. NODE_ENV must be "production" at build time: if the Render dashboard has
+  # NODE_ENV=development set, the build prints "unique key" warnings and fails on /_global-error.
+  - type: web
+    name: localty-web
+    runtime: node
+    region: singapore
+    plan: starter
+    buildCommand: npm install --include=dev && NODE_ENV=production npm run build
+    startCommand: npm start
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: NEXT_PUBLIC_API_URL # the backend's https address on Render
+        sync: false
+      - key: NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
+        sync: false
   - type: web
     name: localty-api
     runtime: docker
