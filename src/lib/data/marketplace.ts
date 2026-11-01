@@ -2,6 +2,7 @@ import 'server-only';
 
 import { headers } from 'next/headers';
 import { visitorHeaders } from '@/lib/api/visitor';
+import { BACKEND_TIMEOUT_MS } from '@/lib/api/timeout';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import type { NearbyCategory, NearbyProduct, NearbySeller, ListingMode } from '@/lib/database.types';
 import {
@@ -27,7 +28,7 @@ async function callApi<T>(path: string, params: Params): Promise<T[]> {
   const response = await fetch(url, {
     cache: 'no-store',
     headers: visitorHeaders(await headers()),
-    signal: AbortSignal.timeout(10_000)
+    signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS)
   });
   if (!response.ok) throw new Error(`catalogue ${path}: ${response.status}`);
   return ((await response.json()) as { rows: T[] }).rows;

@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { visitorHeaders } from '@/lib/api/visitor';
+import { BACKEND_TIMEOUT_MS } from '@/lib/api/timeout';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(/\/$/, '');
 
@@ -76,7 +77,7 @@ export async function proxy(request: NextRequest) {
       const response = await fetch(`${API_URL}/v1/me`, {
         headers: { Authorization: `Bearer ${token ?? ''}`, ...visitorHeaders(request.headers) },
         cache: 'no-store',
-        signal: AbortSignal.timeout(8_000)
+        signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS)
       });
       if (response.ok) held = ((await response.json()) as { roles: string[] }).roles;
       // Signed out on another device: the token's signature is still good, but the login is gone.

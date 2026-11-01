@@ -2,6 +2,7 @@ import 'server-only';
 import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { visitorHeaders } from './visitor';
+import { BACKEND_TIMEOUT_MS } from './timeout';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(/\/$/, '');
 
@@ -21,7 +22,7 @@ export async function serverApi<T>(path: string): Promise<ServerApiResult<T>> {
     const response = await fetch(`${API_URL}${path}`, {
       headers: { Authorization: `Bearer ${token}`, ...visitorHeaders(await headers()) },
       cache: 'no-store',
-      signal: AbortSignal.timeout(10_000)
+      signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS)
     });
     if (!response.ok) return { ok: false, status: response.status };
     return { ok: true, data: (await response.json()) as T };
