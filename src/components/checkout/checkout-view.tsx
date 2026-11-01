@@ -299,7 +299,7 @@ export function CheckoutView() {
                   active={choice === 'online'}
                   onPick={() => setPicked('online')}
                   title="Pay online"
-                  hint="UPI, cards or net banking. You pay right after placing the order."
+                  hint="UPI, cards or net banking. You pay once the shop accepts your order."
                 />
               )}
               {codOk && (
@@ -315,8 +315,8 @@ export function CheckoutView() {
 
           {choice === 'online' && (
             <p className="mt-3 rounded-[18px] bg-warning/12 px-4 py-3 text-xs leading-relaxed font-medium text-[var(--text)] ring-1 ring-warning/35">
-              You will pay securely on the next screen. The shop starts your order once the payment
-              goes through, and you are refunded if they cannot take it.
+              Nothing is charged now. The shop accepts your order first, then you pay securely on the
+              order page and they start preparing it.
             </p>
           )}
           {choice === 'cod' && (

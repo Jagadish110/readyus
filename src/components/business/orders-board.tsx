@@ -327,7 +327,11 @@ export function OrdersBoard() {
 
       <Group title="Waiting for the customer to pay" count={waitingPay.length}>
         {waitingPay.map((order) => (
-          <OrderCard key={order.id} order={order} note="You will be asked to confirm once they pay." />
+          <OrderCard
+            key={order.id}
+            order={order}
+            note="You accepted this. Wait for the payment before you start: once paid it moves to your kitchen list by itself. Unpaid orders are cancelled after 15 minutes."
+          />
         ))}
       </Group>
 
@@ -422,7 +426,9 @@ function paymentLabel(order: SellerOrder) {
 function waitingNote(order: SellerOrder, now: number) {
   const waited = Math.max(0, Math.floor((now - new Date(order.created_at).getTime()) / 60_000));
   const parts = [waited < 1 ? 'Just now' : `Waiting ${waited} min`];
-  if (order.verified_prepaid_paise > 0 && order.accept_deadline_at) {
+  if (order.required_online_paise > order.verified_prepaid_paise) {
+    parts.push('the customer pays online once you accept');
+  } else if (order.verified_prepaid_paise > 0 && order.accept_deadline_at) {
     const left = Math.ceil((new Date(order.accept_deadline_at).getTime() - now) / 60_000);
     parts.push(left > 0 ? `paid online: accept within ${left} min or it is refunded` : 'paid online: refund pending');
   }

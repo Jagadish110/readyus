@@ -65,13 +65,51 @@ describe.skipIf(!HAS_DB)('order expiry (database)', () => {
       return q.rows('select mark_order_paid($1, $2, $3)', [cashfreeOrder, `pay_${cashfreeOrder}`, amountPaise]);
     });
 
-  it('starts the shop’s clock when the money arrives, not when the order was placed', async () => {
+  const accept = (shop: { userId: string }, orderId: string) =>
+    asUser(shop.userId, (q) => q.rows('select seller_decide_order($1, true)', [orderId]));
+
+  /** An order from before 0040, when the customer paid first and the shop accepted afterwards. */
+  const payFirst = async (cashfreeOrder: string, orderId: string) => {
+    await asService((q) => q.rows(`update orders set status = 'payment_required' where id = $1`, [orderId]));
+    return pay(cashfreeOrder, orderId);
+  };
+
+  it('asks for payment only after the shop accepts, then sends the paid order to the kitchen', async () => {
+    const shop = await makeShop();
+    const customer = await makeCustomer();
+    const orderId = await placeOrder(customer, shop, { online: true });
+
+    // Placed: the shop decides first, nothing is charged yet.
+    expect((await orderRow(orderId))!.status).toBe('pending');
+    await expect(
+      asUser(customer.userId, (q) => q.rows('select claim_payment($1, $2)', [orderId, 'upi-ref']))
+    ).rejects.toThrow(/PAYMENT_NOT_PENDING/);
+
+    await accept(shop, orderId);
+    const accepted = (await orderRow(orderId))!;
+    expect(accepted.status).toBe('payment_required');
+    expect(accepted.accepted_at).not.toBeNull();
+    const told = await asService((q) => q.rows<{ title: string }>('select title from notifications where user_id = $1', [customer.userId]));
+    expect(told.map((n) => n.title)).toContain('Order accepted: pay now');
+
+    await pay('cf_a', orderId);
+    const paid = (await orderRow(orderId))!;
+    expect(paid.status).toBe('accepted');
+    expect(paid.verified_prepaid_paise).toBe(10000);
+    const shopTold = await asService((q) => q.rows<{ title: string }>('select title from notifications where user_id = $1', [shop.userId]));
+    expect(shopTold.map((n) => n.title)).toContain('Order paid: start preparing');
+
+    const closed = await asService((q) => q.one<{ n: number }>('select expire_stale_orders() as n'));
+    expect(closed!.n).toBe(0);
+  });
+
+  it('starts the shop’s clock when the money arrives for an order paid before accepting', async () => {
     const shop = await makeShop();
     const customer = await makeCustomer();
     const orderId = await placeOrder(customer, shop, { online: true });
     await asService((q) => q.rows(`update orders set accept_deadline_at = now() - interval '20 minutes' where id = $1`, [orderId]));
 
-    await pay('cf_a', orderId);
+    await payFirst('cf_a2', orderId);
 
     const order = (await orderRow(orderId))!;
     expect(order.status).toBe('payment_confirmed');
@@ -96,6 +134,7 @@ describe.skipIf(!HAS_DB)('order expiry (database)', () => {
     await asService((q) =>
       q.rows(`insert into seller_payout_accounts (seller_id, cashfree_vendor_id, status) values ($1, 'shop_test', 'activated')`, [shop.sellerId])
     );
+    await asService((q) => q.rows(`update orders set status = 'payment_required' where id = $1`, [orderId]));
     await pay('cf_c', orderId, 20000);
     await asService((q) => q.rows(`update orders set accept_deadline_at = now() - interval '1 minute' where id = $1`, [orderId]));
 
@@ -113,12 +152,14 @@ describe.skipIf(!HAS_DB)('order expiry (database)', () => {
     expect(await stockOf(shop.productId)).toBe(10);
   });
 
-  it('cancels an order left unpaid for 30 minutes and frees its stock', async () => {
+  it('cancels an order accepted but left unpaid for 15 minutes, frees its stock and tells the shop', async () => {
     const shop = await makeShop({ stock: 5 });
     const customer = await makeCustomer();
     const stale = await placeOrder(customer, shop, { online: true });
     const fresh = await placeOrder(customer, shop, { online: true });
-    await asService((q) => q.rows(`update orders set created_at = now() - interval '31 minutes' where id = $1`, [stale]));
+    await accept(shop, stale);
+    await accept(shop, fresh);
+    await asService((q) => q.rows(`update orders set accepted_at = now() - interval '16 minutes' where id = $1`, [stale]));
     expect(await stockOf(shop.productId)).toBe(3);
 
     await asService((q) => q.rows('select expire_stale_orders()'));
@@ -126,6 +167,27 @@ describe.skipIf(!HAS_DB)('order expiry (database)', () => {
     expect((await orderRow(stale))!.status).toBe('cancelled');
     expect((await orderRow(fresh))!.status).toBe('payment_required');
     expect(await stockOf(shop.productId)).toBe(4);
+    const shopTold = await asService((q) => q.rows<{ title: string }>('select title from notifications where user_id = $1', [shop.userId]));
+    expect(shopTold.map((n) => n.title)).toContain('Order cancelled: not paid');
+  });
+
+  it('leaves an online order waiting for the shop, however long, until it is accepted', async () => {
+    const shop = await makeShop();
+    const customer = await makeCustomer();
+    const orderId = await placeOrder(customer, shop, { online: true });
+    await asService((q) => q.rows(`update orders set created_at = now() - interval '1 hour' where id = $1`, [orderId]));
+    await asService((q) => q.rows('select expire_stale_orders()'));
+    expect((await orderRow(orderId))!.status).toBe('pending');
+  });
+
+  it('lets the shop drop an order it accepted that is still unpaid', async () => {
+    const shop = await makeShop({ stock: 5 });
+    const customer = await makeCustomer();
+    const orderId = await placeOrder(customer, shop, { online: true });
+    await accept(shop, orderId);
+    await asUser(shop.userId, (q) => q.rows('select seller_cancel_order($1, $2)', [orderId, 'Out of stock']));
+    expect((await orderRow(orderId))!.status).toBe('cancelled');
+    expect(await stockOf(shop.productId)).toBe(5);
   });
 
   it('leaves an unpaid cash order waiting for the shop, as before', async () => {
@@ -144,7 +206,8 @@ describe.skipIf(!HAS_DB)('order expiry (database)', () => {
     await asService((q) =>
       q.rows(`insert into seller_payout_accounts (seller_id, cashfree_vendor_id, status) values ($1, 'shop_late', 'activated')`, [shop.sellerId])
     );
-    await asService((q) => q.rows(`update orders set created_at = now() - interval '40 minutes' where id = $1`, [orderId]));
+    await accept(shop, orderId);
+    await asService((q) => q.rows(`update orders set accepted_at = now() - interval '20 minutes' where id = $1`, [orderId]));
     await asService((q) => q.rows('select expire_stale_orders()'));
     expect((await orderRow(orderId))!.status).toBe('cancelled');
 

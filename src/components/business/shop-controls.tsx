@@ -94,7 +94,7 @@ export function ShopControls({ shop }: { shop: ShopRow }) {
         <div>
           <h2 className="font-display text-base font-extrabold tracking-[-0.03em]">Accept orders automatically</h2>
           <p className="text-sm text-[var(--text-muted)]">
-            New orders are accepted the moment they arrive (online orders once paid). Use it only if you can always make what is on your menu.
+            New orders are accepted the moment they arrive, and customers paying online are asked to pay straight away. Use it only if you can always make what is on your menu.
           </p>
         </div>
         <button

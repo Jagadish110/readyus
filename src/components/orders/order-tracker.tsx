@@ -192,12 +192,28 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
                 Your order is with the shop
               </p>
               <p className="mt-1 text-sm text-[var(--text-muted)]">
-                You will see it here the moment they accept. Usual delivery after accepting is about{' '}
-                {eta.minutes} minutes. You can cancel until they start preparing it.
+                You will see it here the moment they accept.{' '}
+                {order.required_online_paise > order.verified_prepaid_paise
+                  ? 'Then you pay online here, and they start preparing it. '
+                  : ''}
+                Usual delivery after accepting is about {eta.minutes} minutes. You can cancel until they start preparing it.
               </p>
             </>
           ) : status === 'payment_required' || status === 'payment_rejected' ? (
-            <p className="font-display text-xl font-extrabold tracking-[-0.03em]">Pay to start your order</p>
+            order.accepted_at ? (
+              <>
+                <p className="text-xs font-extrabold tracking-[0.16em] text-[var(--leaf-ink)] uppercase">
+                  {shopName} accepted your order
+                </p>
+                <p className="mt-1.5 font-display text-2xl font-extrabold tracking-[-0.035em]">Pay now to confirm it</p>
+                <p className="mt-1 text-sm text-[var(--text-muted)]">
+                  They start preparing it as soon as your payment goes through. Unpaid orders are cancelled after 15
+                  minutes.
+                </p>
+              </>
+            ) : (
+              <p className="font-display text-xl font-extrabold tracking-[-0.03em]">Pay to start your order</p>
+            )
           ) : status === 'customer_claimed_paid' ? (
             <p className="font-display text-xl font-extrabold tracking-[-0.03em]">
               The shop is checking your payment

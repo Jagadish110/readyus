@@ -57,7 +57,7 @@ export const canCancel = (status: OrderStatus) =>
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   pending: 'Waiting for the shop',
-  payment_required: 'Payment needed',
+  payment_required: 'Pay to confirm',
   customer_claimed_paid: 'Payment being checked',
   payment_confirmed: 'Payment confirmed',
   payment_rejected: 'Payment not found',

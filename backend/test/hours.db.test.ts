@@ -102,7 +102,7 @@ describe.skipIf(!HAS_DB)('auto-accept (database)', () => {
     expect(notes.map((n) => n.title)).toContain('Order accepted');
   });
 
-  it('waits for an online payment before accepting, then accepts', async () => {
+  it('accepts an online order at once and asks the customer to pay, then starts it once paid', async () => {
     const shop = await makeShop();
     await on(shop.sellerId);
     const customer = await makeCustomer();
@@ -118,9 +118,9 @@ describe.skipIf(!HAS_DB)('auto-accept (database)', () => {
     const customer = await makeCustomer();
     const cash = await placeOrder(customer, shop);
     const online = await placeOrder(customer, shop, { online: true });
-    await payOnline(online);
     expect((await orderRow(cash))!.status).toBe('pending');
-    expect((await orderRow(online))!.status).toBe('payment_confirmed');
+    // Online orders wait for the shop too; the customer is asked to pay only once it accepts.
+    expect((await orderRow(online))!.status).toBe('pending');
   });
 
   it('cannot be triggered from a browser, and does nothing twice', async () => {

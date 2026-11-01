@@ -13,6 +13,8 @@ create table if not exists auth.users (
   email text,
   phone text,
   raw_user_meta_data jsonb not null default '{}'::jsonb,
+  -- Read by admin_grant_admin: only a confirmed email can be made an admin.
+  email_confirmed_at timestamptz default now(),
   -- Columns Supabase's own seed data fills in.
   instance_id uuid,
   aud text,

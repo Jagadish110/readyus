@@ -62,7 +62,7 @@ export async function placeOrder(
   opts: { online?: boolean; quantity?: number } = {}
 ) {
   await asService((q) =>
-    q.rows('insert into cart_items (user_id, product_id, seller_id, quantity) values ($1, $2, $3, $4) on conflict (user_id, product_id, variant_id) do update set quantity = excluded.quantity', [
+    q.rows('insert into cart_items (user_id, product_id, seller_id, quantity) values ($1, $2, $3, $4) on conflict (user_id, product_id, variant_id, extra_ids) do update set quantity = excluded.quantity', [
       customer.userId,
       shop.productId,
       shop.sellerId,
