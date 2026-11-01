@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { headers } from 'next/headers';
+import { visitorHeaders } from '@/lib/api/visitor';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import type { NearbyCategory, NearbyProduct, NearbySeller, ListingMode } from '@/lib/database.types';
 import {
@@ -22,7 +24,11 @@ async function callApi<T>(path: string, params: Params): Promise<T[]> {
     if (value !== undefined && value !== null && value !== '') url.searchParams.set(key, String(value));
   }
 
-  const response = await fetch(url, { cache: 'no-store', signal: AbortSignal.timeout(10_000) });
+  const response = await fetch(url, {
+    cache: 'no-store',
+    headers: visitorHeaders(await headers()),
+    signal: AbortSignal.timeout(10_000)
+  });
   if (!response.ok) throw new Error(`catalogue ${path}: ${response.status}`);
   return ((await response.json()) as { rows: T[] }).rows;
 }

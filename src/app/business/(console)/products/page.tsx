@@ -9,6 +9,7 @@ import { Card, Eyebrow } from '@/components/ui/card';
 import { ButtonLink } from '@/components/ui/button';
 import { StockToggle } from '@/components/business/stock-toggle';
 import { cn } from '@/lib/utils';
+import { comboSummary } from '@/lib/menu';
 
 export const metadata: Metadata = { title: 'Your products' };
 export const dynamic = 'force-dynamic';
@@ -29,6 +30,9 @@ export default async function ProductsPage() {
           <h1 className="mt-2 font-display text-[1.9rem] leading-[1.05] font-extrabold tracking-[-0.045em]">
             Your products
           </h1>
+          {products.length > 0 && (
+            <p className="mt-1 text-sm text-[var(--text-muted)]">Tap a product to edit, add sizes, or delete it.</p>
+          )}
         </div>
         <ButtonLink href="/business/products/new" variant="leaf" size="sm">
           Add product
@@ -81,6 +85,14 @@ export default async function ProductsPage() {
                         {product.name}
                       </span>
                     </span>
+                    {product.combo_items?.length ? (
+                      <span className="flex min-w-0 items-center gap-1.5 text-xs font-semibold">
+                        <span className="rounded-full bg-leaf-600/12 px-2 py-0.5 text-[0.68rem] font-extrabold tracking-wide text-[var(--leaf-ink)]">
+                          COMBO
+                        </span>
+                        <span className="truncate text-[var(--text-muted)]">{comboSummary(product.combo_items)}</span>
+                      </span>
+                    ) : null}
                     <span className="font-display font-extrabold text-brand-600">
                       ₹{Number(product.price).toLocaleString('en-IN')}
                       {product.unit && (

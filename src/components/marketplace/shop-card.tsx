@@ -3,6 +3,7 @@ import type { NearbySeller } from '@/lib/database.types';
 import { ShopArt } from '@/components/marketplace/shop-art';
 import { cn, deliveryMinutes, formatDistance, formatRupees, opensAt } from '@/lib/utils';
 import { ClockIcon, PinIcon, StarIcon } from '@/components/shell/icons';
+import { describeDelivery } from '@/lib/shop-terms';
 
 /**
  * A restaurant poster: a wide photo with the name set over a dark fade, then a
@@ -12,10 +13,11 @@ export function ShopCard({ shop }: { shop: NearbySeller }) {
   return (
     <Link
       href={`/shop/${shop.id}`}
+      transitionTypes={['nav-forward']}
       className={cn(
         'group flex flex-col overflow-hidden rounded-[26px] bg-[var(--surface)] shadow-sm ring-1 ring-[var(--line)]',
         'transition-[transform,box-shadow] duration-300 ease-[var(--ease-smooth)]',
-        'hover:-translate-y-1.5 hover:ring-leaf-400 hover:shadow-[0_22px_48px_rgb(28_22_20/0.12)]'
+        'hover:-translate-y-1.5 hover:ring-leaf-400 hover:shadow-[0_22px_48px_rgb(28_22_20/0.12)] active:scale-[0.98] active:duration-100'
       )}
     >
       <span className="tile relative block aspect-[16/9] w-full overflow-hidden bg-[var(--tile)]">
@@ -58,9 +60,14 @@ export function ShopCard({ shop }: { shop: NearbySeller }) {
           <ClockIcon className="size-3.5" />
           ~{deliveryMinutes(shop.distance_km, shop.eta_minutes)} min
         </span>
-        {shop.min_order_amount > 0 && <span>Min {formatRupees(shop.min_order_amount)}</span>}
-        <span className="rounded-full bg-[var(--leaf-soft)] px-2.5 py-1 text-[0.68rem] font-extrabold text-[var(--leaf-ink)] ring-1 ring-[var(--line)]">
-          Free delivery
+        {Number(shop.min_order_amount) > 0 && <span>Min {formatRupees(Number(shop.min_order_amount))}</span>}
+        <span
+          className={cn(
+            'rounded-full px-2.5 py-1 text-[0.68rem] font-extrabold ring-1 ring-[var(--line)]',
+            Number(shop.delivery_fee) > 0 ? 'bg-[var(--tile)] text-[var(--text)]' : 'bg-[var(--leaf-soft)] text-[var(--leaf-ink)]'
+          )}
+        >
+          {describeDelivery(shop)}
         </span>
       </span>
     </Link>

@@ -27,6 +27,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/card';
 import { cn, formatPaise } from '@/lib/utils';
+import { comboSummary } from '@/lib/menu';
 
 /**
  * Keeps one order current by asking the backend every few seconds while the
@@ -155,10 +156,14 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
   return (
     <div className="mx-auto grid max-w-2xl gap-5">
       <div className="animate-rise">
-        <Link href="/orders" className="text-sm font-bold text-[var(--leaf-ink)] hover:underline">
+        <Link
+          href="/orders"
+          transitionTypes={['nav-back']}
+          className="-ml-1 inline-flex h-11 items-center rounded-full px-1 text-sm font-bold text-[var(--leaf-ink)] hover:underline"
+        >
           &larr; All orders
         </Link>
-        <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
+        <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <Eyebrow>{order.order_code}</Eyebrow>
             <h1 className="mt-2 font-display text-[clamp(1.6rem,3.5vw,2.1rem)] leading-[1.05] font-extrabold tracking-[-0.04em]">
@@ -421,6 +426,9 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
               <span className="min-w-0">
                 {item.quantity} &times; {item.name}
                 {item.variant_label && <span className="text-[var(--text-muted)]"> ({item.variant_label})</span>}
+                {item.combo_items?.length ? (
+                  <span className="block text-xs text-[var(--text-muted)]">Includes {comboSummary(item.combo_items)}</span>
+                ) : null}
               </span>
               <span className="shrink-0 font-bold tabular-nums">{formatPaise(item.line_total_paise)}</span>
             </li>

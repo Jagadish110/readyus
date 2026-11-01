@@ -14,12 +14,14 @@ const BUCKET = 'product-images';
 const IMAGE_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
 
 const SHOP_SQL = `select id, shop_name, listing_mode, status, public_visible, review_note, business_open, auto_accept,
-                         service_radius_km, open_time, close_time
+                         service_radius_km, open_time, close_time, min_order_amount, delivery_fee, free_delivery_above,
+                         cod_available, prepaid_available, address, city, pincode, extras,
+                         st_y(location::geometry) as lat, st_x(location::geometry) as lng
                   from sellers`;
 
 const PRODUCT_SQL = `select id, name, description, category_key, listing_mode, price, mrp, unit, stock, images,
                             veg_type, spice_level, prep_minutes, available, approval_status, review_note,
-                            rating, rating_count
+                            rating, rating_count, variants, variant_name, combo_items, extra_ids
                      from products`;
 
 type Shop = { id: string; status: string; listing_mode: 'food' | 'items' };
@@ -47,21 +49,105 @@ const imageUrl = (shopId: string) =>
       message: 'Photos must be uploaded through Localty.'
     });
 
+/**
+ * Sizes or portions of one dish (Half / Full, 500 ml / 1 L), each with its own price. They share the
+ * dish's stock. place_order prices a cart line from the variant it names, so ids must stay stable
+ * across edits: existing ones come back from the form, new ones get an id here.
+ */
+const variantsField = z
+  .array(
+    z.object({
+      id: z.string().regex(/^[a-z0-9]{1,16}$/).optional(),
+      label: z.string().trim().min(1, 'Name each size, like Half or Full.').max(40),
+      price: z.number().min(0).max(1_000_000),
+      mrp: z.number().min(0).max(1_000_000).nullable().optional()
+    })
+  )
+  .max(8, 'A product can have up to 8 sizes.')
+  .default([])
+  .refine((list) => new Set(list.map((v) => v.label.toLowerCase())).size === list.length, 'Each size needs a different name.')
+  .transform((list) => list.map((v) => ({ ...v, id: v.id ?? randomUUID().replace(/-/g, '').slice(0, 12), mrp: v.mrp ?? null })));
+
+/**
+ * What a combo includes ("1 Pizza Mania", "2 Coke"). A product with items is a combo; it keeps its own
+ * price. Plain names, not links to other products, so a combo can include anything the kitchen makes.
+ */
+const comboItemsField = z
+  .array(
+    z.object({
+      name: z.string().trim().min(1, 'Name each item in the combo.').max(60),
+      qty: z.number().int().min(1).max(20)
+    })
+  )
+  .max(12, 'A combo can have up to 12 items.')
+  .default([]);
+
+const extraId = z.string().regex(/^[a-z0-9]{1,16}$/);
+
+/** SQL for the extra ids in parameter `ids` that the shop in parameter `shop` actually has. */
+const OWN_EXTRAS = (ids: string, shop: string) =>
+  `array(select x from unnest(${ids}::text[]) as x
+         where x in (select e ->> 'id' from jsonb_array_elements((select extras from sellers where id = ${shop})) as e))`;
+
+/**
+ * The shop's extras, set up once and ticked per dish: Extra cheese ₹35, or by size Small ₹35 / Medium ₹50 /
+ * Large ₹70. A size price applies when the dish's size has the same name; otherwise `price` does.
+ * place_order prices them from this list (migration 0039). Ids stay stable across edits, as dishes name them.
+ */
+const extrasSchema = z.object({
+  extras: z
+    .array(
+      z.object({
+        id: extraId.optional(),
+        label: z.string().trim().min(1, 'Name each extra, like Extra cheese.').max(40),
+        price: z.number().min(0).max(100_000),
+        size_prices: z
+          .array(z.object({ size: z.string().trim().min(1).max(40), price: z.number().min(0).max(100_000) }))
+          .max(8, 'An extra can have up to 8 size prices.')
+          .default([])
+      })
+    )
+    .max(30, 'A shop can have up to 30 extras.')
+    .refine((list) => new Set(list.map((extra) => extra.label.toLowerCase())).size === list.length, 'Each extra needs a different name.')
+    .refine((list) => {
+      const ids = list.flatMap((extra) => (extra.id ? [extra.id] : []));
+      return new Set(ids).size === ids.length;
+    }, 'Each extra needs its own id.')
+    .refine(
+      (list) => list.every((extra) => new Set(extra.size_prices.map((entry) => entry.size.toLowerCase())).size === extra.size_prices.length),
+      'Give each size one price per extra.'
+    )
+    .transform((list) => list.map((extra) => ({ ...extra, id: extra.id ?? randomUUID().replace(/-/g, '').slice(0, 12) })))
+});
+
 const productFields = (shopId: string) =>
-  z.object({
-    name: z.string().trim().min(2).max(120),
-    description: z.string().trim().max(1000),
-    category_key: z.string().trim().min(1).max(60),
-    listing_mode: z.enum(['food', 'items']),
-    price: z.number().min(0).max(1_000_000),
-    mrp: z.number().min(0).max(1_000_000).nullable(),
-    unit: z.string().trim().max(40),
-    stock: z.number().int().min(0).max(100_000),
-    images: z.array(imageUrl(shopId)).max(4),
-    veg_type: z.string().trim().max(20),
-    spice_level: z.string().trim().max(20),
-    prep_minutes: z.number().int().min(0).max(600).nullable()
-  });
+  z
+    .object({
+      name: z.string().trim().min(2).max(120),
+      description: z.string().trim().max(1000),
+      category_key: z.string().trim().min(1).max(60),
+      listing_mode: z.enum(['food', 'items']),
+      price: z.number().min(0).max(1_000_000),
+      mrp: z.number().min(0).max(1_000_000).nullable(),
+      unit: z.string().trim().max(40),
+      stock: z.number().int().min(0).max(100_000),
+      images: z.array(imageUrl(shopId)).max(4),
+      veg_type: z.string().trim().max(20),
+      spice_level: z.string().trim().max(20),
+      prep_minutes: z.number().int().min(0).max(600).nullable(),
+      variants: variantsField,
+      // What the variants are: customers see "Choose your size", "Choose your pizza".
+      variant_name: z.string().trim().min(1).max(20).default('Size'),
+      combo_items: comboItemsField,
+      // Which of the shop's extras this dish offers. Ids the shop does not have are dropped when saving.
+      extra_ids: z
+        .array(extraId)
+        .max(30)
+        .default([])
+        .transform((ids) => [...new Set(ids)])
+    })
+    // With sizes, the listed price is the cheapest one, so menus can say "from ₹X".
+    .transform((p) => (p.variants.length ? { ...p, price: Math.min(...p.variants.map((v) => v.price)) } : p));
 
 const settingsSchema = z
   .object({
@@ -69,10 +155,25 @@ const settingsSchema = z
     auto_accept: z.boolean(),
     service_radius_km: z.number().min(0.5).max(50),
     open_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
-    close_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/)
+    close_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+    // Rupees. 0 means no minimum, free delivery, or never free respectively.
+    min_order_amount: z.number().min(0).max(100_000),
+    delivery_fee: z.number().min(0).max(5_000),
+    free_delivery_above: z.number().min(0).max(100_000),
+    prepaid_available: z.boolean(),
+    cod_available: z.boolean()
   })
   .partial()
   .refine((value) => Object.keys(value).length > 0, 'Nothing to save.');
+
+/** Where the shop is: the pin decides which customers can see it, so it should be the shop's front door. */
+const locationSchema = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  address: z.string().trim().min(5, 'Enter the shop address.').max(300),
+  city: z.string().trim().min(1, 'Enter the city.').max(80),
+  pincode: z.string().regex(/^\d{6}$/, 'Enter a 6-digit pincode.')
+});
 
 const applySchema = z.object({
   shopName: z.string().trim().min(2).max(100),
@@ -111,12 +212,51 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
     const user = await requireUser(request);
     const values = settingsSchema.parse(request.body);
 
+    try {
+      return await asUser(user.id, async (q) => {
+        const shop = await ownShop(q, user.id);
+        const entries = Object.entries(values);
+        // Column names come from the schema above, never from the request.
+        const sets = entries.map(([column], index) => `${column} = $${index + 2}`).join(', ');
+        await q.rows(`update sellers set ${sets} where id = $1`, [shop.id, ...entries.map(([, value]) => value)]);
+        return { ok: true };
+      });
+    } catch (error) {
+      // sellers_some_way_to_pay (migration 0036): online payment and cash on delivery cannot both be off.
+      if ((error as { constraint?: string }).constraint === 'sellers_some_way_to_pay') {
+        throw new AppError(400, 'Keep at least one way to pay switched on: online payment or cash on delivery.');
+      }
+      throw error;
+    }
+  });
+
+  /** Moves the shop's pin and address, for example to the exact front door after applying from home. */
+  /** Saves the shop's whole extras list. A removed extra stops being offered by every dish. */
+  app.post('/shop/extras', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request) => {
+    const user = await requireUser(request);
+    const { extras } = extrasSchema.parse(request.body);
     return asUser(user.id, async (q) => {
       const shop = await ownShop(q, user.id);
-      const entries = Object.entries(values);
-      // Column names come from the schema above, never from the request.
-      const sets = entries.map(([column], index) => `${column} = $${index + 2}`).join(', ');
-      await q.rows(`update sellers set ${sets} where id = $1`, [shop.id, ...entries.map(([, value]) => value)]);
+      await q.rows('update sellers set extras = $2::jsonb where id = $1', [shop.id, JSON.stringify(extras)]);
+      await q.rows(
+        `update products set extra_ids = array(select x from unnest(extra_ids) as x where x = any ($2::text[]))
+         where seller_id = $1 and not (extra_ids <@ $2::text[])`,
+        [shop.id, extras.map((extra) => extra.id)]
+      );
+      return { extras };
+    });
+  });
+
+  app.post('/shop/location', { config: { rateLimit: { max: 20, timeWindow: '1 hour' } } }, async (request) => {
+    const user = await requireUser(request);
+    const place = locationSchema.parse(request.body);
+    return asUser(user.id, async (q) => {
+      const shop = await ownShop(q, user.id);
+      await q.rows(
+        `update sellers set location = st_setsrid(st_makepoint($2, $3), 4326)::geography, address = $4, city = $5, pincode = $6
+         where id = $1`,
+        [shop.id, place.lng, place.lat, place.address, place.city, place.pincode]
+      );
       return { ok: true };
     });
   });
@@ -233,10 +373,16 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
       // New rows are approved by the column default (migration 0013); sellers have no grant on that column.
       const created = await q.one<{ id: string }>(
         `insert into products (seller_id, name, description, category_key, listing_mode, price, mrp, unit, stock,
-                               images, veg_type, spice_level, prep_minutes, available)
-         values ($1, $2, $3, $4, $5::listing_mode, $6, $7, $8, $9, $10, $11, $12, $13, true)
+                               images, veg_type, spice_level, prep_minutes, variants, variant_name, combo_items, extra_ids,
+                               available)
+         values ($1, $2, $3, $4, $5::listing_mode, $6, $7, $8, $9, $10, $11, $12, $13, $14::jsonb, $15, $16::jsonb,
+                 ${OWN_EXTRAS('$17', '$1')}, true)
          returning id`,
-        [shop.id, p.name, p.description, p.category_key, p.listing_mode, p.price, p.mrp, p.unit, p.stock, p.images, p.veg_type, p.spice_level, p.prep_minutes]
+        [
+          shop.id, p.name, p.description, p.category_key, p.listing_mode, p.price, p.mrp, p.unit, p.stock, p.images,
+          p.veg_type, p.spice_level, p.prep_minutes, JSON.stringify(p.variants), p.variant_name, JSON.stringify(p.combo_items),
+          p.extra_ids
+        ]
       );
       return { id: created?.id };
     });
@@ -251,10 +397,15 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
       const updated = await q.rows(
         `update products set name = $3, description = $4, category_key = $5, listing_mode = $6::listing_mode, price = $7,
                 mrp = $8, unit = $9, stock = $10, images = $11, veg_type = $12, spice_level = $13,
-                prep_minutes = $14, available = true
+                prep_minutes = $14, variants = $15::jsonb, variant_name = $16, combo_items = $17::jsonb,
+                extra_ids = ${OWN_EXTRAS('$18', '$2')}, available = true
          where id = $1 and seller_id = $2
          returning id`,
-        [id, shop.id, p.name, p.description, p.category_key, p.listing_mode, p.price, p.mrp, p.unit, p.stock, p.images, p.veg_type, p.spice_level, p.prep_minutes]
+        [
+          id, shop.id, p.name, p.description, p.category_key, p.listing_mode, p.price, p.mrp, p.unit, p.stock, p.images,
+          p.veg_type, p.spice_level, p.prep_minutes, JSON.stringify(p.variants), p.variant_name, JSON.stringify(p.combo_items),
+          p.extra_ids
+        ]
       );
       if (!updated.length) throw new AppError(404, 'Product not found.');
       return { ok: true };
@@ -291,7 +442,10 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
                   jsonb_build_object('recipient', o.delivery_address -> 'recipient',
                                      'line1', o.delivery_address -> 'line1',
                                      'city', o.delivery_address -> 'city') as delivery_address,
-                  coalesce((select jsonb_agg(jsonb_build_object('name', i.name, 'quantity', i.quantity))
+                  -- The size or choice and a combo's contents: the kitchen needs both to make the order.
+                  coalesce((select jsonb_agg(jsonb_build_object('name', i.name, 'quantity', i.quantity,
+                                                                'variant_label', i.variant_label, 'combo_items', i.combo_items,
+                                                                'extras', i.extras))
                             from order_items i where i.order_id = o.id), '[]'::jsonb) as order_items,
                   -- Who is delivering it, once the shop has chosen.
                   (select jsonb_build_object('agent_id', da.agent_id, 'status', da.status,
@@ -484,6 +638,45 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
       await q.rows(`insert into delivery_invites (seller_id, code, expires_at) values ($1, $2, now() + interval '7 days')`, [
         shop.id,
         newCode()
+      ]);
+      return { ok: true };
+    });
+  });
+
+  /**
+   * Takes a rider off this shop's team: they stop getting its orders. Past deliveries and cash
+   * records stay. Refused while the rider is carrying an order or still holds the shop's cash.
+   */
+  app.post('/fleet/:id/remove', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request) => {
+    const user = await requireUser(request);
+    const { id } = idParams.parse(request.params);
+    return asUser(user.id, async (q) => {
+      const shop = await ownShop(q, user.id);
+      const link = await q.one<{ agent_id: string }>(
+        'select agent_id from delivery_relationships where id = $1 and seller_id = $2 and active',
+        [id, shop.id]
+      );
+      if (!link) throw new AppError(404, 'This rider is not on your team.');
+
+      const held = await q.one<{ on_road: number; cash_paise: number }>(
+        `select count(*) filter (where status in ('claimed', 'picked_up'))::int as on_road,
+                coalesce(sum(cash_due_paise) filter (where status = 'delivered' and cash_handed_over_at is null), 0)::int as cash_paise
+         from delivery_assignments where seller_id = $1 and agent_id = $2`,
+        [shop.id, link.agent_id]
+      );
+      if (held && held.on_road > 0) {
+        throw new AppError(409, 'This rider is delivering one of your orders right now. Remove them once it is delivered.');
+      }
+      if (held && held.cash_paise > 0) {
+        throw new AppError(
+          409,
+          `This rider still holds ₹${(held.cash_paise / 100).toLocaleString('en-IN')} of your cash. Confirm the handover first, then remove them.`
+        );
+      }
+
+      await q.rows('update delivery_relationships set active = false, removed_at = now() where id = $1 and seller_id = $2', [
+        id,
+        shop.id
       ]);
       return { ok: true };
     });

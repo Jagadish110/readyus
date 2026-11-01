@@ -12,6 +12,7 @@ import {
 } from '../lib/cashfree.js';
 import { asService } from '../lib/db.js';
 import { AppError } from '../lib/errors.js';
+import { kycFields, kycSchema } from '../lib/kyc.js';
 
 /** Only needed the first time, when the shop becomes a Cashfree vendor. */
 const identitySchema = z.object({
@@ -117,13 +118,12 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
   });
 
   /**
-   * Saves a shop's bank details by creating (or updating) its Cashfree Easy Split vendor.
-   * The account number and PAN go to Cashfree and are never stored or logged here; only the
-   * last four digits are kept for display.
+   * Saves a shop's bank and KYC details by creating (or updating) its Cashfree Easy Split vendor.
+   * The account number, PAN and ID numbers go to Cashfree and are never stored or logged here;
+   * only the last four digits of the account are kept for display.
    */
   app.post('/payout', { config: { rateLimit: { max: 10, timeWindow: '1 hour' } } }, async (request) => {
     const user = await requireUser(request);
-    const bank = bankSchema.parse(request.body);
 
     const shop = await shopOf(user.id);
     if (shop.status !== 'approved') {
@@ -134,21 +134,41 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
     const existing = await getAccount(shop.id);
     // Required only on the first save.
     const identity = existing ? null : identitySchema.parse(request.body);
+    const kyc = kycSchema.parse(request.body);
+    if (identity && !kyc.idProofNumber) {
+      throw new AppError(400, 'Add an ID proof: Aadhaar, voter ID, driving licence or passport. Cashfree needs one besides the PAN.');
+    }
+
+    // Once the shop is a vendor the bank can be left out, so an owner can send only a KYC fix:
+    // Cashfree refuses bank changes while it is still setting up the first account.
+    const body = (request.body ?? {}) as Record<string, unknown>;
+    const bankGiven = ['beneficiaryName', 'accountNumber', 'ifsc'].some((key) => String(body[key] ?? '').trim());
+    const bank = existing && !bankGiven ? null : bankSchema.parse(request.body);
 
     const vendorId = existing?.cashfree_vendor_id ?? `shop_${shop.id.replace(/-/g, '')}`;
     const phone = shop.phone.replace(/\D/g, '').slice(-10);
-    const bankBlock = { account_number: bank.accountNumber, account_holder: bank.beneficiaryName, ifsc: bank.ifsc };
+    const bankBlock = bank && { account_number: bank.accountNumber, account_holder: bank.beneficiaryName, ifsc: bank.ifsc };
 
     let vendor: CashfreeVendor;
     if (!identity) {
       // The PAN was fixed at creation; an owner whose PAN Cashfree rejected can send a corrected one.
       const correction = correctedPanSchema.parse(request.body).pan;
+      const kycFix = { ...(correction ? { pan: correction } : {}), ...kycFields(kyc) };
+      if (!bankBlock && !Object.keys(kycFix).length) {
+        throw new AppError(400, 'Enter new bank details, or the PAN or ID proof Cashfree asked for.');
+      }
       vendor = await cashfree<CashfreeVendor>('PATCH', `/easy-split/vendors/${encodeURIComponent(vendorId)}`, {
-        bank: bankBlock,
-        verify_account: config.CASHFREE_VERIFY_VENDOR_BANK,
-        ...(correction ? { kyc_details: { pan: correction } } : {})
+        ...(bankBlock ? { bank: bankBlock, verify_account: config.CASHFREE_VERIFY_VENDOR_BANK } : {}),
+        ...(Object.keys(kycFix).length ? { kyc_details: kycFix } : {})
       });
     } else {
+      const kycDetails = {
+        account_type: identity.businessType === 'individual' ? 'individual' : 'business_account',
+        // Cashfree's business_type is the line of business, chosen from its own list (not the legal form).
+        business_type: shop.listing_mode === 'food' ? 'Food and Beverages' : 'Retail and Shopping',
+        pan: identity.pan,
+        ...kycFields(kyc)
+      };
       const create = {
         vendor_id: vendorId,
         status: 'ACTIVE',
@@ -159,12 +179,7 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
         dashboard_access: false,
         schedule_option: 1,
         bank: bankBlock,
-        kyc_details: {
-          account_type: identity.businessType === 'individual' ? 'individual' : 'business_account',
-          // Cashfree's business_type is the line of business, chosen from its own list (not the legal form).
-          business_type: shop.listing_mode === 'food' ? 'Food and Beverages' : 'Retail and Shopping',
-          pan: identity.pan
-        }
+        kyc_details: kycDetails
       };
       try {
         vendor = await cashfree<CashfreeVendor>('POST', '/easy-split/vendors', create);
@@ -173,7 +188,8 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
         if (!exists(error)) throw error;
         vendor = await cashfree<CashfreeVendor>('PATCH', `/easy-split/vendors/${encodeURIComponent(vendorId)}`, {
           bank: bankBlock,
-          verify_account: config.CASHFREE_VERIFY_VENDOR_BANK
+          verify_account: config.CASHFREE_VERIFY_VENDOR_BANK,
+          kyc_details: kycDetails
         });
       }
     }
@@ -196,9 +212,9 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
           status,
           vendorProblem(vendor),
           identity?.businessType ?? existing?.business_type ?? null,
-          bank.beneficiaryName,
-          bank.ifsc,
-          bank.accountNumber.slice(-4)
+          bank ? bank.beneficiaryName : existing?.beneficiary_name ?? null,
+          bank ? bank.ifsc : existing?.bank_ifsc ?? null,
+          bank ? bank.accountNumber.slice(-4) : existing?.bank_last4 ?? null
         ]
       )
     );

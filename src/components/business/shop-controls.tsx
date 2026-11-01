@@ -77,7 +77,7 @@ export function ShopControls({ shop }: { shop: ShopRow }) {
           disabled={!approved || pending}
           onClick={toggleOpen}
           className={cn(
-            'relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:opacity-50',
+            'relative h-8 w-14 shrink-0 rounded-full transition-colors before:absolute before:-inset-y-2 before:-inset-x-1 before:content-[""] disabled:opacity-50',
             open ? 'bg-leaf-600' : 'bg-ink-300'
           )}
         >
@@ -104,7 +104,7 @@ export function ShopControls({ shop }: { shop: ShopRow }) {
           aria-label="Accept orders automatically"
           disabled={!approved || pending}
           onClick={toggleAuto}
-          className={cn('relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:opacity-50', auto ? 'bg-leaf-600' : 'bg-ink-300')}
+          className={cn('relative h-8 w-14 shrink-0 rounded-full transition-colors before:absolute before:-inset-y-2 before:-inset-x-1 before:content-[""] disabled:opacity-50', auto ? 'bg-leaf-600' : 'bg-ink-300')}
         >
           <span className={cn('absolute top-1 left-1 size-6 rounded-full bg-white shadow transition-transform', auto && 'translate-x-6')} />
         </button>

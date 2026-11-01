@@ -3,31 +3,41 @@ import { Wordmark } from '@/components/brand/logo';
 import { BillingBanner } from '@/components/business/billing-banner';
 import { ComplianceBanner } from '@/components/business/compliance-banner';
 import { NotificationCenter } from '@/components/notifications/notification-center';
-import { BusinessNav } from '@/components/business/business-nav';
+import { BusinessNav, BusinessTabBar } from '@/components/business/business-nav';
+import { RouteTransition } from '@/components/motion/route-transition';
 
 export default function ConsoleLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="paper flex min-h-dvh flex-col">
-      <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[var(--surface)]/90 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-x-3 gap-y-2 px-4 py-3 sm:flex-nowrap sm:px-6">
+      <header
+        className="sticky top-0 z-30 border-b border-[var(--line)] bg-[var(--surface)]/90 backdrop-blur"
+        style={{ viewTransitionName: 'app-header' }}
+      >
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3 sm:px-6">
           <Link href="/business" aria-label="Seller dashboard">
             <Wordmark size={36} />
           </Link>
-          <div className="flex items-center gap-3 sm:order-last">
-            <Link href="/" className="text-sm font-bold text-[var(--text-muted)] hover:text-[var(--leaf-ink)]">
+          {/* Tabs sit here on larger screens; phones get the bottom bar instead. */}
+          <div className="hidden lg:block">
+            <BusinessNav />
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/"
+              className="inline-flex h-11 items-center rounded-full px-3 text-sm font-bold text-[var(--text-muted)] hover:text-[var(--leaf-ink)]"
+            >
               View shop site
             </Link>
             <NotificationCenter />
-          </div>
-          {/* On a phone the tabs take a row of their own and scroll sideways if they ever outgrow it. */}
-          <div className="no-scrollbar -mx-4 w-[calc(100%+2rem)] overflow-x-auto px-4 sm:mx-0 sm:w-auto sm:overflow-visible sm:px-0">
-            <BusinessNav />
           </div>
         </div>
       </header>
       <BillingBanner />
       <ComplianceBanner />
-      <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-6 pb-16 sm:px-6">{children}</main>
+      <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-6 pb-28 sm:px-6 lg:pb-16">
+        <RouteTransition>{children}</RouteTransition>
+      </main>
+      <BusinessTabBar />
     </div>
   );
 }

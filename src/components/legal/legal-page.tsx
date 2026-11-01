@@ -7,7 +7,7 @@ const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL;
 export function LegalPage({ title, updated, children }: { title: string; updated: string; children: React.ReactNode }) {
   return (
     <div className="paper min-h-dvh">
-      <header className="border-b border-[var(--line)] bg-[var(--surface)]/90">
+      <header className="sticky top-0 z-30 border-b border-[var(--line)] bg-[var(--surface)]/90 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center justify-between px-4 py-3 sm:px-6">
           <Link href="/" aria-label="Localty home">
             <Wordmark size={36} />

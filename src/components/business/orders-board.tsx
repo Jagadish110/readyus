@@ -7,6 +7,8 @@ import { STATUS_LABEL, STATUS_TONE, type OrderStatus } from '@/lib/orders/status
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { formatPaise } from '@/lib/utils';
+import { comboSummary, extrasSummary } from '@/lib/menu';
+import type { ComboItem, OrderedExtra } from '@/lib/database.types';
 import { CancelBox, FailBox, IssuesList, RefundForm } from './order-exits';
 
 type SellerOrder = {
@@ -23,7 +25,7 @@ type SellerOrder = {
   created_at: string;
   customer_note: string;
   delivery_address: { recipient?: string; line1?: string; city?: string };
-  order_items: Array<{ name: string; quantity: number }>;
+  order_items: Array<{ name: string; quantity: number; variant_label?: string; combo_items?: ComboItem[] | null; extras?: OrderedExtra[] | null }>;
   /** Who is delivering it, once the shop has chosen. */
   delivery: { agent_id: string; status: 'claimed' | 'picked_up' | 'delivered'; name: string; phone: string } | null;
 };
@@ -160,7 +162,7 @@ export function OrdersBoard() {
         type="button"
         onClick={toggleSound}
         aria-pressed={sound}
-        className="justify-self-start rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 py-2 text-sm font-bold text-[var(--leaf-ink)] shadow-xs transition-colors hover:bg-[var(--leaf-soft)]"
+        className="inline-flex h-11 items-center justify-self-start rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-bold text-[var(--leaf-ink)] shadow-xs transition-colors hover:bg-[var(--leaf-soft)]"
       >
         {sound ? 'Sound alert on' : 'Turn on sound alert for new orders'}
       </button>
@@ -188,7 +190,6 @@ export function OrdersBoard() {
                   {DECLINE_REASONS.map((reason) => (
                     <Button
                       key={reason}
-                      size="sm"
                       variant="outline"
                       loading={busy === `dec-${order.id}`}
                       onClick={() => {
@@ -199,13 +200,13 @@ export function OrdersBoard() {
                       {reason}
                     </Button>
                   ))}
-                  <Button size="sm" variant="ghost" onClick={() => setDeclining(null)}>
+                  <Button variant="ghost" onClick={() => setDeclining(null)}>
                     Back
                   </Button>
                 </div>
               </div>
             ) : (
-              <div className="flex flex-wrap gap-2.5">
+              <div className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap">
                 <Button
                   variant="leaf"
                   loading={busy === `acc-${order.id}`}
@@ -229,7 +230,7 @@ export function OrdersBoard() {
             order={order}
             note={`Customer says they paid ${formatPaise(order.required_online_paise)} by UPI. Check your UPI app before confirming.`}
           >
-            <div className="flex flex-wrap gap-2.5">
+            <div className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap">
               <Button
                 variant="leaf"
                 loading={busy === `pay-${order.id}`}
@@ -457,10 +458,18 @@ function OrderCard({
         </div>
         <Badge tone={STATUS_TONE[order.status]}>{STATUS_LABEL[order.status]}</Badge>
       </div>
-      <ul className="grid gap-0.5 text-sm">
-        {order.order_items.map((item) => (
-          <li key={item.name}>
-            {item.quantity} &times; {item.name}
+      {/* What to make: the size or choice beside each dish, and what each combo includes. */}
+      <ul className="grid gap-1 text-sm">
+        {order.order_items.map((item, index) => (
+          <li key={`${item.name}-${item.variant_label ?? ''}-${index}`}>
+            <span className="font-semibold">
+              {item.quantity} &times; {item.name}
+            </span>
+            {item.variant_label && <span className="text-[var(--text-muted)]"> &middot; {item.variant_label}</span>}
+            {item.combo_items?.length ? (
+              <span className="block text-xs text-[var(--text-muted)]">Includes {comboSummary(item.combo_items)}</span>
+            ) : null}
+            {item.extras?.length ? <span className="block text-xs font-semibold">{extrasSummary(item.extras)}</span> : null}
           </li>
         ))}
       </ul>

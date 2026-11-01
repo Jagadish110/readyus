@@ -4,7 +4,6 @@ import { Tape } from '@/components/home/tape';
 import { PromiseBand } from '@/components/home/promise-band';
 import { MenuBoard } from '@/components/home/menu-board';
 import { Features } from '@/components/home/features';
-import { Shops } from '@/components/home/shops';
 import { OrderCta } from '@/components/home/order-cta';
 import { SiteFooter } from '@/components/home/site-footer';
 
@@ -21,7 +20,6 @@ export default function LandingPage() {
         </div>
         <MenuBoard />
         <Features />
-        <Shops />
         <OrderCta />
       </main>
 

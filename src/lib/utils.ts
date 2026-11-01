@@ -6,6 +6,16 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Where to go after signing in, from a `?next=` link: a path on this site only. Anything else (another
+ * site, `//host`, `/\host`, or a path hiding control characters the browser would strip) gives `fallback`,
+ * so a crafted sign-in link cannot hand someone to a look-alike site once they have logged in.
+ */
+export function safeNext(value: string | null | undefined, fallback: string) {
+  if (!value || !value.startsWith('/') || value.startsWith('//') || /[\\\u0000- \u007f]/.test(value)) return fallback;
+  return value;
+}
+
 /** Money is stored in paise. Render it, never compute with the rendered value. */
 export function formatPaise(paise: number, symbol = '₹') {
   const rupees = paise / 100;

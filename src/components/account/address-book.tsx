@@ -67,7 +67,7 @@ export function AddressBook() {
           ))}
         </ul>
       )}
-      <Link href="/checkout" className="w-fit text-sm font-bold text-[var(--leaf-ink)] hover:underline">
+      <Link href="/checkout" className="inline-flex h-11 w-fit items-center text-sm font-bold text-[var(--leaf-ink)] hover:underline">
         Add a new address at checkout
       </Link>
     </section>

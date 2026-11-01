@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
@@ -15,6 +16,13 @@ const LINKS = [
 
 export function AdminNav() {
   const pathname = usePathname();
+  const activeRef = useRef<HTMLAnchorElement>(null);
+
+  // On a phone the six tabs scroll sideways; keep the current one in view instead of off the edge.
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ block: 'nearest', inline: 'center' });
+  }, [pathname]);
+
   return (
     <nav className="flex w-max gap-1 rounded-full border border-[var(--line)] bg-[var(--tile)] p-1">
       {LINKS.map(({ href, label }) => {
@@ -23,9 +31,10 @@ export function AdminNav() {
           <Link
             key={href}
             href={href}
+            ref={active ? activeRef : undefined}
             aria-current={active ? 'page' : undefined}
             className={cn(
-              'rounded-full px-2.5 py-2 text-[0.8rem] font-bold whitespace-nowrap transition-colors sm:px-4 sm:text-sm',
+              'inline-flex h-11 items-center rounded-full px-3.5 text-sm font-bold whitespace-nowrap transition-colors sm:h-9 sm:px-4',
               active ? 'bg-[var(--surface)] text-[var(--leaf-ink)] shadow-sm' : 'text-[var(--text-muted)] hover:text-[var(--text)]'
             )}
           >

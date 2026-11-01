@@ -9,6 +9,14 @@ import { ShopArt } from '@/components/marketplace/shop-art';
 import { FavouriteButton } from '@/components/shop/favourite-button';
 import { ClockIcon, PinIcon, StarIcon } from '@/components/shell/icons';
 import { deliveryMinutes, formatDistance, formatRupees, opensAt } from '@/lib/utils';
+import { FOOD_CATEGORIES } from '@/lib/data/food-categories';
+import { describeDelivery } from '@/lib/shop-terms';
+
+/** The menu heading for a category key: the name customers know it by, not the database key. */
+function sectionName(key: string) {
+  const known = FOOD_CATEGORIES.find((category) => category.key === key);
+  return known ? known.name : key.charAt(0).toUpperCase() + key.slice(1).replace(/[_-]/g, ' ');
+}
 
 export default async function ShopPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -93,8 +101,9 @@ async function ShopDetail({ id }: { id: string }) {
             {[
               [<PinIcon key="d" className="size-4" />, formatDistance(shop.distance_km) + ' away'],
               [<ClockIcon key="t" className="size-4" />, '~' + deliveryMinutes(shop.distance_km, shop.eta_minutes) + ' min'],
-              [null, shop.min_order_amount ? 'Min ' + formatRupees(shop.min_order_amount) : 'No minimum'],
-              [null, 'Free delivery']
+              // Postgres numerics arrive as strings, so "0" must not read as a minimum.
+              [null, Number(shop.min_order_amount) > 0 ? 'Min ' + formatRupees(Number(shop.min_order_amount)) : 'No minimum'],
+              [null, describeDelivery(shop)]
             ].map(([icon, label], index) => (
               <li
                 key={index}
@@ -104,8 +113,9 @@ async function ShopDetail({ id }: { id: string }) {
                 {label}
               </li>
             ))}
+            {/* A shop always keeps at least one way to pay on, so without cash it must take online payment. */}
             <li className="inline-flex shrink-0 items-center rounded-full bg-[var(--leaf-soft)] px-4 py-2 text-sm font-bold text-[var(--leaf-ink)] ring-1 ring-[var(--line)]">
-              Online payment
+              {shop.cod_available ? 'Cash on delivery' : 'Online payment'}
             </li>
           </ul>
           {fssai && (
@@ -121,20 +131,47 @@ async function ShopDetail({ id }: { id: string }) {
           This shop has not listed anything yet.
         </p>
       ) : (
-        [...sections.entries()].map(([key, items]) => (
-          <section key={key} className="grid gap-4">
-            <SectionTitle className="capitalize">{key}</SectionTitle>
-            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-              {items.map((product) => (
-                <ProductCard key={product.id} product={product} showShop={false} />
+        <>
+          {/* A long menu gets a row of jump links, so nobody scrolls past twenty dishes to find dessert. */}
+          {sections.size > 1 && (
+            <nav
+              aria-label="Menu sections"
+              className="no-scrollbar sticky top-[72px] z-20 -mx-4 -my-4 flex gap-2 overflow-x-auto bg-[var(--page)]/90 px-4 py-2.5 backdrop-blur sm:mx-0 sm:px-0"
+            >
+              {[...sections.entries()].map(([key, items]) => (
+                <a
+                  key={key}
+                  href={`#menu-${key}`}
+                  className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-bold whitespace-nowrap text-[var(--text-muted)] hover:border-leaf-400 hover:text-[var(--leaf-ink)]"
+                >
+                  {sectionName(key)}
+                  <span className="text-xs font-semibold text-ink-400">{items.length}</span>
+                </a>
               ))}
-            </div>
-          </section>
-        ))
+            </nav>
+          )}
+
+          {[...sections.entries()].map(([key, items]) => (
+            <section key={key} id={`menu-${key}`} className="grid scroll-mt-36 gap-3">
+              <SectionTitle>
+                {sectionName(key)} <span className="text-base font-bold text-[var(--text-muted)]">({items.length})</span>
+              </SectionTitle>
+              <div className="grid gap-3 lg:grid-cols-2">
+                {items.map((product) => (
+                  <ProductCard key={product.id} product={product} showShop={false} layout="row" />
+                ))}
+              </div>
+            </section>
+          ))}
+        </>
       )}
 
       <p className="text-center text-sm text-[var(--text-muted)]">
-        <Link href="/browse" className="font-semibold hover:text-brand-600">
+        <Link
+          href="/browse"
+          transitionTypes={['nav-back']}
+          className="inline-flex h-11 items-center px-2 font-semibold hover:text-brand-600"
+        >
           Back to browse
         </Link>
       </p>

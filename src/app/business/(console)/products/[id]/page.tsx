@@ -24,7 +24,14 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
   }
   const product = result.data.product;
 
-  const categories = await loadCategories();
+  const [categories, listed] = await Promise.all([
+    loadCategories(),
+    serverApi<{ products: ProductRow[] }>('/v1/seller/products')
+  ]);
+  // The shop's other products, to pick from when building a combo.
+  const menu = listed.ok
+    ? listed.data.products.filter((item) => item.id !== product.id).map((item) => ({ id: item.id, name: item.name }))
+    : [];
 
   return (
     <div className="animate-rise grid gap-5">
@@ -45,7 +52,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
           </p>
         )}
       </div>
-      <ProductForm defaultMode={shop.listing_mode} categories={categories} product={product} />
+      <ProductForm defaultMode={shop.listing_mode} categories={categories} product={product} menu={menu} />
       <DeleteProduct productId={product.id} name={product.name} />
     </div>
   );

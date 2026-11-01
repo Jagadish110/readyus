@@ -1,4 +1,3 @@
-import { Suspense } from 'react';
 import Link from 'next/link';
 import type { ListingMode } from '@/lib/database.types';
 import { readLocation } from '@/lib/data/location';
@@ -8,13 +7,19 @@ import { ModeSwitch } from '@/components/marketplace/mode-switch';
 import { DietFilter } from '@/components/marketplace/diet-filter';
 import { CategoryRail } from '@/components/marketplace/category-rail';
 import { ProductCard } from '@/components/marketplace/product-card';
-import { ShopCard } from '@/components/marketplace/shop-card';
+import { ShopStrip } from '@/components/marketplace/shop-strip';
+import { foodCategoryRail } from '@/lib/data/food-categories';
 import { Reveal } from '@/components/motion/reveal';
 import { Eyebrow, SectionTitle } from '@/components/ui/card';
 import { ButtonLink } from '@/components/ui/button';
 import { SampleAreaButton } from '@/components/shell/sample-area-button';
+import { SearchIcon } from '@/components/shell/icons';
 
-type SearchParams = Promise<{ mode?: string; category?: string; diet?: string }>;
+type SearchParams = Promise<{
+  mode?: string;
+  category?: string;
+  diet?: string;
+}>;
 
 export default async function BrowsePage({ searchParams }: { searchParams: SearchParams }) {
   const params = await searchParams;
@@ -22,11 +27,12 @@ export default async function BrowsePage({ searchParams }: { searchParams: Searc
   const category = params.category;
   const diet = mode === 'food' && ['veg', 'non_veg', 'egg'].includes(params.diet ?? '') ? params.diet : undefined;
 
+  // No Suspense placeholder here on purpose: a page that shows a fallback while a page transition runs
+  // makes the browser abandon the slide. Like the shop and dish pages, browse arrives complete; a filter
+  // change keeps the current results on screen and crossfades to the new ones (see RouteTransition).
   return (
     <LocationGate>
-      <Suspense key={`${mode}-${category ?? 'all'}-${diet ?? 'any'}`} fallback={<BrowseSkeleton />}>
-        <BrowseContent mode={mode} category={category} diet={diet} />
-      </Suspense>
+      <BrowseContent mode={mode} category={category} diet={diet} />
     </LocationGate>
   );
 }
@@ -37,11 +43,19 @@ async function BrowseContent({ mode, category, diet }: { mode: ListingMode; cate
   // The gate renders the picker; this only runs once a pin exists.
   if (!location) return <BrowseSkeleton />;
 
-  const query = { lat: location.lat, lng: location.lng, radiusKm: location.radiusKm, mode };
+  if (mode === 'items') return <ItemsComingSoon radiusKm={location.radiusKm} label={location.label} />;
+
+  const query = {
+    lat: location.lat,
+    lng: location.lng,
+    radiusKm: location.radiusKm,
+    mode
+  };
 
   const [shops, allProducts, categories] = await Promise.all([
     getNearbySellers(query),
-    getNearbyProducts({ ...query, category }),
+    // Every dish from every kitchen in range, listed one after another under the kitchens.
+    getNearbyProducts({ ...query, category, limit: 200 }),
     getNearbyCategories(query)
   ]);
 
@@ -54,7 +68,7 @@ async function BrowseContent({ mode, category, diet }: { mode: ListingMode; cate
   const nothingNearby = focused ? false : !shops.length && !products.length;
 
   return (
-    <div className="grid min-w-0 gap-7">
+    <div className="grid min-w-0 gap-5 sm:gap-7">
       {usingFixtures() && (
         <p className="animate-rise rounded-[18px] bg-warning/12 px-4 py-2.5 text-sm font-medium text-[var(--text)] ring-1 ring-warning/35">
           Showing sample data. Connect a Supabase project to load real shops.
@@ -68,27 +82,30 @@ async function BrowseContent({ mode, category, diet }: { mode: ListingMode; cate
         <h1 className="mt-2 font-display text-[clamp(1.5rem,3.6vw,2.4rem)] leading-[1.04] font-extrabold tracking-[-0.045em]">
           {mode === 'food' ? 'Fresh from kitchens nearby' : 'Everyday shopping nearby'}
         </h1>
-        <p className="mt-2 max-w-[52ch] text-[var(--text-muted)]">
-          {shops.length} {shops.length === 1 ? 'shop' : 'shops'} can reach {location.label} right now —
-          nothing here is further than your radius.
+        <p className="mt-1.5 max-w-[52ch] text-[var(--text-muted)]">
+          {shops.length} {shops.length === 1 ? 'shop' : 'shops'} can reach {location.label.split(',')[0]} right now.
         </p>
       </header>
 
-      <div className="animate-rise flex flex-wrap items-center justify-between gap-3 [animation-delay:60ms]">
-        <ModeSwitch active={mode} />
-        <Link href="/search" className="text-sm font-bold text-[var(--leaf-ink)] underline-offset-4 hover:underline">
-          Looking for something specific? →
+      <div className="animate-rise flex flex-col gap-3 [animation-delay:60ms] sm:flex-row-reverse sm:items-center sm:justify-between">
+        {/* A real-looking search box: on a phone it is the quickest way to a specific dish. */}
+        <Link
+          href="/search"
+          transitionTypes={['nav-forward']}
+          className="flex h-12 items-center gap-3 rounded-full border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-4 text-[0.95rem] text-[var(--text-muted)] shadow-xs transition-[border-color,transform] hover:border-leaf-400 active:scale-[0.98] sm:w-80"
+        >
+          <SearchIcon className="size-5 shrink-0" />
+          Search biryani, dosa, shops…
         </Link>
+        <ModeSwitch active={mode} />
       </div>
 
-      {mode === 'food' && (
-        <div className="animate-rise [animation-delay:90ms]">
-          <DietFilter active={diet} />
+      <div className="animate-rise flex min-w-0 flex-col gap-3 [animation-delay:90ms] lg:flex-row lg:items-center">
+        <DietFilter active={diet} />
+        <span aria-hidden className="hidden h-6 w-px shrink-0 bg-[var(--line)] lg:block" />
+        <div className="min-w-0 flex-1">
+          <CategoryRail categories={foodCategoryRail(categories)} active={category} />
         </div>
-      )}
-
-      <div className="animate-rise min-w-0 [animation-delay:100ms]">
-        <CategoryRail categories={categories} active={category} />
       </div>
 
       {nothingNearby ? (
@@ -97,12 +114,13 @@ async function BrowseContent({ mode, category, diet }: { mode: ListingMode; cate
         <>
           {!focused && shops.length > 0 && (
             <section className="animate-rise grid gap-5 [animation-delay:140ms]">
-              <SectionTitle>{mode === 'food' ? 'Kitchens near you' : 'Shops near you'}</SectionTitle>
-              <div className="grid gap-4 sm:grid-cols-2">
-                {shops.map((shop) => (
-                  <ShopCard key={shop.id} shop={shop} />
-                ))}
+              <div className="flex items-baseline justify-between gap-3">
+                <SectionTitle>{mode === 'food' ? 'Kitchens near you' : 'Shops near you'}</SectionTitle>
+                <span className="shrink-0 text-xs font-bold text-[var(--text-muted)]">
+                  {shops.length} {shops.length === 1 ? 'kitchen' : 'kitchens'}
+                </span>
               </div>
+              <ShopStrip shops={shops} />
             </section>
           )}
 
@@ -122,17 +140,19 @@ async function BrowseContent({ mode, category, diet }: { mode: ListingMode; cate
             <section className="grid gap-5">
               <Reveal as="div">
                 <SectionTitle>
-                  {category
-                    ? 'Matching items'
-                    : mode === 'food'
-                      ? 'On the menu today'
-                      : 'Everyday essentials'}
+                  {category ? 'Matching items' : mode === 'food' ? 'On the menu today' : 'Everyday essentials'}
                 </SectionTitle>
               </Reveal>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {/* Phones get full-width menu rows (name, shop and price fit on one line); wider screens get photo cards. */}
+              <div className="grid gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
                 {products.map((product, index) => (
                   <Reveal key={product.id} delay={(index % 4) * 55}>
-                    <ProductCard product={product} />
+                    <div className="sm:hidden">
+                      <ProductCard product={product} layout="row" />
+                    </div>
+                    <div className="hidden h-full sm:block">
+                      <ProductCard product={product} />
+                    </div>
                   </Reveal>
                 ))}
               </div>
@@ -144,15 +164,65 @@ async function BrowseContent({ mode, category, diet }: { mode: ListingMode; cate
   );
 }
 
+const ITEM_CATEGORIES = ['Staples', 'Vegetables', 'Fruits', 'Dairy & Eggs', 'Snacks', 'Household'];
+
+function ItemsComingSoon({ radiusKm, label }: { radiusKm: number; label: string }) {
+  return (
+    <div className="grid min-w-0 gap-7">
+      <header className="animate-rise">
+        <Eyebrow>Within {radiusKm} km of you</Eyebrow>
+        <h1 className="mt-2 font-display text-[clamp(1.5rem,3.6vw,2.4rem)] leading-[1.04] font-extrabold tracking-[-0.045em]">
+          Everyday shopping nearby
+        </h1>
+        <p className="mt-2 max-w-[52ch] text-[var(--text-muted)]">
+          Groceries and daily needs from shops that can reach {label} are coming soon.
+        </p>
+      </header>
+
+      <div className="animate-rise justify-self-start">
+        <ModeSwitch active="items" />
+      </div>
+
+      <div
+        aria-label="Item categories, available soon"
+        className="no-scrollbar animate-rise -mx-4 flex gap-2.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0"
+      >
+        {ITEM_CATEGORIES.map((name) => (
+          <span
+            key={name}
+            className="inline-flex shrink-0 items-center rounded-full border border-[var(--line)] bg-[var(--surface)] px-5 py-2.5 text-[0.92rem] font-bold whitespace-nowrap text-[var(--text-muted)] opacity-70"
+          >
+            {name}
+          </span>
+        ))}
+      </div>
+
+      <div className="animate-rise mx-auto max-w-md rounded-[30px] bg-[var(--surface)] p-8 text-center shadow-sm ring-1 ring-[var(--line)]">
+        <span className="inline-flex rounded-full bg-[var(--leaf-soft)] px-3.5 py-1.5 text-eyebrow text-[var(--leaf-ink)] uppercase">
+          Coming soon
+        </span>
+        <h2 className="mt-4 font-display text-xl font-extrabold tracking-[-0.035em]">Everyday items are on the way</h2>
+        <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+          Rice, dal, vegetables and more from the kirana down your road will be orderable here soon. For now, food from
+          nearby kitchens is live.
+        </p>
+        <div className="mt-5 flex justify-center">
+          <ButtonLink href="/browse?mode=food" variant="leaf">
+            Browse food
+          </ButtonLink>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EmptyRadius({ radiusKm }: { radiusKm: number }) {
   return (
     <div className="animate-rise mx-auto max-w-md rounded-[30px] bg-[var(--surface)] p-8 text-center shadow-sm ring-1 ring-[var(--line)]">
-      <h2 className="font-display text-xl font-extrabold tracking-[-0.035em]">
-        Nothing within {radiusKm} km yet
-      </h2>
+      <h2 className="font-display text-xl font-extrabold tracking-[-0.035em]">Nothing within {radiusKm} km yet</h2>
       <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-        Localty never shows shops that cannot reach you. Widen your radius from
-        the header, or check back as more shops join your area.
+        Localty never shows shops that cannot reach you. Widen your radius from the header, or check back as more shops
+        join your area.
       </p>
       <div className="mt-5 flex flex-wrap justify-center gap-2.5">
         <SampleAreaButton />

@@ -1,4 +1,5 @@
 import type { OrderStatus } from './status';
+import type { ComboItem, OrderedExtra } from '@/lib/database.types';
 
 export type OrderCore = {
   id: string;
@@ -42,6 +43,10 @@ export type OrderItem = {
   product_id: string | null;
   name: string;
   variant_label: string;
+  /** What a combo included when it was ordered; null for anything else. */
+  combo_items?: ComboItem[] | null;
+  /** The extras added, as charged; null when none. */
+  extras?: OrderedExtra[] | null;
   quantity: number;
   unit_price_paise: number;
   line_total_paise: number;

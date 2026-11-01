@@ -1,5 +1,7 @@
 import 'server-only';
+import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
+import { visitorHeaders } from './visitor';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000').replace(/\/$/, '');
 
@@ -17,7 +19,7 @@ export async function serverApi<T>(path: string): Promise<ServerApiResult<T>> {
 
   try {
     const response = await fetch(`${API_URL}${path}`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, ...visitorHeaders(await headers()) },
       cache: 'no-store',
       signal: AbortSignal.timeout(10_000)
     });

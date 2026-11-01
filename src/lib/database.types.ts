@@ -76,12 +76,35 @@ export type NearbyProduct = {
   images: string[];
   veg_type: string;
   variants: ProductVariant[];
+  /** What the variants are, as the shop named them: Size (the default), Flavour, Pizza. */
+  variant_name?: string;
+  /** What a combo includes; empty for a product that is not a combo. */
+  combo_items?: ComboItem[];
+  /** The shop's extras this dish offers, like Extra cheese, each priced by size. */
+  extras?: ShopExtra[];
   rating: number;
   rating_count: number;
   business_open: boolean;
   eta_minutes: number;
   distance_km: number;
 };
+
+/** One line of a combo, like 2 × Coke. */
+export type ComboItem = { name: string; qty: number };
+
+/**
+ * An extra a shop sells with its dishes. `size_prices` price it for a dish size of the same name (Small,
+ * Medium, Large); `price` applies otherwise. See extra_price() in migration 0039.
+ */
+export type ShopExtra = {
+  id: string;
+  label: string;
+  price: number;
+  size_prices: Array<{ size: string; price: number }>;
+};
+
+/** An extra as it was charged on an order. */
+export type OrderedExtra = { label: string; price_paise: number };
 
 export type NearbyCategory = {
   category_key: string;
@@ -212,6 +235,10 @@ export type OrderItem = {
   product_id: string | null;
   name: string;
   variant_label: string;
+  /** What a combo included when it was ordered; null for anything else. */
+  combo_items?: ComboItem[] | null;
+  /** The extras added, as charged; null when none. */
+  extras?: OrderedExtra[] | null;
   image_url: string | null;
   quantity: number;
   unit_price_paise: number;

@@ -29,7 +29,19 @@ const checkoutSchema = z.object({
     .array(
       z.object({
         sellerId: uuid,
-        lines: z.array(z.object({ productId: uuid, quantity: z.number().int().min(1).max(99) })).min(1).max(60)
+        lines: z
+          .array(
+            z.object({
+              productId: uuid,
+              // A size or portion of the dish (see variantsField in seller-console.ts); '' for none.
+              variantId: z.string().regex(/^[a-z0-9]{0,16}$/).default(''),
+              // The shop's extras added to it, by id. place_order checks and prices them.
+              extraIds: z.array(z.string().regex(/^[a-z0-9]{1,16}$/)).max(30).default([]),
+              quantity: z.number().int().min(1).max(99)
+            })
+          )
+          .min(1)
+          .max(60)
       })
     )
     .min(1)
@@ -170,17 +182,25 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
         const orderId = await asUser(user.id, async (q) => {
           // place_order prices from its own cart table, so mirror this shop's lines into it.
           await q.rows('delete from cart_items where user_id = $1 and seller_id = $2', [user.id, shop.sellerId]);
+          // One row per dish, size and set of extras (the table's key), however the browser listed them.
+          const rows = new Map<string, { productId: string; variantId: string; extraIds: string[]; quantity: number }>();
           for (const line of shop.lines) {
+            const extraIds = [...new Set(line.extraIds)].sort();
+            const key = `${line.productId}|${line.variantId}|${extraIds.join(',')}`;
+            rows.set(key, { ...line, extraIds, quantity: (rows.get(key)?.quantity ?? 0) + line.quantity });
+          }
+          for (const line of rows.values()) {
             await q.rows(
-              `insert into cart_items (user_id, product_id, seller_id, variant_id, quantity) values ($1, $2, $3, '', $4)`,
-              [user.id, line.productId, shop.sellerId, line.quantity]
+              `insert into cart_items (user_id, product_id, seller_id, variant_id, extra_ids, quantity)
+               values ($1, $2, $3, $4, $5::text[], $6)`,
+              [user.id, line.productId, shop.sellerId, line.variantId, line.extraIds, line.quantity]
             );
           }
           const result = await q.one<{ id: string }>('select place_order($1, $2, $3, $4) as id', [
             input.addressId,
             shop.sellerId,
-            // Every order is paid online; cash on delivery is gone, whatever the caller sends.
-            true,
+            // Online or cash on delivery, as the customer chose; place_order refuses one the shop does not offer.
+            input.payOnline,
             input.note
           ]);
           if (!result) throw new Error('ORDER_NOT_CREATED');
@@ -239,7 +259,7 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
 
       const [items, events, map, code, reviews] = await Promise.all([
         q.rows(
-          `select id, product_id, name, variant_label, quantity, unit_price_paise, line_total_paise
+          `select id, product_id, name, variant_label, combo_items, extras, quantity, unit_price_paise, line_total_paise
            from order_items where order_id = $1`,
           [id]
         ),

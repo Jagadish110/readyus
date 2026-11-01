@@ -7,7 +7,7 @@ import { friendlyError } from '@/lib/orders/errors';
 import { Button } from '@/components/ui/button';
 
 const FIELD =
-  'h-12 w-full rounded-[16px] border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-4 text-sm outline-none transition-all ' +
+  'h-12 w-full rounded-[16px] border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-4 text-base outline-none transition-all ' +
   'placeholder:text-ink-400 focus:border-leaf-500 focus:ring-4 focus:ring-leaf-500/20';
 
 export function DeliveryApplyForm() {

@@ -61,7 +61,7 @@ export function MenuBoard() {
         On the menu today
       </h3>
 
-      <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
         {items.map((item, index) => {
           const off = discountPercent(item.price, item.mrp);
           return (
@@ -74,7 +74,7 @@ export function MenuBoard() {
                 <Dish
                   name={photoForProduct(item)}
                   className="tile-art"
-                  sizes="(max-width: 640px) 92vw, (max-width: 1024px) 46vw, 23vw"
+                  sizes="(max-width: 1024px) 46vw, 23vw"
                 />
 
                 {off !== null && (
@@ -88,17 +88,17 @@ export function MenuBoard() {
                 </span>
               </div>
 
-              <div className="flex flex-1 flex-col p-4.5">
+              <div className="flex flex-1 flex-col p-3.5 sm:p-4.5">
                 <strong className="font-display text-[1.02rem] leading-tight font-extrabold tracking-[-0.025em]">
                   {item.name}
                 </strong>
-                <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed text-[var(--text-muted)]">
+                <p className="mt-1.5 hidden text-sm leading-relaxed text-[var(--text-muted)] sm:line-clamp-2">
                   {item.description}
                 </p>
 
-                <div className="mt-auto flex items-end justify-between gap-3 pt-4">
+                <div className="mt-auto flex items-end justify-between gap-2 pt-3 sm:gap-3 sm:pt-4">
                   <span>
-                    <span className="block text-[0.7rem] font-bold tracking-[0.14em] text-ink-400 uppercase">
+                    <span className="hidden text-[0.7rem] font-bold tracking-[0.14em] text-ink-400 uppercase sm:block">
                       Price
                     </span>
                     <span className="flex items-baseline gap-1.5">
@@ -123,7 +123,8 @@ export function MenuBoard() {
                 </div>
 
                 <span className="mt-3 truncate border-t pt-3 text-[0.78rem] font-semibold text-[var(--text-muted)]">
-                  {item.seller_name} · {item.eta_minutes} min
+                  {/* Sample dishes: a category, never a made-up shop name. */}
+                  {FIXTURE_CATEGORY_LABELS[item.category_key] ?? 'Food nearby'} · ~{item.eta_minutes} min
                 </span>
               </div>
             </Reveal>

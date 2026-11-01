@@ -30,7 +30,9 @@ export function StockToggle({ productId, inStock: initial }: { productId: string
       onClick={flip}
       disabled={busy}
       className={cn(
-        'inline-flex h-9 items-center gap-2 rounded-full pr-3.5 pl-1 text-xs font-extrabold ring-1 ring-[var(--line)] transition-colors',
+        // A phone stacks the label under the switch: narrow enough to leave the dish name room, tall enough to hit.
+        'inline-flex min-h-12 flex-col items-center justify-center gap-1 rounded-[16px] px-2 py-1 text-[0.68rem] font-extrabold ring-1 ring-[var(--line)] transition-colors',
+        'sm:min-h-0 sm:h-9 sm:flex-row sm:gap-2 sm:rounded-full sm:py-0 sm:pr-3.5 sm:pl-1 sm:text-xs',
         inStock ? 'bg-[var(--leaf-soft)] text-[var(--leaf-ink)]' : 'bg-[var(--tile)] text-[var(--text-muted)]'
       )}
     >

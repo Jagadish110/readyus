@@ -40,7 +40,8 @@ const VARIANTS: Record<Variant, string> = {
 };
 
 const SIZES: Record<Size, string> = {
-  sm: 'h-10 px-4 text-sm gap-1.5',
+  // 44px on a phone (the smallest a thumb hits reliably), 40px where there is a mouse.
+  sm: 'h-11 sm:h-10 px-4 text-sm gap-1.5',
   md: 'h-12 px-6 text-[0.95rem] gap-2',
   lg: 'h-14 px-8 text-base gap-2.5'
 };

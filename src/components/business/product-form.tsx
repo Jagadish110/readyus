@@ -9,6 +9,7 @@ import type { ProductRow } from '@/lib/business/db';
 import type { Category } from '@/lib/business/categories';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { comboSummary, variantNoun } from '@/lib/menu';
 import { cn } from '@/lib/utils';
 
 const MAX_IMAGES = 4;
@@ -46,11 +47,14 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
 export function ProductForm({
   defaultMode,
   categories,
-  product
+  product,
+  menu = []
 }: {
   defaultMode: 'food' | 'items';
   categories: Category[];
   product?: ProductRow;
+  /** The shop's other products, to pick from when this one is a combo. */
+  menu?: Array<{ id: string; name: string }>;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -68,10 +72,27 @@ export function ProductForm({
   const [quantity, setQuantity] = useState(product && product.stock > 0 && product.stock < 999 ? String(product.stock) : '20');
   const [inStock, setInStock] = useState(product ? product.available && product.stock > 0 : true);
   const [images, setImages] = useState<string[]>(product?.images ?? []);
+  // Sizes keep their ids across edits: a customer's cart names the size by id.
+  const [variants, setVariants] = useState<Array<{ id?: string; label: string; price: string }>>(
+    (product?.variants ?? []).map((variant) => ({ id: variant.id, label: variant.label, price: String(Number(variant.price)) }))
+  );
+  const [variantName, setVariantName] = useState(product?.variant_name ?? 'Size');
+  // A combo is a product that lists what it includes; the price below is the combo's own.
+  const [isCombo, setIsCombo] = useState((product?.combo_items?.length ?? 0) > 0);
+  const [comboItems, setComboItems] = useState<ComboDraft[]>(
+    (product?.combo_items ?? []).map((item) => ({ name: item.name, qty: String(item.qty) }))
+  );
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
 
   const modeCategories = categories.filter((category) => category.mode === mode);
+
+  function toggleCombo(on: boolean) {
+    setIsCombo(on);
+    // With a menu to pick from, the list starts empty; otherwise two blank lines to type into.
+    if (on && comboItems.length === 0 && menu.length === 0) setComboItems([{ name: '', qty: '1' }, { name: '', qty: '1' }]);
+    if (on && !categoryKey && modeCategories.some((category) => category.key === 'combos')) setCategoryKey('combos');
+  }
 
   async function addImages(files: FileList | null) {
     if (!files) return;
@@ -100,11 +121,29 @@ export function ProductForm({
   function problem() {
     if (name.trim().length < 2) return 'Enter the product name.';
     if (!categoryKey) return 'Choose a category.';
-    const p = Number(price);
-    if (price === '' || !Number.isFinite(p) || p < 0) return 'Enter a valid price.';
-    if (mrp !== '') {
-      const m = Number(mrp);
-      if (!Number.isFinite(m) || m < p) return 'MRP cannot be lower than the price.';
+    if (isCombo) {
+      if (comboItems.length === 0) return 'Add what is in the combo, like 1 Pizza Mania and 1 Coke.';
+      if (comboItems.some((item) => !item.name.trim())) return 'Name each item in the combo.';
+      if (comboItems.some((item) => !Number.isInteger(Number(item.qty)) || Number(item.qty) < 1 || Number(item.qty) > 20)) {
+        return 'Each item in the combo needs a quantity from 1 to 20.';
+      }
+    }
+    if (variants.length) {
+      const noun = variantNoun(variantName);
+      if (!variantName.trim()) return 'Say what the variants are, like Size or Flavour.';
+      if (variants.some((variant) => !variant.label.trim())) return `Name each ${noun}.`;
+      if (variants.some((variant) => variant.price === '' || !Number.isFinite(Number(variant.price)) || Number(variant.price) < 0)) {
+        return `Enter a price for each ${noun}.`;
+      }
+      const labels = variants.map((variant) => variant.label.trim().toLowerCase());
+      if (new Set(labels).size !== labels.length) return `Each ${noun} needs a different name.`;
+    } else {
+      const p = Number(price);
+      if (price === '' || !Number.isFinite(p) || p < 0) return 'Enter a valid price.';
+      if (mrp !== '') {
+        const m = Number(mrp);
+        if (!Number.isFinite(m) || m < p) return 'MRP cannot be lower than the price.';
+      }
     }
     if (mode === 'items') {
       const q = Number(quantity);
@@ -127,8 +166,16 @@ export function ProductForm({
       description: description.trim(),
       category_key: categoryKey,
       listing_mode: mode,
-      price: Number(price),
-      mrp: mrp === '' ? null : Number(mrp),
+      // With sizes, the backend lists the cheapest size as the price.
+      price: variants.length ? Math.min(...variants.map((variant) => Number(variant.price))) : Number(price),
+      mrp: variants.length || mrp === '' ? null : Number(mrp),
+      variants: variants.map((variant) => ({
+        ...(variant.id ? { id: variant.id } : {}),
+        label: variant.label.trim(),
+        price: Number(variant.price)
+      })),
+      variant_name: variantName.trim() || 'Size',
+      combo_items: isCombo ? comboItems.map((item) => ({ name: item.name.trim(), qty: Number(item.qty) })) : [],
       unit: unit.trim(),
       // No counting: the in-stock switch is all a kitchen needs. Customers see
       // sold out at 0 and can order freely above it.
@@ -171,7 +218,7 @@ export function ProductForm({
                 type="button"
                 onClick={() => removeImage(url)}
                 aria-label="Remove photo"
-                className="absolute top-1.5 right-1.5 grid size-8 place-items-center rounded-full bg-black/60 text-lg leading-none text-white"
+                className="absolute top-1 right-1 grid size-10 place-items-center rounded-full bg-black/60 text-xl leading-none text-white"
               >
                 ×
               </button>
@@ -254,14 +301,59 @@ export function ProductForm({
       </Card>
 
       <Card className="grid gap-4 p-5 sm:p-6">
+        <div className="flex items-center justify-between gap-4">
+          <span>
+            <span className="block font-display text-lg font-extrabold tracking-[-0.03em]">Combo</span>
+            <span className="block text-xs font-medium text-[var(--text-muted)]">
+              One price for several products together, like a pizza with a Coke.
+            </span>
+          </span>
+          <button
+            type="button"
+            aria-pressed={isCombo}
+            onClick={() => toggleCombo(!isCombo)}
+            className={cn(
+              'h-11 shrink-0 rounded-full px-5 text-sm font-extrabold tracking-wide ring-1 transition-colors active:scale-[0.97]',
+              isCombo
+                ? 'bg-leaf-600 text-white ring-leaf-600'
+                : 'bg-[var(--surface)] text-[var(--leaf-ink)] ring-[var(--line)] hover:bg-[var(--leaf-soft)]'
+            )}
+          >
+            {isCombo ? '✓ COMBO' : '+ COMBO'}
+          </button>
+        </div>
+        {isCombo && <ComboEditor items={comboItems} onChange={setComboItems} menu={menu} />}
+      </Card>
+
+      <Card className="grid gap-4 p-5 sm:p-6">
         <h2 className="font-display text-lg font-extrabold tracking-[-0.03em]">Price &amp; serving</h2>
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Price (₹)">
-            <input className={fieldClass} type="number" inputMode="decimal" min={0} step="0.5" value={price} onChange={(e) => setPrice(e.target.value)} />
-          </Field>
-          <Field label="MRP (₹)" hint="Optional">
-            <input className={fieldClass} type="number" inputMode="decimal" min={0} step="0.5" value={mrp} onChange={(e) => setMrp(e.target.value)} />
-          </Field>
+          {variants.length === 0 ? (
+            <>
+              <Field label="Price (₹)">
+                <input className={fieldClass} type="number" inputMode="decimal" min={0} step="0.5" value={price} onChange={(e) => setPrice(e.target.value)} />
+              </Field>
+              <Field
+                label={isCombo ? 'Bought separately (₹)' : 'MRP (₹)'}
+                hint={isCombo ? 'Optional. Shows how much the combo saves.' : 'Optional'}
+              >
+                <input className={fieldClass} type="number" inputMode="decimal" min={0} step="0.5" value={mrp} onChange={(e) => setMrp(e.target.value)} />
+              </Field>
+            </>
+          ) : (
+            <p className="col-span-2 rounded-[16px] bg-[var(--tile)] px-4 py-3 text-sm font-medium">
+              The price comes from the variants below. Your menu shows the cheapest one as &ldquo;from&rdquo;.
+            </p>
+          )}
+
+          <SizesEditor
+            variants={variants}
+            onChange={setVariants}
+            food={food}
+            variantName={variantName}
+            onVariantName={setVariantName}
+          />
+
           <div className="col-span-2 grid gap-2">
             <span className="text-sm font-bold">{food ? 'Serving size' : 'Unit'}</span>
             <div className="flex flex-wrap gap-2">
@@ -272,7 +364,7 @@ export function ProductForm({
                   aria-pressed={unit === chip}
                   onClick={() => setUnit(chip)}
                   className={cn(
-                    'rounded-full px-3.5 py-1.5 text-xs font-bold ring-1 transition-colors',
+                    'h-10 rounded-full px-4 text-xs font-bold ring-1 transition-colors',
                     unit === chip
                       ? 'bg-leaf-600 text-white ring-leaf-600'
                       : 'bg-[var(--surface)] text-[var(--leaf-ink)] ring-[var(--line)] hover:bg-[var(--leaf-soft)]'
@@ -358,5 +450,287 @@ export function ProductForm({
         </ButtonLink>
       </div>
     </form>
+  );
+}
+
+type SizeDraft = { id?: string; label: string; price: string };
+type ComboDraft = { name: string; qty: string };
+
+/** Common size sets, so a typical menu takes one tap. */
+const SIZE_PRESETS: Record<'food' | 'items', string[][]> = {
+  food: [['Half', 'Full'], ['Small', 'Medium', 'Large'], ['Regular', 'Large']],
+  items: [['250 g', '500 g', '1 kg'], ['500 ml', '1 L'], ['Small pack', 'Large pack']]
+};
+
+/** What variants are usually called. Customers see "Choose your …" with this word. */
+const VARIANT_NAMES: Record<'food' | 'items', string[]> = {
+  food: ['Size', 'Flavour', 'Pizza', 'Portion'],
+  items: ['Size', 'Pack', 'Flavour']
+};
+
+/**
+ * Variants of one product, each with its own price: sizes (Half ₹180 / Full ₹300) or choices
+ * (Cheese Onion / Paneer). Optional: a product without them has a single price. They share its stock.
+ */
+function SizesEditor({
+  variants,
+  onChange,
+  food,
+  variantName,
+  onVariantName
+}: {
+  variants: SizeDraft[];
+  onChange: (next: SizeDraft[]) => void;
+  food: boolean;
+  variantName: string;
+  onVariantName: (name: string) => void;
+}) {
+  const update = (index: number, change: Partial<SizeDraft>) =>
+    onChange(variants.map((variant, at) => (at === index ? { ...variant, ...change } : variant)));
+  const noun = variantNoun(variantName);
+  const isSize = noun === 'size';
+
+  return (
+    <div className="col-span-2 grid gap-3 rounded-[18px] border-[1.5px] border-dashed border-[var(--line)] p-3.5">
+      <div>
+        <p className="text-sm font-bold">Variants {variants.length === 0 && <span className="font-medium text-[var(--text-muted)]">(optional)</span>}</p>
+        <p className="text-xs text-[var(--text-muted)]">
+          {food
+            ? 'Sell one dish in sizes like Half and Full, or as choices like flavours, each at its own price.'
+            : 'Sell one item in sizes, like 500 g and 1 kg, each at its own price.'}
+        </p>
+      </div>
+
+      {variants.length > 0 && (
+        <div className="grid gap-2">
+          <span className="text-xs font-bold">What are they?</span>
+          <div className="flex flex-wrap gap-2">
+            {VARIANT_NAMES[food ? 'food' : 'items'].map((name) => (
+              <button
+                key={name}
+                type="button"
+                aria-pressed={variantName.trim().toLowerCase() === name.toLowerCase()}
+                onClick={() => onVariantName(name)}
+                className={cn(
+                  'h-10 rounded-full px-4 text-xs font-bold ring-1 transition-colors',
+                  variantName.trim().toLowerCase() === name.toLowerCase()
+                    ? 'bg-leaf-600 text-white ring-leaf-600'
+                    : 'bg-[var(--surface)] text-[var(--leaf-ink)] ring-[var(--line)] hover:bg-[var(--leaf-soft)]'
+                )}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+          <input
+            className={fieldClass}
+            value={variantName}
+            maxLength={20}
+            aria-label="What the variants are called"
+            placeholder="Or type your own, like Base"
+            onChange={(event) => onVariantName(event.target.value)}
+          />
+          <p className="text-xs text-[var(--text-muted)]">
+            Customers see &ldquo;Choose your {noun}&rdquo;.
+          </p>
+        </div>
+      )}
+
+      {variants.length > 0 && (
+        <ul className="grid gap-2">
+          {variants.map((variant, index) => (
+            <li key={variant.id ?? `new-${index}`} className="grid grid-cols-[1fr_6.5rem_2.75rem] items-center gap-2">
+              <input
+                className={fieldClass}
+                value={variant.label}
+                maxLength={40}
+                placeholder={isSize ? (food ? 'Half' : '500 g') : 'Cheese Onion & Capsicum'}
+                aria-label={`${noun} ${index + 1} name`}
+                onChange={(event) => update(index, { label: event.target.value })}
+              />
+              <span className="relative">
+                <span aria-hidden className="absolute top-1/2 left-3 -translate-y-1/2 text-sm font-bold text-[var(--text-muted)]">
+                  ₹
+                </span>
+                <input
+                  className={cn(fieldClass, 'pl-7')}
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  step="0.5"
+                  value={variant.price}
+                  aria-label={`${noun} ${index + 1} price`}
+                  onChange={(event) => update(index, { price: event.target.value })}
+                />
+              </span>
+              <button
+                type="button"
+                aria-label={`Remove ${variant.label || `${noun} ${index + 1}`}`}
+                onClick={() => onChange(variants.filter((_, at) => at !== index))}
+                className="grid size-11 place-items-center rounded-full text-xl text-[var(--text-muted)] transition-colors hover:bg-danger/10 hover:text-danger"
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {variants.length === 0 &&
+          SIZE_PRESETS[food ? 'food' : 'items'].map((set) => (
+            <button
+              key={set.join('/')}
+              type="button"
+              onClick={() => {
+                onChange(set.map((label) => ({ label, price: '' })));
+                onVariantName('Size');
+              }}
+              className="h-10 rounded-full bg-[var(--leaf-soft)] px-4 text-xs font-bold text-[var(--leaf-ink)] ring-1 ring-[var(--line)]"
+            >
+              {set.join(' / ')}
+            </button>
+          ))}
+        {variants.length < 8 && (
+          <button
+            type="button"
+            onClick={() => onChange([...variants, { label: '', price: '' }])}
+            className="h-10 rounded-full px-4 text-xs font-bold text-[var(--leaf-ink)] ring-1 ring-[var(--line)] hover:bg-[var(--leaf-soft)]"
+          >
+            {variants.length === 0 ? '+ Add your own' : `+ Add ${noun}`}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * What a combo includes, one line each: how many and what. Products are picked from the shop's menu with a
+ * tap (a second tap adds one more), or typed for anything else. The menu shows it as "Pizza Mania + Coke".
+ */
+function ComboEditor({
+  items,
+  onChange,
+  menu
+}: {
+  items: ComboDraft[];
+  onChange: (next: ComboDraft[]) => void;
+  menu: Array<{ id: string; name: string }>;
+}) {
+  const [search, setSearch] = useState('');
+  const update = (index: number, change: Partial<ComboDraft>) =>
+    onChange(items.map((item, at) => (at === index ? { ...item, ...change } : item)));
+  const preview = comboSummary(
+    items.filter((item) => item.name.trim()).map((item) => ({ name: item.name.trim(), qty: Number(item.qty) || 1 }))
+  );
+  const rowOf = (name: string) => items.findIndex((item) => item.name.trim().toLowerCase() === name.trim().toLowerCase());
+  const shown = menu.filter((item) => item.name.toLowerCase().includes(search.trim().toLowerCase()));
+
+  function pick(name: string) {
+    const at = rowOf(name);
+    if (at >= 0) return update(at, { qty: String(Math.min(20, (Number(items[at]!.qty) || 0) + 1)) });
+    const blank = items.findIndex((item) => !item.name.trim());
+    if (blank >= 0) return update(blank, { name, qty: items[blank]!.qty || '1' });
+    if (items.length < 12) onChange([...items, { name, qty: '1' }]);
+  }
+
+  return (
+    <div className="grid gap-3 rounded-[18px] border-[1.5px] border-dashed border-[var(--line)] p-3.5">
+      <div>
+        <p className="text-sm font-bold">What&rsquo;s in it</p>
+        <p className="text-xs text-[var(--text-muted)]">
+          {menu.length > 0 ? 'Tap products from your menu, or type any item. ' : 'How many and what. '}
+          The combo has one price, set below. To let customers pick, like which pizza, add variants.
+        </p>
+      </div>
+
+      {menu.length > 0 && (
+        <div className="grid gap-2">
+          <p className="text-xs font-bold">From your menu</p>
+          {menu.length > 12 && (
+            <input
+              className={fieldClass}
+              value={search}
+              placeholder="Search your products"
+              aria-label="Search your products"
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          )}
+          <div className="flex max-h-52 flex-wrap gap-2 overflow-y-auto">
+            {shown.map((item) => {
+              const at = rowOf(item.name);
+              const count = at >= 0 ? Number(items[at]!.qty) || 1 : 0;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => pick(item.name)}
+                  className={cn(
+                    'h-10 rounded-full px-4 text-xs font-bold ring-1 transition-colors active:scale-[0.97]',
+                    count
+                      ? 'bg-leaf-600 text-white ring-leaf-600'
+                      : 'bg-[var(--surface)] text-[var(--leaf-ink)] ring-[var(--line)] hover:bg-[var(--leaf-soft)]'
+                  )}
+                >
+                  {count ? `${count} × ${item.name}` : `+ ${item.name}`}
+                </button>
+              );
+            })}
+            {shown.length === 0 && <p className="text-xs text-[var(--text-muted)]">No product matches.</p>}
+          </div>
+          <p className="text-xs text-[var(--text-muted)]">Tap again to add one more. Change or remove them below.</p>
+        </div>
+      )}
+
+      <ul className="grid gap-2">
+        {items.map((item, index) => (
+          // Rows are plain controlled inputs, so their position is a stable enough key.
+          <li key={index} className="grid grid-cols-[4.5rem_1fr_2.75rem] items-center gap-2">
+            <input
+              className={fieldClass}
+              type="number"
+              inputMode="numeric"
+              min={1}
+              max={20}
+              step={1}
+              value={item.qty}
+              aria-label={`Item ${index + 1}: how many`}
+              onChange={(event) => update(index, { qty: event.target.value })}
+            />
+            <input
+              className={fieldClass}
+              value={item.name}
+              maxLength={60}
+              placeholder={index === 0 ? 'Pizza Mania' : index === 1 ? 'Coke' : 'Garlic bread'}
+              aria-label={`Item ${index + 1}: what`}
+              onChange={(event) => update(index, { name: event.target.value })}
+            />
+            <button
+              type="button"
+              aria-label={`Remove ${item.name || `item ${index + 1}`}`}
+              onClick={() => onChange(items.filter((_, at) => at !== index))}
+              className="grid size-11 place-items-center rounded-full text-xl text-[var(--text-muted)] transition-colors hover:bg-danger/10 hover:text-danger"
+            >
+              ×
+            </button>
+          </li>
+        ))}
+      </ul>
+      {items.length < 12 && (
+        <button
+          type="button"
+          onClick={() => onChange([...items, { name: '', qty: '1' }])}
+          className="h-10 justify-self-start rounded-full px-4 text-xs font-bold text-[var(--leaf-ink)] ring-1 ring-[var(--line)] hover:bg-[var(--leaf-soft)]"
+        >
+          {menu.length > 0 ? '+ Type an item' : '+ Add an item'}
+        </button>
+      )}
+      {preview && (
+        <p className="text-xs text-[var(--text-muted)]">
+          Customers see: <span className="font-bold text-[var(--text)]">{preview}</span>
+        </p>
+      )}
+    </div>
   );
 }

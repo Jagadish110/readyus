@@ -21,6 +21,14 @@ const schema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
+  // A header the host's edge sets to the visitor's address and strips from callers (on Render, which sits
+  // behind Cloudflare: cf-connecting-ip). Rate limits use it, because Render keeps whatever the caller wrote
+  // on the left of X-Forwarded-For. Unset: the address Fastify works out from TRUST_PROXY.
+  CLIENT_IP_HEADER: z
+    .string()
+    .regex(/^[A-Za-z0-9-]+$/, 'must be a header name such as cf-connecting-ip')
+    .transform((value) => value.toLowerCase())
+    .optional(),
   // Browser origins allowed to call the API, comma separated.
   ALLOWED_ORIGINS: z
     .string()
@@ -38,6 +46,12 @@ const schema = z.object({
   // Supabase → Connect → Transaction pooler. Optional so payments keep working
   // before it is set; the data routes answer 503 until it is.
   DATABASE_URL: z.string().url().optional(),
+  // Connections each running copy of this server keeps to the pooler. The pooler shares a fixed number of
+  // real database connections between all its clients, so raise this together with the database plan.
+  DATABASE_POOL_MAX: z.coerce.number().int().min(1).max(50).default(10),
+  // Supabase → Database settings → SSL configuration → download the certificate and paste its PEM text.
+  // When set, the database's certificate is verified, not only encrypted.
+  DATABASE_CA_CERT: z.string().includes('BEGIN CERTIFICATE', { message: 'must be the PEM text of the certificate' }).optional(),
 
   // Cashfree → Developers → API Keys. Optional so the rest of the server runs before the
   // keys are added; payment routes answer 503 until both are set. The same secret key
@@ -77,6 +91,11 @@ const schema = z.object({
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
+
+  // Shared with the website's server (same value there). Pages rendered on that server call this API for
+  // many visitors from one address; with the key it passes each visitor's address along, so every visitor
+  // gets their own rate limit instead of all of them sharing one.
+  INTERNAL_API_KEY: secret(32).optional(),
 
   // Protects the scheduled refund sweep.
   CRON_SECRET: secret(16)

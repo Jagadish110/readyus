@@ -178,7 +178,7 @@ export function ApprovalsBoard({
               setError('');
             }}
             className={cn(
-              'inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-bold ring-1 transition-colors',
+              'inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm font-bold ring-1 transition-colors sm:h-10',
               tab === item.key
                 ? 'bg-leaf-600 text-white ring-leaf-600'
                 : 'bg-[var(--surface)] text-[var(--leaf-ink)] ring-[var(--line)] hover:bg-[var(--leaf-soft)]'

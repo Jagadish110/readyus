@@ -3,6 +3,7 @@ import { CartProvider } from '@/lib/state/cart';
 import { AppHeader } from '@/components/shell/app-header';
 import { BottomNav } from '@/components/shell/bottom-nav';
 import { CartBar } from '@/components/shell/cart-bar';
+import { RouteTransition } from '@/components/motion/route-transition';
 
 export default function ShopLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -11,7 +12,7 @@ export default function ShopLayout({ children }: { children: React.ReactNode }) 
         <div className="paper flex min-h-dvh flex-col">
           <AppHeader />
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-5 pb-40 sm:px-6 md:pb-12">
-            {children}
+            <RouteTransition>{children}</RouteTransition>
           </main>
           <CartBar />
           <BottomNav />

@@ -24,7 +24,7 @@ export type AddressRow = {
 const LABELS = ['Home', 'Work', 'Other'] as const;
 
 const FIELD =
-  'h-12 w-full rounded-[16px] border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-4 text-sm outline-none transition-all ' +
+  'h-12 w-full rounded-[16px] border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-4 text-base outline-none transition-all ' +
   'placeholder:text-ink-400 focus:border-leaf-500 focus:ring-4 focus:ring-leaf-500/20';
 
 type Props = {
@@ -108,7 +108,7 @@ export function AddressForm({ startPin, makeDefault, onSaved, onCancel }: Props)
             onClick={() => setLabel(option)}
             aria-pressed={label === option}
             className={cn(
-              'rounded-full px-4 py-2 text-sm font-bold ring-1 transition-colors',
+              'h-11 rounded-full px-4 text-sm font-bold ring-1 transition-colors',
               label === option
                 ? 'bg-[var(--leaf-soft)] text-[var(--leaf-ink)] ring-leaf-500'
                 : 'bg-[var(--surface)] text-[var(--text-muted)] ring-[var(--line)] hover:text-[var(--text)]'

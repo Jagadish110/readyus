@@ -154,7 +154,7 @@ export function NotificationCenter({ className }: { className?: string }) {
         aria-expanded={open}
         aria-haspopup="dialog"
         aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
-        className="relative grid size-10 shrink-0 place-items-center rounded-full border border-[var(--line)] bg-[var(--surface)] shadow-xs transition-[transform,border-color,color] hover:-translate-y-0.5 hover:border-leaf-400 hover:text-[var(--leaf-ink)]"
+        className="relative grid size-11 shrink-0 place-items-center rounded-full border border-[var(--line)] bg-[var(--surface)] shadow-xs transition-[transform,border-color,color] hover:-translate-y-0.5 hover:border-leaf-400 hover:text-[var(--leaf-ink)] sm:size-10"
       >
         <BellIcon className="size-[19px]" />
         {unread > 0 && (

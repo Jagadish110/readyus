@@ -12,6 +12,7 @@ export function FleetPanel() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [busy, setBusy] = useState(false);
+  const [removing, setRemoving] = useState('');
   const [error, setError] = useState('');
 
   const load = useCallback(async () => {
@@ -34,6 +35,19 @@ export function FleetPanel() {
     await load();
   }
 
+  async function remove(partner: Partner) {
+    const name = partner.agent?.full_name || 'this rider';
+    if (!window.confirm(`Remove ${name} from your delivery team? They will stop getting your orders. Their past deliveries stay on record.`)) {
+      return;
+    }
+    setRemoving(partner.id);
+    setError('');
+    const result = await api('POST', `/v1/seller/fleet/${partner.id}/remove`);
+    setRemoving('');
+    if (!result.ok) setError(result.error);
+    await load();
+  }
+
   const open = invites.filter((invite) => !invite.used_at && new Date(invite.expires_at) > new Date());
 
   return (
@@ -51,11 +65,23 @@ export function FleetPanel() {
       ) : (
         <ul className="grid gap-2 text-sm">
           {partners.map((partner) => (
-            <li key={partner.id} className="flex flex-wrap justify-between gap-2 rounded-[16px] bg-[var(--tile)] px-4 py-2.5">
-              <span className="font-bold">{partner.agent?.full_name}</span>
-              <span className="text-[var(--text-muted)]">
-                {partner.agent?.vehicle} &middot; {partner.agent?.phone}
+            <li key={partner.id} className="flex items-center gap-3 rounded-[16px] bg-[var(--tile)] py-1.5 pr-1.5 pl-4">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-bold">{partner.agent?.full_name}</span>
+                <span className="block truncate text-xs text-[var(--text-muted)]">
+                  {partner.agent?.vehicle} &middot; {partner.agent?.phone}
+                </span>
               </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="shrink-0 text-danger"
+                loading={removing === partner.id}
+                onClick={() => remove(partner)}
+              >
+                Remove
+              </Button>
             </li>
           ))}
         </ul>

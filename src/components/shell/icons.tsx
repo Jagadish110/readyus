@@ -112,3 +112,78 @@ export function BellIcon(props: React.SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function HeartIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 20s-7.5-4.6-7.5-10.2A4.3 4.3 0 0 1 12 7.2a4.3 4.3 0 0 1 7.5 2.6C19.5 15.4 12 20 12 20Z" />
+    </svg>
+  );
+}
+
+export function StoreIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 9.5 5.5 4h13L20 9.5" />
+      <path d="M4 9.5a2.7 2.7 0 0 0 5.3 0 2.7 2.7 0 0 0 5.4 0 2.7 2.7 0 0 0 5.3 0" />
+      <path d="M5.5 12.5V20h13v-7.5M10 20v-4.5h4V20" />
+    </svg>
+  );
+}
+
+export function GridIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <rect x="4" y="4" width="6.5" height="6.5" rx="1.5" />
+      <rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5" />
+      <rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5" />
+      <rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5" />
+    </svg>
+  );
+}
+
+export function BoxIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z" />
+      <path d="m4 7.5 8 4.5 8-4.5M12 12v9" />
+    </svg>
+  );
+}
+
+export function WalletIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18v3" />
+      <rect x="4" y="8" width="16" height="11" rx="2" />
+      <path d="M16 13.5h.01" />
+    </svg>
+  );
+}
+
+export function ShieldIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M12 3 5 6v5.5c0 4.4 3 7.6 7 9.5 4-1.9 7-5.1 7-9.5V6l-7-3Z" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  );
+}
+
+export function BikeIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <circle cx="6" cy="17" r="3" />
+      <circle cx="18" cy="17" r="3" />
+      <path d="M6 17h6l3-7h3M12 17 9.5 10H7M15 6h2.5" />
+    </svg>
+  );
+}
+
+export function MoreIcon(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg {...base} {...props}>
+      <path d="M5 12h.01M12 12h.01M19 12h.01" strokeWidth={3} />
+    </svg>
+  );
+}

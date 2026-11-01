@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCart } from '@/lib/state/cart';
 import { cn } from '@/lib/utils';
+import { useChangePulse } from '@/components/motion/use-change-pulse';
 import { CartIcon, HomeIcon, OrdersIcon, SearchIcon, UserIcon } from './icons';
 
 const TABS = [
@@ -16,11 +17,15 @@ const TABS = [
 
 export function BottomNav() {
   const pathname = usePathname();
-  const { count } = useCart();
+  const { count, ready } = useCart();
+  // The badge bounces when something lands in the cart.
+  const cartPulse = useChangePulse(count, ready);
 
   return (
     <nav
       aria-label="Primary"
+      // Named so it holds still while pages slide (see the page transition rules in globals.css).
+      style={{ viewTransitionName: 'bottom-nav' }}
       className="glass fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] pb-[env(safe-area-inset-bottom)] shadow-[0_-6px_26px_rgb(28_22_20/0.06)] md:hidden"
     >
       <ul className="mx-auto flex max-w-lg items-stretch justify-between px-2 py-1.5">
@@ -30,23 +35,32 @@ export function BottomNav() {
             <li key={href} className="flex-1">
               <Link
                 href={href}
+                transitionTypes={['nav-tab']}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
                   'relative isolate flex flex-col items-center gap-1 rounded-[14px] py-2 text-[0.68rem] font-semibold',
-                  'transition-transform duration-150 ease-[var(--ease-spring)] active:scale-90',
+                  'transition-[transform,color] duration-150 ease-[var(--ease-spring)] active:scale-90',
                   active ? 'text-[var(--leaf-ink)]' : 'text-[var(--text-muted)]'
                 )}
               >
                 {active && (
+                  // One highlight, named, so a tab change glides it from the old tab to the new one.
                   <span
                     aria-hidden
-                    className="animate-pop absolute inset-x-2 inset-y-0.5 -z-10 rounded-full bg-[var(--leaf-soft)]"
+                    style={{ viewTransitionName: 'nav-pill' }}
+                    className="absolute inset-x-2 inset-y-0.5 -z-10 rounded-full bg-[var(--leaf-soft)]"
                   />
                 )}
                 <span className="relative">
                   <Icon className="size-[22px]" />
                   {href === '/cart' && count > 0 && (
-                    <span className="absolute -top-1.5 -right-2 grid min-w-[18px] place-items-center rounded-full border-2 border-[var(--surface)] bg-brand-500 px-1 text-[0.6rem] font-extrabold text-white">
+                    <span
+                      key={cartPulse.count}
+                      className={cn(
+                        'absolute -top-1.5 -right-2 grid min-w-[18px] place-items-center rounded-full border-2 border-[var(--surface)] bg-brand-500 px-1 text-[0.6rem] font-extrabold text-white',
+                        cartPulse.count > 0 && cartPulse.up && 'animate-bump'
+                      )}
+                    >
                       {count > 99 ? '99+' : count}
                     </span>
                   )}

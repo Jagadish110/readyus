@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { ComboItem, ShopExtra } from '@/lib/database.types';
 
 /**
  * The checked-in Database type does not describe tables to supabase-js yet, so
@@ -49,7 +50,24 @@ export type ShopRow = {
   service_radius_km: number | string;
   open_time: string;
   close_time: string;
+  /** Rupees (Postgres numerics arrive as strings). 0 = no minimum / free delivery / never free. */
+  min_order_amount: number | string;
+  delivery_fee: number | string;
+  free_delivery_above: number | string;
+  prepaid_available: boolean;
+  cod_available: boolean;
+  address: string;
+  city: string;
+  pincode: string;
+  /** The shop's pin; null before it is set. */
+  lat: number | null;
+  lng: number | null;
+  /** Extras like Extra cheese, set up once and ticked per dish. */
+  extras: ShopExtra[];
 };
+
+/** A size or portion of a product, with its own price (see the variants field in the backend). */
+export type VariantRow = { id: string; label: string; price: number; mrp: number | null };
 
 export type ProductRow = {
   id: string;
@@ -70,6 +88,11 @@ export type ProductRow = {
   review_note: string;
   rating: number | string;
   rating_count: number;
+  variants: VariantRow[];
+  variant_name: string;
+  combo_items: ComboItem[];
+  /** Which of the shop's extras this dish offers. */
+  extra_ids: string[];
 };
 
 export const SHOP_COLUMNS =

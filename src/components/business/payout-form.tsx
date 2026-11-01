@@ -13,6 +13,16 @@ const BUSINESS_TYPES = [
   { value: 'proprietorship', label: 'Proprietorship', hint: 'A sole-owner business, with or without GST.' }
 ] as const;
 
+/** The address proofs Cashfree accepts alongside the PAN. */
+const ID_PROOFS = [
+  { value: 'aadhaar', label: 'Aadhaar', placeholder: '1234 5678 9012' },
+  { value: 'voter_id', label: 'Voter ID', placeholder: 'ABC1234567' },
+  { value: 'driving_license', label: 'Driving licence', placeholder: 'KA0120198900984' },
+  { value: 'passport', label: 'Passport', placeholder: 'A1234567' }
+] as const;
+
+type IdProof = (typeof ID_PROOFS)[number]['value'];
+
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <label className="grid gap-1.5">
@@ -23,13 +33,47 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
+/** Which ID and its number. Required on the first save, an optional fix afterwards. */
+function IdProofFields({ idType, setIdType, required }: { idType: IdProof; setIdType: (value: IdProof) => void; required: boolean }) {
+  const chosen = ID_PROOFS.find((proof) => proof.value === idType) ?? ID_PROOFS[0];
+  return (
+    <>
+      <Field label={required ? 'ID proof' : 'ID proof (optional)'} hint="Cashfree needs one besides the PAN.">
+        <select
+          name="idProofType"
+          value={idType}
+          onChange={(event) => setIdType(event.target.value as IdProof)}
+          className={fieldClass}
+        >
+          {ID_PROOFS.map((proof) => (
+            <option key={proof.value} value={proof.value}>
+              {proof.label}
+            </option>
+          ))}
+        </select>
+      </Field>
+      <Field label={`${chosen.label} number`} hint="As printed on the card.">
+        <input
+          name="idProofNumber"
+          required={required}
+          maxLength={20}
+          placeholder={chosen.placeholder}
+          className={fieldClass + ' uppercase'}
+          autoComplete="off"
+        />
+      </Field>
+    </>
+  );
+}
+
 /**
- * Bank details go to our server, which forwards them to Cashfree. They are
- * never kept here; after saving only the last four digits are shown.
+ * Bank and KYC details go to our server, which forwards them to Cashfree. They are
+ * never kept here; after saving only the last four digits of the account are shown.
  */
 export function PayoutForm({ hasAccount, defaultName }: { hasAccount: boolean; defaultName: string }) {
   const router = useRouter();
   const [type, setType] = useState<'individual' | 'proprietorship'>('individual');
+  const [idType, setIdType] = useState<IdProof>('aadhaar');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
@@ -49,6 +93,8 @@ export function PayoutForm({ hasAccount, defaultName }: { hasAccount: boolean; d
     const response = await callPaymentsApi('/v1/seller/payout', {
       businessType: type,
       ...(hasAccount ? { pan: text('pan') } : { contactName: text('contactName'), pan: text('pan') }),
+      ...(text('idProofNumber') ? { idProofType: idType, idProofNumber: text('idProofNumber') } : {}),
+      gstin: text('gstin'),
       beneficiaryName: text('beneficiaryName'),
       accountNumber: text('accountNumber'),
       ifsc: text('ifsc')
@@ -67,7 +113,7 @@ export function PayoutForm({ hasAccount, defaultName }: { hasAccount: boolean; d
   if (done) {
     return (
       <p role="status" className="rounded-[18px] bg-success/12 p-4 text-sm font-medium ring-1 ring-success/35">
-        Bank details sent for verification. We never keep your full account number.
+        Details sent to Cashfree for verification. We never keep your full account number or ID numbers.
       </p>
     );
   }
@@ -112,31 +158,51 @@ export function PayoutForm({ hasAccount, defaultName }: { hasAccount: boolean; d
               autoComplete="off"
             />
           </Field>
+          <IdProofFields idType={idType} setIdType={setIdType} required />
+          {type === 'proprietorship' && (
+            <Field label="GSTIN (optional)" hint="Add it if your business is registered for GST.">
+              <input name="gstin" maxLength={15} placeholder="29AAICP2912R1ZR" className={fieldClass + ' uppercase'} autoComplete="off" />
+            </Field>
+          )}
         </div>
       )}
 
       {hasAccount && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Corrected PAN (optional)" hint="Only fill this if Cashfree said the PAN is invalid.">
-            <input
-              name="pan"
-              maxLength={10}
-              placeholder="ABCDE1234F"
-              className={fieldClass + ' uppercase'}
-              autoComplete="off"
-            />
-          </Field>
+        <div className="grid gap-4">
+          <p className="text-sm text-[var(--text-muted)]">
+            Fix only what Cashfree asked for. Leave the rest empty.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Corrected PAN (optional)" hint="Only fill this if Cashfree said the PAN is invalid.">
+              <input
+                name="pan"
+                maxLength={10}
+                placeholder="ABCDE1234F"
+                className={fieldClass + ' uppercase'}
+                autoComplete="off"
+              />
+            </Field>
+            <Field label="GSTIN (optional)" hint="Only if your business is registered for GST.">
+              <input name="gstin" maxLength={15} placeholder="29AAICP2912R1ZR" className={fieldClass + ' uppercase'} autoComplete="off" />
+            </Field>
+            <IdProofFields idType={idType} setIdType={setIdType} required={false} />
+          </div>
         </div>
       )}
 
       <div className="grid gap-4 border-t border-[var(--line)] pt-4 sm:grid-cols-2">
+        {hasAccount && (
+          <p className="text-sm text-[var(--text-muted)] sm:col-span-2">
+            Changing banks? Enter the new account below. Leave these empty to keep your current one.
+          </p>
+        )}
         <Field label="Account holder name" hint="Exactly as the bank has it.">
-          <input name="beneficiaryName" required className={fieldClass} autoComplete="off" />
+          <input name="beneficiaryName" required={!hasAccount} className={fieldClass} autoComplete="off" />
         </Field>
         <Field label="IFSC">
           <input
             name="ifsc"
-            required
+            required={!hasAccount}
             maxLength={11}
             placeholder="HDFC0001234"
             className={fieldClass + ' uppercase'}
@@ -146,7 +212,7 @@ export function PayoutForm({ hasAccount, defaultName }: { hasAccount: boolean; d
         <Field label="Bank account number">
           <input
             name="accountNumber"
-            required
+            required={!hasAccount}
             inputMode="numeric"
             pattern="[0-9]{9,18}"
             className={fieldClass}
@@ -156,7 +222,7 @@ export function PayoutForm({ hasAccount, defaultName }: { hasAccount: boolean; d
         <Field label="Confirm account number">
           <input
             name="accountNumberAgain"
-            required
+            required={!hasAccount}
             inputMode="numeric"
             pattern="[0-9]{9,18}"
             className={fieldClass}
@@ -173,7 +239,7 @@ export function PayoutForm({ hasAccount, defaultName }: { hasAccount: boolean; d
       )}
 
       <Button type="submit" variant="leaf" size="lg" loading={saving} className="justify-self-start">
-        {hasAccount ? 'Update bank details' : 'Save and verify'}
+        {hasAccount ? 'Send to Cashfree' : 'Save and verify'}
       </Button>
     </form>
   );

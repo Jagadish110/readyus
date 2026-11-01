@@ -9,6 +9,8 @@ import { ShopCard } from '@/components/marketplace/shop-card';
 import { Reveal } from '@/components/motion/reveal';
 import { Eyebrow, SectionTitle } from '@/components/ui/card';
 import { SearchIcon } from '@/components/shell/icons';
+import { FOOD_CATEGORIES } from '@/lib/data/food-categories';
+import { suggestSpelling, wordsOf } from '@/lib/search/suggest';
 
 export const metadata: Metadata = { title: 'Search' };
 
@@ -86,11 +88,36 @@ async function Results({ term }: { term: string }) {
   const location = await readLocation();
   if (!location) return <ResultsSkeleton />;
 
-  const query = { lat: location.lat, lng: location.lng, radiusKm: location.radiusKm, search: term };
-  const [shops, products] = await Promise.all([
-    getNearbySellers({ ...query, limit: 12 }),
-    getNearbyProducts({ ...query, limit: 40 })
-  ]);
+  const place = { lat: location.lat, lng: location.lng, radiusKm: location.radiusKm };
+  const find = (search: string) =>
+    Promise.all([getNearbySellers({ ...place, search, limit: 12 }), getNearbyProducts({ ...place, search, limit: 40 })]);
+  let [shops, products] = await find(term);
+
+  // Nothing found: perhaps a typo. Correct it against the names customers can find nearby and search again.
+  let corrected: string | null = null;
+  if (!shops.length && !products.length) {
+    const [allShops, allProducts] = await Promise.all([
+      getNearbySellers({ ...place, limit: 100 }),
+      getNearbyProducts({ ...place, limit: 200 })
+    ]);
+    const known = wordsOf([
+      ...allShops.flatMap((shop) => [shop.shop_name, shop.category]),
+      ...allProducts.flatMap((product) => [product.name, product.category_key]),
+      ...FOOD_CATEGORIES.map((category) => category.name)
+    ]);
+    corrected = suggestSpelling(term, known);
+    if (corrected) [shops, products] = await find(corrected);
+  }
+
+  const didYouMean = corrected && (
+    <p className="animate-rise text-sm text-[var(--text-muted)]">
+      No exact match for &ldquo;{term}&rdquo;. Did you mean{' '}
+      <Link href={'/search?q=' + encodeURIComponent(corrected)} className="font-extrabold text-[var(--leaf-ink)] underline">
+        {corrected}
+      </Link>
+      ?
+    </p>
+  );
 
   if (!shops.length && !products.length) {
     return (
@@ -101,6 +128,7 @@ async function Results({ term }: { term: string }) {
         <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
           Check the spelling, try a simpler word like &ldquo;biryani&rdquo;, or widen your radius from the header.
         </p>
+        {didYouMean && <div className="mt-3">{didYouMean}</div>}
         <Link
           href="/browse"
           className="mt-5 inline-flex h-12 items-center rounded-full bg-leaf-600 px-6 text-[0.95rem] font-bold text-white shadow-[0_10px_26px_rgb(36_101_64/0.3)] transition-[transform,background-color] hover:-translate-y-0.5 hover:bg-leaf-700"
@@ -113,10 +141,13 @@ async function Results({ term }: { term: string }) {
 
   return (
     <div className="grid gap-8">
-      <p className="animate-rise text-sm font-semibold text-[var(--text-muted)]">
-        {products.length} {products.length === 1 ? 'dish' : 'dishes'} and {shops.length}{' '}
-        {shops.length === 1 ? 'shop' : 'shops'} for &ldquo;{term}&rdquo; near {location.label}
-      </p>
+      <div className="grid gap-1">
+        {didYouMean}
+        <p className="animate-rise text-sm font-semibold text-[var(--text-muted)]">
+          {products.length} {products.length === 1 ? 'dish' : 'dishes'} and {shops.length}{' '}
+          {shops.length === 1 ? 'shop' : 'shops'} for &ldquo;{corrected ?? term}&rdquo; near {location.label}
+        </p>
+      </div>
 
       {shops.length > 0 && (
         <section className="animate-rise grid gap-5">
@@ -134,10 +165,10 @@ async function Results({ term }: { term: string }) {
           <Reveal>
             <SectionTitle>Dishes and items</SectionTitle>
           </Reveal>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid gap-3 lg:grid-cols-2">
             {products.map((product, index) => (
               <Reveal key={product.id} delay={(index % 4) * 55}>
-                <ProductCard product={product} />
+                <ProductCard product={product} layout="row" />
               </Reveal>
             ))}
           </div>

@@ -5,13 +5,14 @@ import { readLocation } from '@/lib/data/location';
 import { getNearbyProducts, getProductById, getSellerById } from '@/lib/data/marketplace';
 import { LocationGate } from '@/components/shell/location-gate';
 import { ProductCard } from '@/components/marketplace/product-card';
-import { AddToCartPanel } from '@/components/marketplace/add-to-cart-panel';
+import { ProductBuy } from '@/components/marketplace/add-to-cart-panel';
 import { Dish } from '@/components/art/dish-photo';
 import { dishForProduct } from '@/components/art/dish-map';
 import { Badge, VegMark } from '@/components/ui/badge';
 import { SectionTitle } from '@/components/ui/card';
 import { ClockIcon, StarIcon } from '@/components/shell/icons';
 import { deliveryMinutes, discountPercent, formatRupees } from '@/lib/utils';
+import { describeDelivery } from '@/lib/shop-terms';
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -40,16 +41,23 @@ async function ProductDetail({ id }: { id: string }) {
 
   return (
     <div className="grid gap-8">
-      <nav className="text-sm text-[var(--text-muted)]">
-        <Link href="/browse" className="hover:text-brand-600">Browse</Link>
+      {/* Breadcrumbs lead back up, so the page slides the way it came. */}
+      <nav className="-my-3 flex items-center text-sm text-[var(--text-muted)]">
+        <Link href="/browse" transitionTypes={['nav-back']} className="inline-flex h-11 items-center hover:text-brand-600">
+          Browse
+        </Link>
         <span aria-hidden className="px-2">/</span>
-        <Link href={`/shop/${product.seller_id}`} className="hover:text-brand-600">
+        <Link
+          href={`/shop/${product.seller_id}`}
+          transitionTypes={['nav-back']}
+          className="inline-flex h-11 min-w-0 items-center truncate hover:text-brand-600"
+        >
           {product.seller_name}
         </Link>
       </nav>
 
       <div className="grid gap-7 md:grid-cols-2">
-        <div className="tile animate-rise relative aspect-square overflow-hidden rounded-[30px] bg-[var(--tile)] shadow-sm ring-1 ring-[var(--line)]">
+        <div className="tile animate-rise relative aspect-[4/3] overflow-hidden rounded-[30px] bg-[var(--tile)] shadow-sm ring-1 ring-[var(--line)] md:aspect-square">
           {product.images?.[0] ? (
             <Image
               src={product.images[0]}
@@ -103,14 +111,33 @@ async function ProductDetail({ id }: { id: string }) {
             <p className="max-w-[52ch] leading-relaxed text-[var(--text-muted)]">{product.description}</p>
           )}
 
+          {product.combo_items?.length ? (
+            <div className="rounded-[18px] bg-[var(--tile)] p-4">
+              <p className="text-xs font-extrabold tracking-[0.08em] text-[var(--leaf-ink)] uppercase">In this combo</p>
+              <ul className="mt-2 grid gap-1.5">
+                {product.combo_items.map((item, index) => (
+                  <li key={`${item.name}-${index}`} className="flex gap-2 font-semibold">
+                    <span className="w-8 shrink-0 text-[var(--text-muted)] tabular-nums">{item.qty} ×</span>
+                    {item.name}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           <div className="flex items-end gap-3 pt-1">
+            {product.variants?.length ? (
+              <span className="pb-1 text-sm font-semibold text-[var(--text-muted)]">from</span>
+            ) : null}
             <span className="font-display text-[2rem] leading-none font-extrabold tracking-[-0.04em]">
               {formatRupees(product.price)}
             </span>
-            {product.mrp && product.mrp > product.price && (
+            {!product.variants?.length && product.mrp && product.mrp > product.price && (
               <span className="pb-1 text-[var(--text-muted)] line-through">{formatRupees(product.mrp)}</span>
             )}
-            {product.unit && <span className="pb-1 text-sm text-[var(--text-muted)]">/ {product.unit}</span>}
+            {!product.variants?.length && product.unit && (
+              <span className="pb-1 text-sm text-[var(--text-muted)]">/ {product.unit}</span>
+            )}
           </div>
 
           {!product.business_open && (
@@ -119,13 +146,17 @@ async function ProductDetail({ id }: { id: string }) {
             </p>
           )}
 
-          <AddToCartPanel product={product} />
+          <ProductBuy product={product} />
 
           {shop && (
             <dl className="mt-2 grid grid-cols-2 gap-3 border-t pt-4 text-sm">
-              <Fact label="Minimum order" value={formatRupees(shop.min_order_amount)} />
-              <Fact label="Delivery fee" value="Free" />
-              <Fact label="Payment" value="Online only" />
+              <Fact
+                label="Minimum order"
+                value={Number(shop.min_order_amount) > 0 ? formatRupees(Number(shop.min_order_amount)) : 'None'}
+              />
+              <Fact label="Delivery" value={describeDelivery(shop)} />
+              {/* A shop keeps at least one way to pay on, so without cash it must take online payment. */}
+              <Fact label="Payment" value={shop.cod_available ? 'Online or cash on delivery' : 'Online only'} />
               <Fact label="Availability" value={product.stock > 0 ? "Available" : "Out of stock"} />
             </dl>
           )}
@@ -135,9 +166,9 @@ async function ProductDetail({ id }: { id: string }) {
       {others.length > 0 && (
         <section className="grid gap-4">
           <SectionTitle>More from {product.seller_name}</SectionTitle>
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div className="grid gap-3 lg:grid-cols-2">
             {others.map((item) => (
-              <ProductCard key={item.id} product={item} />
+              <ProductCard key={item.id} product={item} showShop={false} layout="row" />
             ))}
           </div>
         </section>

@@ -25,11 +25,24 @@ export function DeleteProduct({ productId, name }: { productId: string; name: st
   }
 
   return (
-    <div className="grid gap-2 border-t border-[var(--line)] pt-4">
-      <Button type="button" variant="ghost" size="sm" className="justify-self-start text-danger" loading={busy} onClick={remove}>
+    <section className="grid gap-3 rounded-[22px] p-4 ring-1 ring-danger/30 sm:p-5">
+      <div>
+        <h2 className="font-display text-base font-extrabold tracking-[-0.025em]">Remove from your menu</h2>
+        <p className="mt-1 text-sm leading-relaxed text-[var(--text-muted)]">
+          Deletes this product for good. Past orders keep their record. Only out for today? Switch it to sold out on
+          your menu instead.
+        </p>
+      </div>
+      <Button
+        type="button"
+        variant="outline"
+        className="justify-self-start border-danger/40 text-danger hover:border-danger hover:bg-danger/10 hover:text-danger"
+        loading={busy}
+        onClick={remove}
+      >
         Delete this product
       </Button>
       {error && <p role="alert" className="text-sm font-semibold text-danger">{error}</p>}
-    </div>
+    </section>
   );
 }

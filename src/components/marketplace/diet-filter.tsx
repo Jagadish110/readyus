@@ -1,5 +1,6 @@
 'use client';
 
+import { useOptimistic, useTransition } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
@@ -14,27 +15,36 @@ export function DietFilter({ active }: { active?: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
+  const [pending, startTransition] = useTransition();
+  // The tapped chip lights up at once; the results follow when they arrive.
+  const [shown, setShown] = useOptimistic(active);
 
   function select(key?: string) {
     const next = new URLSearchParams(params.toString());
-    if (key && key !== active) next.set('diet', key);
+    const value = key && key !== shown ? key : undefined;
+    if (value) next.set('diet', value);
     else next.delete('diet');
-    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+    startTransition(() => {
+      setShown(value);
+      // 'nav-filter': same page, new content, so the results crossfade (see RouteTransition).
+      router.replace(`${pathname}?${next.toString()}`, { scroll: false, transitionTypes: ['nav-filter'] });
+    });
   }
 
   return (
-    <div role="group" aria-label="Diet" className="flex flex-wrap gap-2">
+    <div role="group" aria-label="Diet" aria-busy={pending} className="flex flex-wrap gap-2">
       {DIETS.map((diet) => (
         <button
           key={diet.key}
           type="button"
-          aria-pressed={active === diet.key}
+          aria-pressed={shown === diet.key}
           onClick={() => select(diet.key)}
           className={cn(
-            'inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold ring-1 transition-colors',
-            active === diet.key
+            'inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm font-bold ring-1 transition-[color,background-color,box-shadow,transform] active:scale-[0.96]',
+            shown === diet.key
               ? 'bg-[var(--leaf-soft)] text-[var(--leaf-ink)] ring-leaf-500'
-              : 'bg-[var(--surface)] text-[var(--text-muted)] ring-[var(--line)] hover:text-[var(--leaf-ink)]'
+              : 'bg-[var(--surface)] text-[var(--text-muted)] ring-[var(--line)] hover:text-[var(--leaf-ink)]',
+            pending && shown === diet.key && 'animate-pulse'
           )}
         >
           <span aria-hidden className={cn('size-2.5 rounded-full border', diet.dot)} />

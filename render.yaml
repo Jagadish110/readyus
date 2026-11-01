@@ -22,6 +22,12 @@ services:
         sync: false
       - key: NEXT_PUBLIC_GOOGLE_MAPS_API_KEY
         sync: false
+      # Same value as INTERNAL_API_KEY on localty-api, so pages rendered here get per-visitor rate limits.
+      - key: INTERNAL_API_KEY
+        sync: false
+      # Render sits behind Cloudflare, which sets this to the visitor's address and replaces any copy a caller sends.
+      - key: CLIENT_IP_HEADER
+        value: cf-connecting-ip
   - type: web
     name: localty-api
     runtime: docker
@@ -40,6 +46,13 @@ services:
       # Render puts a proxy in front. Without this every visitor shares one IP and one rate-limit bucket.
       - key: TRUST_PROXY
         value: "true"
+      # Render keeps whatever a caller writes on the left of X-Forwarded-For, so rate limits read the
+      # visitor's address from Cloudflare's header instead, which callers cannot fake.
+      - key: CLIENT_IP_HEADER
+        value: cf-connecting-ip
+      # Same value as INTERNAL_API_KEY on localty-web.
+      - key: INTERNAL_API_KEY
+        sync: false
       - key: ALLOWED_ORIGINS
         value: https://www.localty.in,https://localty.in
       - key: SITE_URL

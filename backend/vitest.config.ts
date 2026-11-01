@@ -25,6 +25,8 @@ export default defineConfig({
       CASHFREE_BASE_URL: 'http://127.0.0.1:4599',
       VAPID_PUBLIC_KEY: vapid.publicKey,
       VAPID_PRIVATE_KEY: vapid.privateKey,
+      CLIENT_IP_HEADER: 'cf-connecting-ip',
+      INTERNAL_API_KEY: 'test-internal-key-0123456789abcdef0123',
       DATABASE_URL: process.env.TEST_DATABASE_URL ?? ''
     }
   }

@@ -5,12 +5,10 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { parsePhoneNumberFromString } from 'libphonenumber-js';
 import { createClient } from '@/lib/supabase/client';
-import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { NOT_CONFIGURED, isSupabaseConfigured } from '@/lib/supabase/config';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
-
-const NOT_CONFIGURED =
-  'Supabase is not connected yet. Add your project URL and keys to .env.local, then restart the dev server.';
+import { cn, safeNext } from '@/lib/utils';
+import { Field } from './field';
 
 type Method = 'phone' | 'email';
 type Mode = 'sign-in' | 'sign-up';
@@ -24,7 +22,8 @@ const METHODS: Array<{ id: Method; label: string }> = [
 ];
 
 const CALLBACK_ERRORS: Record<string, string> = {
-  auth_failed: 'That sign-in link did not work or has expired. Please try again.'
+  auth_failed: 'That sign-in link did not work or has expired. Please try again.',
+  link_used: 'That email link has already been used or has expired. If you just confirmed your email, log in below.'
 };
 
 function GoogleMark({ className }: { className?: string }) {
@@ -38,9 +37,12 @@ function GoogleMark({ className }: { className?: string }) {
   );
 }
 
-type Audience = 'customer' | 'rider';
+type Audience = 'customer' | 'rider' | 'admin';
 
-/** Words and links that differ for delivery partners, who have their own door at /delivery/login. */
+/**
+ * Words and links that differ for delivery partners, who have their own door at /delivery/login, and for
+ * staff, whose door at /admin/login takes an email and password only: no Google, no codes, no sign-up.
+ */
 const COPY: Record<Audience, { eyebrow: string; signUp: string; signIn: string; signUpBody: string; signInBody: string; home: string; signInHref: string; signUpHref: string; next: string }> = {
   customer: {
     eyebrow: 'Localty account',
@@ -63,6 +65,17 @@ const COPY: Record<Audience, { eyebrow: string; signUp: string; signIn: string; 
     signInHref: '/delivery/login',
     signUpHref: '/delivery/login?mode=sign-up',
     next: '/delivery'
+  },
+  admin: {
+    eyebrow: 'Localty admin',
+    signUp: 'Admin log in',
+    signIn: 'Admin log in',
+    signUpBody: 'For Localty staff only.',
+    signInBody: 'For Localty staff only. Log in with your email and password.',
+    home: '/',
+    signInHref: '/admin/login',
+    signUpHref: '/admin/login',
+    next: '/admin'
   }
 };
 
@@ -70,9 +83,11 @@ export function AuthForm({ mode, audience = 'customer' }: { mode: Mode; audience
   const copy = COPY[audience];
   const router = useRouter();
   const params = useSearchParams();
-  const next = params.get('next') || copy.next;
+  const next = safeNext(params.get('next'), copy.next);
 
-  const [method, setMethod] = useState<Method>(PHONE_LOGIN ? 'phone' : 'email');
+  // Staff log in with an email and password only.
+  const passwordOnly = audience === 'admin';
+  const [method, setMethod] = useState<Method>(PHONE_LOGIN && !passwordOnly ? 'phone' : 'email');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
@@ -182,6 +197,8 @@ export function AuthForm({ mode, audience = 'customer' }: { mode: Mode; audience
         {isSignUp ? copy.signUpBody : copy.signInBody}
       </p>
 
+      {!passwordOnly && (
+      <>
       <Button
         size="lg"
         variant="outline"
@@ -221,6 +238,8 @@ export function AuthForm({ mode, audience = 'customer' }: { mode: Mode; audience
           </button>
         ))}
       </div>
+      </>
+      )}
 
       {!configured && (
         <p className="mt-5 rounded-[18px] bg-warning/12 px-4 py-3 text-sm font-medium text-[var(--text)] ring-1 ring-warning/35">
@@ -302,6 +321,14 @@ export function AuthForm({ mode, audience = 'customer' }: { mode: Mode; audience
               value={password}
               onChange={setPassword}
             />
+            {!isSignUp && (
+              <Link
+                href={next === '/browse' ? '/forgot-password' : `/forgot-password?next=${encodeURIComponent(next)}`}
+                className="-my-1.5 inline-flex h-11 items-center justify-self-end text-sm font-semibold text-[var(--leaf-ink)] hover:underline"
+              >
+                Forgot password?
+              </Link>
+            )}
             <Button size="lg" variant="leaf" fullWidth loading={pending} onClick={() => run(submitEmail)}>
               {isSignUp ? 'Create account' : 'Log in'}
             </Button>
@@ -309,41 +336,21 @@ export function AuthForm({ mode, audience = 'customer' }: { mode: Mode; audience
         )}
       </div>
 
-      <p className="mt-6 text-center text-sm text-[var(--text-muted)]">
-        {isSignUp ? 'Already have an account? ' : 'New to Localty? '}
-        <Link href={isSignUp ? copy.signInHref : copy.signUpHref} className="font-bold text-[var(--leaf-ink)] hover:underline">
-          {isSignUp ? 'Log in' : 'Create one'}
-        </Link>
-      </p>
+      {!passwordOnly && (
+        <p className="mt-6 text-center text-sm text-[var(--text-muted)]">
+          {isSignUp ? 'Already have an account? ' : 'New to Localty? '}
+          <Link href={isSignUp ? copy.signInHref : copy.signUpHref} className="font-bold text-[var(--leaf-ink)] hover:underline">
+            {isSignUp ? 'Log in' : 'Create one'}
+          </Link>
+        </p>
+      )}
 
       <p className="mt-3 text-center">
         <Link href={copy.home} className="text-sm font-semibold text-[var(--text-muted)] hover:text-[var(--leaf-ink)]">
-          {audience === 'rider' ? 'Back to Localty' : 'Continue as guest'}
+          {audience === 'customer' ? 'Continue as guest' : 'Back to Localty'}
         </Link>
       </p>
     </div>
   );
 }
 
-function Field({
-  label,
-  value,
-  onChange,
-  ...props
-}: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-} & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange' | 'value'>) {
-  return (
-    <label className="grid gap-1.5">
-      <span className="text-[0.82rem] font-bold">{label}</span>
-      <input
-        {...props}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-14 rounded-[18px] border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-4 text-base outline-none transition-all placeholder:text-ink-400 focus:border-leaf-500 focus:ring-4 focus:ring-leaf-500/20 disabled:opacity-60"
-      />
-    </label>
-  );
-}

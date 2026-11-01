@@ -3,20 +3,14 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { serverApi } from '@/lib/api/server';
-import { Button, ButtonLink } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/card';
+import { BikeIcon, ChevronIcon, HeartIcon, OrdersIcon, ShieldIcon, StoreIcon } from '@/components/shell/icons';
 import { signOut } from './actions';
 import { AddressBook } from '@/components/account/address-book';
 import { DataControls } from '@/components/account/data-controls';
 
 export const metadata: Metadata = { title: 'Your account' };
-
-const ROLE_LABELS: Record<string, string> = {
-  customer: 'Customer',
-  seller: 'Seller',
-  delivery: 'Delivery partner',
-  admin: 'Admin'
-};
 
 function initials(name: string, fallback: string) {
   const source = name.trim() || fallback;
@@ -95,32 +89,47 @@ export default async function AccountPage() {
           <Detail label="Email" value={email} />
           <Detail label="Mobile" value={phone} />
           <Detail label="Delivery radius" value={profile ? profile.search_radius_km + ' km' : ''} />
-          <div>
-            <dt className="text-xs font-bold tracking-[0.14em] text-[var(--text-muted)] uppercase">Roles</dt>
-            <dd className="mt-1.5 flex flex-wrap gap-1.5">
-              {(held.length ? held : ['customer']).map((role) => (
-                <span
-                  key={role}
-                  className="rounded-full bg-[var(--leaf-soft)] px-2.5 py-1 text-xs font-extrabold text-[var(--leaf-ink)] ring-1 ring-[var(--line)]"
-                >
-                  {ROLE_LABELS[role] ?? role}
-                </span>
-              ))}
-            </dd>
-          </div>
         </dl>
       </section>
 
-      <section className="animate-rise grid gap-3 sm:grid-cols-2 [animation-delay:120ms]">
-        <ButtonLink href="/browse" variant="leaf-outline" size="lg" fullWidth>
-          Keep shopping
-        </ButtonLink>
-        {!held.includes('seller') && (
-          <ButtonLink href="/business/apply" variant="leaf-soft" size="lg" fullWidth>
-            Sell on Localty
-          </ButtonLink>
-        )}
-      </section>
+      {/* One list of everywhere this person can go, so the shop and admin consoles are reachable from a phone. */}
+      <nav
+        aria-label="Account"
+        className="animate-rise overflow-hidden rounded-[26px] bg-[var(--surface)] shadow-sm ring-1 ring-[var(--line)] [animation-delay:120ms]"
+      >
+        <ul className="divide-y divide-[var(--line)]">
+          {[
+            { href: '/orders', label: 'Your orders', hint: 'Track, reorder and get receipts', Icon: OrdersIcon },
+            { href: '/favourites', label: 'Favourite shops', hint: 'Shops you saved', Icon: HeartIcon },
+            held.includes('seller')
+              ? { href: '/business', label: 'Your shop dashboard', hint: 'Orders, menu and payouts', Icon: StoreIcon }
+              : { href: '/business/apply', label: 'Sell on Localty', hint: 'List your shop, zero commission', Icon: StoreIcon },
+            ...(held.includes('delivery')
+              ? [{ href: '/delivery', label: 'Rider console', hint: 'Your deliveries', Icon: BikeIcon }]
+              : []),
+            ...(held.includes('admin')
+              ? [{ href: '/admin', label: 'Admin console', hint: 'Approvals, shops and orders', Icon: ShieldIcon }]
+              : [])
+          ].map(({ href, label, hint, Icon }) => (
+            <li key={href}>
+              <Link
+                href={href}
+                transitionTypes={['nav-forward']}
+                className="flex min-h-16 items-center gap-3.5 px-5 py-3 transition-colors hover:bg-[var(--tile)] active:bg-[var(--leaf-soft)]"
+              >
+                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--leaf-soft)] text-[var(--leaf-ink)]">
+                  <Icon className="size-5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block font-bold">{label}</span>
+                  <span className="block truncate text-xs text-[var(--text-muted)]">{hint}</span>
+                </span>
+                <ChevronIcon className="size-4 shrink-0 text-[var(--text-muted)]" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
       <AddressBook />
 
@@ -132,12 +141,16 @@ export default async function AccountPage() {
         </Button>
       </form>
 
-      <p className="text-center text-xs text-[var(--text-muted)]">
-        <Link href="/legal/terms" className="font-semibold text-[var(--leaf-ink)] hover:underline">Terms</Link>
-        {' · '}
-        <Link href="/legal/privacy" className="font-semibold text-[var(--leaf-ink)] hover:underline">Privacy</Link>
-        {' · '}
-        <Link href="/legal/refunds" className="font-semibold text-[var(--leaf-ink)] hover:underline">Refunds</Link>
+      <p className="flex justify-center gap-1 text-xs text-[var(--text-muted)]">
+        {[
+          ['/legal/terms', 'Terms'],
+          ['/legal/privacy', 'Privacy'],
+          ['/legal/refunds', 'Refunds']
+        ].map(([href, label]) => (
+          <Link key={href} href={href} className="inline-flex h-11 items-center px-2.5 font-semibold text-[var(--leaf-ink)] hover:underline">
+            {label}
+          </Link>
+        ))}
       </p>
     </div>
   );

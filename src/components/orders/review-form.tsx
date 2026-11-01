@@ -27,7 +27,7 @@ export function StarInput({
           aria-label={`${star} star${star > 1 ? 's' : ''}`}
           onClick={() => onChange(star)}
           className={cn(
-            'grid size-9 place-items-center rounded-full text-xl leading-none transition-transform active:scale-90',
+            'grid size-11 place-items-center rounded-full text-2xl leading-none transition-transform active:scale-90',
             star <= value ? 'text-saffron-500' : 'text-ink-300'
           )}
         >

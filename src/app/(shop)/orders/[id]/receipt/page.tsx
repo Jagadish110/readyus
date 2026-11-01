@@ -9,6 +9,7 @@ import { getFssaiNumber } from '@/lib/data/marketplace';
 import { PrintButton } from '@/components/orders/print-button';
 import { STATUS_LABEL } from '@/lib/orders/status';
 import { formatPaise } from '@/lib/utils';
+import { comboSummary } from '@/lib/menu';
 
 export const metadata: Metadata = { title: 'Order receipt' };
 export const dynamic = 'force-dynamic';
@@ -72,7 +73,13 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
         <tbody>
           {items.map((item) => (
             <tr key={item.id} className="border-b border-[var(--line)] last:border-b-0">
-              <td className="py-2 pr-2">{item.name}{item.variant_label && <span className="text-[var(--text-muted)]"> ({item.variant_label})</span>}</td>
+              <td className="py-2 pr-2">
+                {item.name}
+                {item.variant_label && <span className="text-[var(--text-muted)]"> ({item.variant_label})</span>}
+                {item.combo_items?.length ? (
+                  <span className="block text-xs text-[var(--text-muted)]">Includes {comboSummary(item.combo_items)}</span>
+                ) : null}
+              </td>
               <td className="py-2 text-right tabular-nums">{item.quantity}</td>
               <td className="py-2 text-right tabular-nums">{formatPaise(item.unit_price_paise)}</td>
               <td className="py-2 text-right font-semibold tabular-nums">{formatPaise(item.line_total_paise)}</td>

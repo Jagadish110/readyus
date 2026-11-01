@@ -50,7 +50,11 @@ export default async function FavouritesPage() {
         <ul className="grid gap-3">
           {shops.map((shop) => (
             <li key={shop.id}>
-              <Link href={`/shop/${shop.id}`} className="flex items-center justify-between gap-3 rounded-[22px] bg-[var(--surface)] p-4 shadow-sm ring-1 ring-[var(--line)] transition-colors hover:ring-leaf-400">
+              <Link
+                href={`/shop/${shop.id}`}
+                transitionTypes={['nav-forward']}
+                className="flex items-center justify-between gap-3 rounded-[22px] bg-[var(--surface)] p-4 shadow-sm ring-1 ring-[var(--line)] transition-[box-shadow,transform] hover:ring-leaf-400 active:scale-[0.98] active:duration-100"
+              >
                 <span className="min-w-0">
                   <span className="block truncate font-display text-base font-extrabold tracking-[-0.025em]">{shop.shop_name}</span>
                   <span className="block truncate text-sm text-[var(--text-muted)]">

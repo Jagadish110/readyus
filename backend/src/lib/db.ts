@@ -25,15 +25,28 @@ function getPool() {
   if (!config.DATABASE_URL) {
     throw new AppError(503, 'The server is not connected to the database yet.', 'DATABASE_NOT_CONFIGURED');
   }
-  pool ??= new pg.Pool({
-    connectionString: config.DATABASE_URL,
-    max: 10,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 10_000,
-    // Supabase's pooler requires TLS; its certificate chain is not in Node's store.
-    // A database on this machine (local development and the automated tests) has no TLS.
-    ssl: /@(localhost|127\.0\.0\.1)[:/]/.test(config.DATABASE_URL) ? false : { rejectUnauthorized: false }
-  });
+  if (!pool) {
+    const local = /@(localhost|127\.0\.0\.1)[:/]/.test(config.DATABASE_URL);
+    pool = new pg.Pool({
+      connectionString: config.DATABASE_URL,
+      max: config.DATABASE_POOL_MAX,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 10_000,
+      // Notices a connection the network silently dropped instead of waiting on it.
+      keepAlive: true,
+      // Supabase's pooler requires TLS; its certificate chain is not in Node's store, so it is verified
+      // only when its certificate is supplied (DATABASE_CA_CERT). Env editors often store the PEM's line
+      // breaks as "\n". A database on this machine (local development and the automated tests) has no TLS.
+      ssl: local
+        ? false
+        : config.DATABASE_CA_CERT
+          ? { ca: config.DATABASE_CA_CERT.replace(/\\n/g, '\n') }
+          : { rejectUnauthorized: false }
+    });
+    // A pooled connection that drops while idle (a pooler restart, a network blip) is reported here.
+    // Without a listener Node treats it as an unhandled error and the whole server exits.
+    pool.on('error', (error) => console.error(`database connection dropped: ${error.message}`));
+  }
   return pool;
 }
 
@@ -54,7 +67,9 @@ async function inTransaction<T>(setup: ((client: pg.PoolClient) => Promise<void>
   };
 
   try {
-    await client.query('begin');
+    // A runaway query gives up after 15 seconds instead of holding a connection every other request is
+    // waiting for. `set local` ends with the transaction, like the settings below.
+    await client.query("begin; set local statement_timeout = '15s'");
     // `true` scopes the settings to this transaction, which is what makes pooled
     // connections safe to reuse for the next caller.
     if (setup) await setup(client);

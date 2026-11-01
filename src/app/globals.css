@@ -100,6 +100,32 @@
   --animate-shimmer: shimmer 1.3s linear infinite;
   --animate-float: float 8s ease-in-out infinite;
   --animate-ping-ring: ping-ring 2.4s var(--ease-smooth) infinite;
+  /* Feedback for a change the person just made: a count landing, a number rolling over. */
+  --animate-bump: bump 0.42s ease-out both;
+  --animate-tick-up: tick-up 0.2s var(--ease-smooth) both;
+  --animate-tick-down: tick-down 0.2s var(--ease-smooth) both;
+  /* A bottom sheet rising from the edge it is attached to. */
+  --animate-sheet: sheet-up 0.32s var(--ease-smooth) both;
+}
+
+@keyframes sheet-up {
+  from { transform: translate3d(0, 100%, 0); }
+  to   { transform: none; }
+}
+
+@keyframes bump {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(1.4); }
+  60%  { transform: scale(0.9); }
+  100% { transform: scale(1); }
+}
+@keyframes tick-up {
+  from { opacity: 0; transform: translate3d(0, 60%, 0); }
+  to   { opacity: 1; transform: none; }
+}
+@keyframes tick-down {
+  from { opacity: 0; transform: translate3d(0, -60%, 0); }
+  to   { opacity: 1; transform: none; }
 }
 
 @keyframes rise {
@@ -204,6 +230,22 @@
   :focus-visible {
     outline: 3px solid rgb(255 77 28 / 0.4);
     outline-offset: 2px;
+  }
+
+  /* Taps answer at once (no double-tap-zoom wait) and do not flash a grey box on Android. */
+  a, button, [role='button'], [role='radio'], label, summary {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /*
+   * On a phone a form field under 16px makes iOS zoom the page when it is tapped. Fields that set
+   * their own size keep it (utilities win over this layer); fields that inherit get a safe 16px.
+   */
+  @media (max-width: 767px) {
+    input, select, textarea {
+      font-size: 16px;
+    }
   }
 
   /* Hide scrollbars on horizontal rails without losing scrollability. */
@@ -352,5 +394,106 @@
   .js .reveal {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* ============================================================
+   Page transitions
+   React's <ViewTransition> (see RouteTransition) names the page content; links say which way the
+   person moved with transitionTypes. Browsers without view transitions simply swap pages.
+   ============================================================ */
+
+/* Taps still land on the live page while a transition runs. */
+::view-transition {
+  pointer-events: none;
+}
+
+/* Only the content moves. The document itself never crossfades, so refreshes and redirects stay still. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+/* Pinned chrome: the top bar, the bottom bar and the pay / cart bar above it hold still while content slides. */
+::view-transition-group(app-header),
+::view-transition-group(bottom-nav),
+::view-transition-group(action-bar) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(app-header),
+::view-transition-old(bottom-nav),
+::view-transition-old(action-bar) {
+  display: none;
+}
+::view-transition-new(app-header),
+::view-transition-new(bottom-nav),
+::view-transition-new(action-bar) {
+  animation: none;
+}
+/* A captured bar has no backdrop to blur, so it goes solid for the moment the content slides under it. */
+:active-view-transition .glass {
+  background: var(--surface);
+}
+
+/* The bottom bar's highlight glides from the old tab to the tapped one. */
+::view-transition-group(nav-pill) {
+  z-index: 101;
+  animation-duration: 320ms;
+  animation-timing-function: var(--ease-smooth);
+}
+
+/* Going deeper (a shop, a dish, an order): old content leaves to the left, new arrives from the right. */
+::view-transition-old(.nav-forward) {
+  --vt-offset: -60px;
+  animation:
+    150ms ease-in both vt-fade reverse,
+    400ms var(--ease-smooth) both vt-slide reverse;
+}
+::view-transition-new(.nav-forward) {
+  --vt-offset: 60px;
+  animation:
+    210ms ease-out 150ms both vt-fade,
+    400ms var(--ease-smooth) both vt-slide;
+}
+
+/* Coming back up a level: the same slide, mirrored. */
+::view-transition-old(.nav-back) {
+  --vt-offset: 60px;
+  animation:
+    150ms ease-in both vt-fade reverse,
+    400ms var(--ease-smooth) both vt-slide reverse;
+}
+::view-transition-new(.nav-back) {
+  --vt-offset: -60px;
+  animation:
+    210ms ease-out 150ms both vt-fade,
+    400ms var(--ease-smooth) both vt-slide;
+}
+
+/* Switching bottom-bar tabs (or a filter on the same page) is not a move deeper in: a quick crossfade. */
+::view-transition-old(.nav-fade) {
+  animation: 120ms ease-out both vt-fade reverse;
+}
+::view-transition-new(.nav-fade) {
+  animation: 200ms ease-out 60ms both vt-fade;
+}
+
+@keyframes vt-fade {
+  from { opacity: 0; filter: blur(3px); }
+  to   { opacity: 1; filter: blur(0); }
+}
+@keyframes vt-slide {
+  from { translate: var(--vt-offset); }
+  to   { translate: 0; }
+}
+
+/* Sliding across the screen is the motion most likely to bother someone who asked for less: pages just swap. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
   }
 }

@@ -1,6 +1,10 @@
 export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 export const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
 
+/** What the sign-in screens say when the project is not connected yet. */
+export const NOT_CONFIGURED =
+  'Supabase is not connected yet. Add your project URL and keys to .env.local, then restart the dev server.';
+
 /**
  * True once real project credentials are present. The scaffold ships with
  * placeholders so the UI can run before a project is connected; every data

@@ -1,11 +1,13 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { safeNext } from '@/lib/utils';
 
 /** Exchanges the OAuth / email-link code for a session cookie. */
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
-  const next = searchParams.get('next') ?? '/browse';
+  // Only a path: `${origin}${next}` with next = ".evil.com" or "@evil.com" would leave the site.
+  const next = safeNext(searchParams.get('next'), '/browse');
 
   if (code) {
     const supabase = await createClient();

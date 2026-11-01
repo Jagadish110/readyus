@@ -6,6 +6,7 @@ import { ZodError } from 'zod';
 import { config, isProduction } from './config.js';
 import { AppError } from './lib/errors.js';
 import { asService } from './lib/db.js';
+import { rateLimitKey } from './lib/client-ip.js';
 import { CashfreeError } from './lib/cashfree.js';
 import { customerRoutes } from './routes/customer.js';
 import { paymentRoutes } from './routes/payments.js';
@@ -49,7 +50,9 @@ export async function buildApp() {
     maxAge: 600
   });
 
-  await app.register(rateLimit, { global: true, max: 120, timeWindow: '1 minute' });
+  // Per visitor, not per connecting address: see clientIp for how the visitor is found behind proxies
+  // and for pages the website's server renders. Route limits below inherit this key.
+  await app.register(rateLimit, { global: true, max: 120, timeWindow: '1 minute', keyGenerator: rateLimitKey });
 
   // Keep the raw body next to the parsed one; the webhook signature covers the raw bytes.
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (request, body, done) => {

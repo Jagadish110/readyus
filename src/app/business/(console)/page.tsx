@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Card, Eyebrow } from '@/components/ui/card';
 import { ButtonLink } from '@/components/ui/button';
 import { ShopControls } from '@/components/business/shop-controls';
+import { DeliverySettings } from '@/components/business/delivery-settings';
+import { ShopLocation } from '@/components/business/shop-location';
 import { fssaiAttention, loadDocuments } from '@/lib/business/documents';
 
 export const metadata: Metadata = { title: 'Seller dashboard' };
@@ -95,7 +97,8 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      {shop.status === 'approved' && !acceptsOnline && (
+      {/* Only nag about bank details when the shop actually wants online payments. */}
+      {shop.status === 'approved' && shop.prepaid_available && !acceptsOnline && (
         <Card className="flex flex-wrap items-center justify-between gap-3 p-5 ring-1 ring-warning/35 sm:p-6">
           <div className="min-w-0">
             <h2 className="font-display text-lg font-extrabold tracking-[-0.03em]">
@@ -113,6 +116,11 @@ export default async function DashboardPage() {
       )}
 
       <ShopControls shop={shop} />
+
+      {/* With online payment switched off the shop is not "accepting online" by choice, not for lack of bank details. */}
+      <DeliverySettings shop={shop} onlineReady={acceptsOnline || !shop.prepaid_available} />
+
+      <ShopLocation shop={shop} />
 
       <Card className="flex flex-wrap items-center justify-between gap-3 p-5 sm:p-6">
         <div>

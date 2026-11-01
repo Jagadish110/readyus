@@ -81,7 +81,8 @@ function Section({ title, orders }: { title: string; orders: ListedOrder[] }) {
             <li key={order.id}>
               <Link
                 href={`/orders/${order.id}`}
-                className="block rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:ring-leaf-400"
+                transitionTypes={['nav-forward']}
+                className="block rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:ring-leaf-400 active:scale-[0.98] active:duration-100"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
