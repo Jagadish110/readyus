@@ -1,6 +1,8 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { api } from '@/lib/api/client';
+import { createClient } from '@/lib/supabase/client';
 
 export type CartLine = {
   productId: string;
@@ -31,6 +33,12 @@ export const lineKey = (line: { productId: string; variantId?: string; extras?: 
 };
 
 const STORAGE_KEY = 'readyus-cart';
+/** Whose cart this browser holds: a user id once it has been saved to that account, absent for a guest's. */
+const OWNER_KEY = 'readyus-cart-owner';
+/** How often an open, visible tab picks up changes made on another device. */
+const PULL_EVERY_MS = 20_000;
+/** Edits within this window are saved together. */
+const PUSH_AFTER_MS = 400;
 
 type CartState = {
   lines: CartLine[];
@@ -61,6 +69,150 @@ function save(lines: CartLine[]) {
   }
 }
 
+function readOwner() {
+  try {
+    return localStorage.getItem(OWNER_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeOwner(userId: string | null) {
+  try {
+    if (userId) localStorage.setItem(OWNER_KEY, userId);
+    else localStorage.removeItem(OWNER_KEY);
+  } catch {
+    // Non-fatal: the next visit merges again, which only re-adds what is already there.
+  }
+}
+
+/** What the server stores for a line; it fills in names and prices itself. */
+const toSaved = (line: CartLine) => ({
+  productId: line.productId,
+  variantId: line.variantId ?? '',
+  extraIds: (line.extras ?? []).map((extra) => extra.id),
+  quantity: line.quantity
+});
+
+/**
+ * A guest's cart joining the account's saved one at sign-in. A line in both keeps the larger quantity,
+ * so signing in twice on one device never doubles it.
+ */
+function merge(saved: CartLine[], guest: CartLine[]) {
+  const byKey = new Map(saved.map((line) => [lineKey(line), line]));
+  for (const line of guest) {
+    const key = lineKey(line);
+    const existing = byKey.get(key);
+    byKey.set(key, existing ? { ...existing, quantity: Math.max(existing.quantity, line.quantity) } : line);
+  }
+  return [...byKey.values()];
+}
+
+/**
+ * Keeps the cart on the account while someone is signed in, so every device shows the same one:
+ * each edit is saved to the backend, and a visible tab re-reads it on focus and every 20 seconds.
+ * A guest's cart stays in this browser and joins the account's at sign-in.
+ */
+function useAccountCart(lines: CartLine[], replace: (next: CartLine[]) => void, ready: boolean) {
+  const userRef = useRef<string | null>(null);
+  // Counts local edits; a read that started before the latest edit is stale and dropped.
+  const editsRef = useRef(0);
+  const pushTimer = useRef<number | undefined>(undefined);
+  const pushing = useRef(false);
+  const linesRef = useRef(lines);
+  useEffect(() => {
+    linesRef.current = lines;
+  }, [lines]);
+
+  const pull = useCallback(async () => {
+    if (!userRef.current || pushing.current || pushTimer.current !== undefined) return;
+    const startedAt = editsRef.current;
+    const result = await api<{ lines: CartLine[] }>('GET', '/v1/cart');
+    if (result.ok && startedAt === editsRef.current && pushTimer.current === undefined) replace(result.data.lines);
+  }, [replace]);
+
+  const push = useCallback(async (current?: CartLine[]) => {
+    pushTimer.current = undefined;
+    if (!userRef.current) return;
+    pushing.current = true;
+    const startedAt = editsRef.current;
+    const result = await api<{ lines: CartLine[] }>('POST', '/v1/cart', {
+      lines: (current ?? linesRef.current).map(toSaved)
+    });
+    pushing.current = false;
+    // The server's copy has current names and prices; take it unless more edits arrived meanwhile.
+    if (result.ok && startedAt === editsRef.current && pushTimer.current === undefined) replace(result.data.lines);
+  }, [replace]);
+
+  /** Called after every local edit. */
+  const edited = useCallback(() => {
+    editsRef.current += 1;
+    if (!userRef.current) return;
+    window.clearTimeout(pushTimer.current);
+    pushTimer.current = window.setTimeout(() => void push(), PUSH_AFTER_MS);
+  }, [push]);
+
+  // Signing in, out, or into another account.
+  useEffect(() => {
+    if (!ready) return;
+    const supabase = createClient();
+    if (!supabase) return;
+
+    const adopt = async (userId: string | null) => {
+      if (userId === userRef.current) return;
+      userRef.current = userId;
+      if (!userId) {
+        // Signed out: the account's cart stays on the account, not on a shared screen.
+        if (readOwner()) replace([]);
+        writeOwner(null);
+        return;
+      }
+      const startedAt = editsRef.current;
+      const result = await api<{ lines: CartLine[] }>('GET', '/v1/cart');
+      if (!result.ok || userRef.current !== userId) return;
+      const owner = readOwner();
+      if (startedAt !== editsRef.current) {
+        // Edited while this loaded: those edits are already on their way to the server.
+      } else if (owner === userId || linesRef.current.length === 0) {
+        // This browser already holds this account's cart (or nothing): the saved copy is the truth.
+        replace(result.data.lines);
+      } else if (owner === null) {
+        // A guest cart: bring it into the account.
+        const merged = merge(result.data.lines, linesRef.current);
+        replace(merged);
+        editsRef.current += 1;
+        void push(merged);
+      } else {
+        // Another account's leftovers: show this account's cart instead.
+        replace(result.data.lines);
+      }
+      writeOwner(userId);
+    };
+
+    supabase.auth.getSession().then(({ data }) => void adopt(data.session?.user.id ?? null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => void adopt(session?.user.id ?? null));
+    return () => sub.subscription.unsubscribe();
+  }, [ready, replace, push]);
+
+  // Picking up changes from other devices.
+  useEffect(() => {
+    if (!ready) return;
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void pull();
+    };
+    const timer = window.setInterval(onVisible, PULL_EVERY_MS);
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [ready, pull]);
+
+  return edited;
+}
+
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [lines, setLines] = useState<CartLine[]>([]);
   const [ready, setReady] = useState(false);
@@ -75,33 +227,53 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     setReady(true);
   }, []);
 
-  const persist = useCallback((next: CartLine[]) => {
+  // Replaces the cart with a copy from the server; not an edit, so nothing is sent back.
+  const replace = useCallback((next: CartLine[]) => {
     setLines(next);
     save(next);
   }, []);
 
-  const add = useCallback((line: Omit<CartLine, 'quantity'>, quantity = 1) => {
-    setLines((current) => {
-      const key = lineKey(line);
-      const existing = current.find((item) => lineKey(item) === key);
-      const next = existing
-        ? current.map((item) => (lineKey(item) === key ? { ...item, quantity: item.quantity + quantity } : item))
-        : [...current, { ...line, quantity }];
-      save(next);
-      return next;
-    });
-  }, []);
+  const edited = useAccountCart(lines, replace, ready);
 
-  const setQuantity = useCallback((key: string, quantity: number) => {
-    setLines((current) => {
-      const next =
-        quantity <= 0
-          ? current.filter((item) => lineKey(item) !== key)
-          : current.map((item) => (lineKey(item) === key ? { ...item, quantity } : item));
+  const persist = useCallback(
+    (next: CartLine[]) => {
+      setLines(next);
       save(next);
-      return next;
-    });
-  }, []);
+      edited();
+    },
+    [edited]
+  );
+
+  const add = useCallback(
+    (line: Omit<CartLine, 'quantity'>, quantity = 1) => {
+      setLines((current) => {
+        const key = lineKey(line);
+        const existing = current.find((item) => lineKey(item) === key);
+        const next = existing
+          ? current.map((item) => (lineKey(item) === key ? { ...item, quantity: item.quantity + quantity } : item))
+          : [...current, { ...line, quantity }];
+        save(next);
+        return next;
+      });
+      edited();
+    },
+    [edited]
+  );
+
+  const setQuantity = useCallback(
+    (key: string, quantity: number) => {
+      setLines((current) => {
+        const next =
+          quantity <= 0
+            ? current.filter((item) => lineKey(item) !== key)
+            : current.map((item) => (lineKey(item) === key ? { ...item, quantity } : item));
+        save(next);
+        return next;
+      });
+      edited();
+    },
+    [edited]
+  );
 
   const groups = useMemo(() => {
     const map = new Map<string, { sellerId: string; sellerName: string; lines: CartLine[]; subtotal: number }>();

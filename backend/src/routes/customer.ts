@@ -48,6 +48,73 @@ const checkoutSchema = z.object({
     .max(10)
 });
 
+// The same line shape checkout takes, so a saved cart and an order agree on what a line is.
+const cartLineSchema = z.object({
+  productId: uuid,
+  variantId: z.string().regex(/^[a-z0-9]{0,16}$/).default(''),
+  extraIds: z.array(z.string().regex(/^[a-z0-9]{1,16}$/)).max(30).default([]),
+  quantity: z.number().int().min(1).max(99)
+});
+const cartSchema = z.object({ lines: z.array(cartLineSchema).max(100) });
+
+/**
+ * The signed-in customer's saved cart, priced now: the size's price plus each extra's price for that size
+ * (extra_price, which place_order also uses). Lines whose dish was deleted are gone by foreign key.
+ */
+const CART_SQL = `
+  select ci.product_id, ci.seller_id, ci.variant_id, ci.quantity,
+         p.name, p.unit, p.price, p.mrp, p.veg_type, p.images[1] as image, s.shop_name,
+         v.value as variant,
+         coalesce((select jsonb_agg(jsonb_build_object('id', x ->> 'id', 'label', x ->> 'label',
+                                                       'price', public.extra_price(x, v.value ->> 'label'))
+                                    order by x ->> 'id')
+                   from jsonb_array_elements(s.extras) as x
+                   where x ->> 'id' = any (ci.extra_ids)), '[]'::jsonb) as extras
+  from cart_items ci
+  join products p on p.id = ci.product_id
+  join sellers s on s.id = ci.seller_id
+  left join lateral (
+    select value from jsonb_array_elements(p.variants) where value ->> 'id' = ci.variant_id and ci.variant_id <> '' limit 1
+  ) v on true
+  where ci.user_id = $1
+  order by ci.created_at, ci.id`;
+
+type CartRow = {
+  product_id: string;
+  seller_id: string;
+  variant_id: string;
+  quantity: number;
+  name: string;
+  unit: string;
+  price: string;
+  mrp: string | null;
+  veg_type: string;
+  image: string | null;
+  shop_name: string;
+  variant: { id: string; label: string; price: number; mrp?: number | null } | null;
+  extras: Array<{ id: string; label: string; price: number | string }>;
+};
+
+/** A saved line in the shape the website's cart keeps (see CartLine in src/lib/state/cart.tsx). */
+function cartLine(row: CartRow) {
+  const extras = row.extras.map((extra) => ({ id: extra.id, label: extra.label, price: Number(extra.price) }));
+  const base = row.variant ? Number(row.variant.price) : Number(row.price);
+  return {
+    productId: row.product_id,
+    sellerId: row.seller_id,
+    sellerName: row.shop_name,
+    name: row.name,
+    unit: row.variant ? row.variant.label : row.unit,
+    price: base + extras.reduce((total, extra) => total + extra.price, 0),
+    mrp: row.variant ? (row.variant.mrp ?? null) : row.mrp === null ? null : Number(row.mrp),
+    vegType: row.veg_type,
+    image: row.image,
+    ...(row.variant ? { variantId: row.variant.id, variantLabel: row.variant.label } : {}),
+    ...(extras.length ? { extras } : {}),
+    quantity: row.quantity
+  };
+}
+
 const reviewSchema = z.object({
   shopRating: z.number().int().min(1).max(5).nullable(),
   items: z.array(z.object({ product_id: uuid, rating: z.number().int().min(1).max(5), body: z.string().max(500) })).max(60)
@@ -160,6 +227,42 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
         await q.rows('delete from favourite_sellers where user_id = $1 and seller_id = $2', [user.id, id]);
       }
       return { ok: true };
+    });
+  });
+
+  // ---------- Saved cart ----------
+
+  /** The cart follows the account, so the laptop and the phone show the same one. */
+  app.get('/cart', async (request) => {
+    const user = await requireUser(request);
+    return asUser(user.id, async (q) => ({ lines: (await q.rows<CartRow>(CART_SQL, [user.id])).map(cartLine) }));
+  });
+
+  /**
+   * Replaces the saved cart with what the browser holds. Dishes that no longer exist, sizes the dish does
+   * not have and extras it does not offer are dropped, so a stale tab cannot save a line checkout would refuse.
+   */
+  app.post('/cart', { config: { rateLimit: { max: 120, timeWindow: '1 minute' } } }, async (request) => {
+    const user = await requireUser(request);
+    const { lines } = cartSchema.parse(request.body);
+
+    return asUser(user.id, async (q) => {
+      await q.rows('delete from cart_items where user_id = $1', [user.id]);
+      for (const line of lines) {
+        const extraIds = [...new Set(line.extraIds)].sort();
+        await q.rows(
+          `insert into cart_items (user_id, product_id, seller_id, variant_id, extra_ids, quantity)
+           select $1, p.id, p.seller_id, $3, $4::text[], $5
+           from products p
+           where p.id = $2
+             and ($3 = '' or exists (select 1 from jsonb_array_elements(p.variants) v where v ->> 'id' = $3))
+             and $4::text[] <@ p.extra_ids
+           on conflict on constraint cart_items_line_key
+           do update set quantity = least(cart_items.quantity + excluded.quantity, 99)`,
+          [user.id, line.productId, line.variantId, extraIds, line.quantity]
+        );
+      }
+      return { lines: (await q.rows<CartRow>(CART_SQL, [user.id])).map(cartLine) };
     });
   });
 
