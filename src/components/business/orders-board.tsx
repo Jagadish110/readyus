@@ -6,7 +6,7 @@ import { friendlyError } from '@/lib/orders/errors';
 import { STATUS_LABEL, STATUS_TONE, type OrderStatus } from '@/lib/orders/status';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { formatPaise } from '@/lib/utils';
+import { cn, formatPaise } from '@/lib/utils';
 import { comboSummary, extrasSummary } from '@/lib/menu';
 import type { ComboItem, OrderedExtra } from '@/lib/database.types';
 import { CancelBox, FailBox, IssuesList, RefundForm } from './order-exits';
@@ -442,6 +442,10 @@ const DECLINE_REASONS = [
   'Sorry, we cannot take this order'
 ];
 
+/** The whole bill is already in: nothing to collect at the door. Only money that has arrived counts. */
+const fullyPaidOnline = (order: SellerOrder) =>
+  order.payment_mode !== 'normal_cod' && order.total_paise > 0 && order.verified_prepaid_paise >= order.total_paise;
+
 function OrderCard({
   order,
   note,
@@ -451,12 +455,28 @@ function OrderCard({
   note?: string;
   children?: React.ReactNode;
 }) {
+  // Prepaid orders are lime green with white text, so the owner can tell them apart at a glance.
+  // #4d7c0f keeps white text readable (contrast above 5:1); a lighter lime would not.
+  const prepaid = fullyPaidOnline(order);
+  const muted = prepaid ? 'text-white/85' : 'text-[var(--text-muted)]';
   return (
-    <li className="grid gap-3 rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)]">
+    <li
+      className={cn(
+        'grid gap-3 rounded-[26px] p-5 shadow-sm ring-1',
+        prepaid ? 'bg-[#4d7c0f] text-white ring-[#3f6212]' : 'bg-[var(--surface)] ring-[var(--line)]'
+      )}
+    >
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="font-display text-base font-extrabold tracking-[-0.025em]">{order.order_code}</p>
-          <p className="text-xs text-[var(--text-muted)]">
+          <p className="font-display text-base font-extrabold tracking-[-0.025em]">
+            {order.order_code}
+            {prepaid && (
+              <span className="ml-2 inline-block rounded-full bg-white px-2 py-0.5 align-middle text-[0.65rem] font-extrabold tracking-[0.08em] text-[#3f6212] uppercase">
+                Paid online
+              </span>
+            )}
+          </p>
+          <p className={cn('text-xs', muted)}>
             {order.delivery_address.recipient || 'Customer'} &middot;{' '}
             {new Date(order.created_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })} &middot;{' '}
             {paymentLabel(order)}
@@ -471,19 +491,23 @@ function OrderCard({
             <span className="font-semibold">
               {item.quantity} &times; {item.name}
             </span>
-            {item.variant_label && <span className="text-[var(--text-muted)]"> &middot; {item.variant_label}</span>}
+            {item.variant_label && <span className={muted}> &middot; {item.variant_label}</span>}
             {item.combo_items?.length ? (
-              <span className="block text-xs text-[var(--text-muted)]">Includes {comboSummary(item.combo_items)}</span>
+              <span className={cn('block text-xs', muted)}>Includes {comboSummary(item.combo_items)}</span>
             ) : null}
             {item.extras?.length ? <span className="block text-xs font-semibold">{extrasSummary(item.extras)}</span> : null}
           </li>
         ))}
       </ul>
       {order.customer_note && (
-        <p className="rounded-[16px] bg-[var(--tile)] px-3.5 py-2.5 text-sm">Note: {order.customer_note}</p>
+        <p className={cn('rounded-[16px] px-3.5 py-2.5 text-sm', prepaid ? 'bg-white/15' : 'bg-[var(--tile)]')}>
+          Note: {order.customer_note}
+        </p>
       )}
-      <p className="text-sm font-extrabold tabular-nums text-brand-600">{formatPaise(order.total_paise)}</p>
-      {note && <p className="text-xs font-semibold text-[var(--text-muted)]">{note}</p>}
+      <p className={cn('text-sm font-extrabold tabular-nums', prepaid ? 'text-white' : 'text-brand-600')}>
+        {formatPaise(order.total_paise)}
+      </p>
+      {note && <p className={cn('text-xs font-semibold', muted)}>{note}</p>}
       {children}
     </li>
   );
