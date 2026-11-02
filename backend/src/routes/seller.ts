@@ -13,6 +13,7 @@ import {
 import { asService } from '../lib/db.js';
 import { AppError } from '../lib/errors.js';
 import { kycFields, kycSchema } from '../lib/kyc.js';
+import { maskUpi, upiSchema } from '../lib/upi.js';
 
 /** Only needed the first time, when the shop becomes a Cashfree vendor. */
 const identitySchema = z.object({
@@ -42,6 +43,9 @@ const bankSchema = z.object({
     .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Enter a valid IFSC, like HDFC0001234.')
 });
 
+/** Where the shop is paid: a bank account, or a UPI ID (Cashfree takes one or the other, never both). */
+const methodSchema = z.object({ payoutMethod: z.enum(['bank', 'upi']).default('bank') });
+
 type Shop = { id: string; shop_name: string; phone: string; status: string; listing_mode: 'food' | 'items' };
 
 type Stored = {
@@ -52,6 +56,8 @@ type Stored = {
   beneficiary_name: string | null;
   bank_ifsc: string | null;
   bank_last4: string | null;
+  payout_method: 'bank' | 'upi';
+  upi_display: string | null;
 };
 
 /** Cashfree allows letters, digits, spaces and . / - & in a vendor name. */
@@ -69,7 +75,8 @@ async function shopOf(userId: string): Promise<Shop> {
 const getAccount = (sellerId: string) =>
   asService((q) =>
     q.one<Stored>(
-      `select cashfree_vendor_id, status, status_detail, business_type, beneficiary_name, bank_ifsc, bank_last4
+      `select cashfree_vendor_id, status, status_detail, business_type, beneficiary_name, bank_ifsc, bank_last4,
+              payout_method, upi_display
        from seller_payout_accounts where seller_id = $1`,
       [sellerId]
     )
@@ -112,15 +119,18 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
         status_detail: stored.status_detail,
         beneficiary_name: stored.beneficiary_name,
         bank_ifsc: stored.bank_ifsc,
-        bank_last4: stored.bank_last4
+        bank_last4: stored.bank_last4,
+        payout_method: stored.payout_method,
+        upi_display: stored.upi_display
       }
     };
   });
 
   /**
-   * Saves a shop's bank and KYC details by creating (or updating) its Cashfree Easy Split vendor.
-   * The account number, PAN and ID numbers go to Cashfree and are never stored or logged here;
-   * only the last four digits of the account are kept for display.
+   * Saves a shop's payout and KYC details by creating (or updating) its Cashfree Easy Split vendor.
+   * The shop is paid to a bank account or to a UPI ID, as it chooses. Cashfree verifies either one
+   * before the shop can take online payments. The account number, UPI ID, PAN and ID numbers go to
+   * Cashfree and are never stored or logged here; only a masked form is kept for display.
    */
   app.post('/payout', { config: { rateLimit: { max: 10, timeWindow: '1 hour' } } }, async (request) => {
     const user = await requireUser(request);
@@ -139,26 +149,33 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
       throw new AppError(400, 'Add an ID proof: Aadhaar, voter ID, driving licence or passport. Cashfree needs one besides the PAN.');
     }
 
-    // Once the shop is a vendor the bank can be left out, so an owner can send only a KYC fix:
+    // Once the shop is a vendor the payout details can be left out, so an owner can send only a KYC fix:
     // Cashfree refuses bank changes while it is still setting up the first account.
     const body = (request.body ?? {}) as Record<string, unknown>;
-    const bankGiven = ['beneficiaryName', 'accountNumber', 'ifsc'].some((key) => String(body[key] ?? '').trim());
-    const bank = existing && !bankGiven ? null : bankSchema.parse(request.body);
+    const { payoutMethod } = methodSchema.parse(request.body ?? {});
+    const fields = payoutMethod === 'upi' ? ['upiHolder', 'upiId'] : ['beneficiaryName', 'accountNumber', 'ifsc'];
+    const payoutGiven = fields.some((key) => String(body[key] ?? '').trim());
+    const skip = existing && !payoutGiven;
+    const bank = skip || payoutMethod !== 'bank' ? null : bankSchema.parse(request.body);
+    const upi = skip || payoutMethod !== 'upi' ? null : upiSchema.parse(request.body);
 
     const vendorId = existing?.cashfree_vendor_id ?? `shop_${shop.id.replace(/-/g, '')}`;
     const phone = shop.phone.replace(/\D/g, '').slice(-10);
+    // Exactly one of these goes to Cashfree: it refuses a vendor with both.
     const bankBlock = bank && { account_number: bank.accountNumber, account_holder: bank.beneficiaryName, ifsc: bank.ifsc };
+    const upiBlock = upi && { vpa: upi.upiId, account_holder: upi.upiHolder };
+    const payoutBlock = bankBlock ? { bank: bankBlock } : upiBlock ? { upi: upiBlock } : {};
 
     let vendor: CashfreeVendor;
     if (!identity) {
       // The PAN was fixed at creation; an owner whose PAN Cashfree rejected can send a corrected one.
       const correction = correctedPanSchema.parse(request.body).pan;
       const kycFix = { ...(correction ? { pan: correction } : {}), ...kycFields(kyc) };
-      if (!bankBlock && !Object.keys(kycFix).length) {
-        throw new AppError(400, 'Enter new bank details, or the PAN or ID proof Cashfree asked for.');
+      if (!bankBlock && !upiBlock && !Object.keys(kycFix).length) {
+        throw new AppError(400, 'Enter new bank or UPI details, or the PAN or ID proof Cashfree asked for.');
       }
       vendor = await cashfree<CashfreeVendor>('PATCH', `/easy-split/vendors/${encodeURIComponent(vendorId)}`, {
-        ...(bankBlock ? { bank: bankBlock, verify_account: config.CASHFREE_VERIFY_VENDOR_BANK } : {}),
+        ...(bankBlock || upiBlock ? { ...payoutBlock, verify_account: config.CASHFREE_VERIFY_VENDOR_BANK } : {}),
         ...(Object.keys(kycFix).length ? { kyc_details: kycFix } : {})
       });
     } else {
@@ -178,7 +195,7 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
         verify_account: config.CASHFREE_VERIFY_VENDOR_BANK,
         dashboard_access: false,
         schedule_option: 1,
-        bank: bankBlock,
+        ...payoutBlock,
         kyc_details: kycDetails
       };
       try {
@@ -187,7 +204,7 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
         // A first attempt reached Cashfree but not our database: carry on from there.
         if (!exists(error)) throw error;
         vendor = await cashfree<CashfreeVendor>('PATCH', `/easy-split/vendors/${encodeURIComponent(vendorId)}`, {
-          bank: bankBlock,
+          ...payoutBlock,
           verify_account: config.CASHFREE_VERIFY_VENDOR_BANK,
           kyc_details: kycDetails
         });
@@ -197,24 +214,41 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
     // A vendor Cashfree has not finished checking is "under review", never "activated".
     const status = vendor.status ? toPayoutStatus(vendor.status) : 'under_review';
 
+    // What the owner sees on the Payouts page. Switching between bank and UPI clears the other one.
+    const shown = bank
+      ? { method: 'bank', name: bank.beneficiaryName, ifsc: bank.ifsc, last4: bank.accountNumber.slice(-4), upi: null }
+      : upi
+        ? { method: 'upi', name: upi.upiHolder, ifsc: null, last4: null, upi: maskUpi(upi.upiId) }
+        : {
+            method: existing?.payout_method ?? 'bank',
+            name: existing?.beneficiary_name ?? null,
+            ifsc: existing?.bank_ifsc ?? null,
+            last4: existing?.bank_last4 ?? null,
+            upi: existing?.upi_display ?? null
+          };
+
     await asService((q) =>
       q.rows(
         `insert into seller_payout_accounts
-           (seller_id, cashfree_vendor_id, status, status_detail, business_type, beneficiary_name, bank_ifsc, bank_last4)
-         values ($1, $2, $3, $4, $5, $6, $7, $8)
+           (seller_id, cashfree_vendor_id, status, status_detail, business_type, beneficiary_name, bank_ifsc, bank_last4,
+            payout_method, upi_display)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
          on conflict (seller_id) do update set
            status = excluded.status, status_detail = excluded.status_detail,
            beneficiary_name = excluded.beneficiary_name, bank_ifsc = excluded.bank_ifsc,
-           bank_last4 = excluded.bank_last4, updated_at = now()`,
+           bank_last4 = excluded.bank_last4, payout_method = excluded.payout_method,
+           upi_display = excluded.upi_display, updated_at = now()`,
         [
           shop.id,
           vendorId,
           status,
           vendorProblem(vendor),
           identity?.businessType ?? existing?.business_type ?? null,
-          bank ? bank.beneficiaryName : existing?.beneficiary_name ?? null,
-          bank ? bank.ifsc : existing?.bank_ifsc ?? null,
-          bank ? bank.accountNumber.slice(-4) : existing?.bank_last4 ?? null
+          shown.name,
+          shown.ifsc,
+          shown.last4,
+          shown.method,
+          shown.upi
         ]
       )
     );

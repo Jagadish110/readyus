@@ -106,7 +106,19 @@ export default async function PayoutsPage() {
                 {/* While Cashfree is still checking, look again every few seconds so a result shows without a reload. */}
                 {(account.status === 'under_review' || account.status === 'created') && <AutoRefresh everyMs={5_000} />}
                 <p className="text-sm leading-relaxed text-[var(--text-muted)]">{ACCOUNT_BODY[account.status]}</p>
-                {account.bank_last4 && (
+                {account.payout_method === 'upi' && account.upi_display && (
+                  <dl className="grid gap-1 rounded-[18px] bg-[var(--tile)] p-3.5 text-sm">
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-[var(--text-muted)]">Name</dt>
+                      <dd className="font-bold">{account.beneficiary_name}</dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-[var(--text-muted)]">UPI ID</dt>
+                      <dd className="font-bold break-all">{account.upi_display}</dd>
+                    </div>
+                  </dl>
+                )}
+                {account.payout_method !== 'upi' && account.bank_last4 && (
                   <dl className="grid gap-1 rounded-[18px] bg-[var(--tile)] p-3.5 text-sm">
                     <div className="flex justify-between gap-3">
                       <dt className="text-[var(--text-muted)]">Account holder</dt>
@@ -130,13 +142,13 @@ export default async function PayoutsPage() {
               </>
             )}
 
-            {account?.bank_last4 ? (
+            {account?.bank_last4 || account?.upi_display ? (
               <details open={account.status === 'needs_clarification' || account.status === 'rejected'} className="border-t border-[var(--line)] pt-3">
                 <summary className="cursor-pointer text-sm font-bold text-[var(--leaf-ink)]">
-                  Change bank details
+                  Change payout details
                 </summary>
                 <div className="mt-4">
-                  <PayoutForm hasAccount defaultName={shop.shop_name} />
+                  <PayoutForm hasAccount defaultName={shop.shop_name} defaultMethod={account.payout_method ?? 'bank'} />
                 </div>
               </details>
             ) : (
