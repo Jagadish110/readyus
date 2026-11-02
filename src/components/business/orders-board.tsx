@@ -61,6 +61,9 @@ export function OrdersBoard() {
   const [now, setNow] = useState(() => Date.now());
   const [sound, setSound] = useState(false);
   const seen = useRef<Set<string> | null>(null);
+  // Orders already known to be paid, so a payment that arrives while the board is open is announced once.
+  const paidSeen = useRef<Set<string> | null>(null);
+  const [justPaid, setJustPaid] = useState<string[]>([]);
 
   useEffect(() => {
     try {
@@ -137,10 +140,33 @@ export function OrdersBoard() {
   useEffect(() => {
     if (!orders) return;
     const ids = decideIds ? decideIds.split(',') : [];
-    document.title = ids.length ? `(${ids.length}) New orders · Localty` : 'Orders · Localty';
+    // A payment that just came in shows in the title too, for a board left open in a background tab.
+    const paid = justPaid.length ? `Paid: ${justPaid.join(', ')} · ` : '';
+    document.title = paid + (ids.length ? `(${ids.length}) New orders · Localty` : 'Orders · Localty');
     if (seen.current && sound && ids.some((id) => !seen.current!.has(id))) chime();
     seen.current = new Set(ids);
-  }, [orders, decideIds, sound]);
+  }, [orders, decideIds, sound, justPaid]);
+
+  // Online orders whose payment has come in and that are still to be made or handed over.
+  const paidIds = (orders ?? [])
+    .filter((o) => fullyPaidOnline(o) && ['accepted', 'preparing', 'packed', 'payment_confirmed'].includes(o.status))
+    .map((o) => o.id)
+    .join(',');
+
+  // A payment landing moves the order from "waiting to pay" to the kitchen list. Say so out loud, so the
+  // owner does not have to spot a card moving: chime (if sound is on) and a banner naming the order.
+  useEffect(() => {
+    if (!orders) return;
+    const ids = paidIds ? paidIds.split(',') : [];
+    const fresh = paidSeen.current ? ids.filter((id) => !paidSeen.current!.has(id)) : [];
+    paidSeen.current = new Set(ids);
+    if (!fresh.length) return;
+    if (sound) chime();
+    const codes = fresh.map((id) => orders.find((o) => o.id === id)?.order_code ?? '').filter(Boolean);
+    setJustPaid((current) => [...new Set([...current, ...codes])]);
+    // Do not depend on `orders` itself: it is a new array on every poll.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [paidIds, sound]);
 
   if (!orders) return <div className="skeleton h-40 rounded-[26px]" />;
 
@@ -170,6 +196,24 @@ export function OrdersBoard() {
         <p role="alert" className="rounded-[16px] bg-danger/10 px-4 py-3 text-sm font-medium ring-1 ring-danger/30">
           {error}
         </p>
+      )}
+
+      {justPaid.length > 0 && (
+        <div
+          role="status"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-[22px] bg-[#4d7c0f] px-5 py-4 text-white shadow-sm"
+        >
+          <p className="text-sm font-bold">
+            {justPaid.join(', ')} {justPaid.length > 1 ? 'were' : 'was'} paid online. Start preparing.
+          </p>
+          <button
+            type="button"
+            onClick={() => setJustPaid([])}
+            className="h-10 rounded-full bg-white px-4 text-sm font-extrabold text-[#3f6212]"
+          >
+            Got it
+          </button>
+        </div>
       )}
 
       {nothing && (
