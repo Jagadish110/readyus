@@ -70,7 +70,7 @@ export default async function DocumentsPage() {
           <Card className="grid gap-2 p-5 text-sm leading-relaxed text-[var(--text-muted)] sm:p-6">
             <h2 className="font-display text-base font-extrabold tracking-[-0.025em] text-[var(--text)]">Already checked elsewhere</h2>
             <p>
-              <strong className="text-[var(--text)]">PAN and bank account:</strong> you give these on the Payouts page, and our payment
+              <strong className="text-[var(--text)]">PAN and UPI ID:</strong> you give these on the Payouts page, and our payment
               partner verifies them before you can be paid online.
             </p>
           </Card>

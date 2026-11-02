@@ -219,7 +219,7 @@ export function ApplyForm() {
         </p>
         <p className="mt-3 rounded-[18px] bg-[var(--tile)] px-4 py-3 text-left text-sm leading-relaxed text-[var(--text-muted)]">
           After approval you set up online payments on the Payouts page. Keep these ready: your PAN, one ID proof
-          (Aadhaar, voter ID, driving licence or passport), and the bank account the money should go to.
+          (Aadhaar, voter ID, driving licence or passport), and the UPI ID the money should go to.
         </p>
         {docsMissed.length === 0 && mode === 'food' ? (
           <p className="mt-3 text-sm leading-relaxed text-[var(--text-muted)]">

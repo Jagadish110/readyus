@@ -66,7 +66,8 @@ const schema = z.object({
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'must look like 2025-01-01')
     .default('2025-01-01'),
-  // Charge the one-off bank check Cashfree offers when a shop saves its bank details (fees apply).
+  // Have Cashfree check a shop's UPI ID (or a bank account saved earlier) before it goes live (fees apply).
+  // The name says BANK because it predates UPI payouts; it is kept so the value set on the host still applies.
   CASHFREE_VERIFY_VENDOR_BANK: z
     .enum(['true', 'false'])
     .default('true')

@@ -152,7 +152,7 @@ export function DeliverySettings({ shop, onlineReady }: { shop: ShopRow; onlineR
         <div className="grid gap-4">
           <Toggle
             label="Online payment (prepaid)"
-            hint={onlineReady ? 'UPI, cards and net banking, straight to your bank.' : 'Add your bank details on Payouts to take online payments.'}
+            hint={onlineReady ? 'UPI, cards and net banking, straight to your bank.' : 'Add your UPI ID on Payouts to take online payments.'}
             checked={prepaid}
             onChange={setPrepaid}
           />

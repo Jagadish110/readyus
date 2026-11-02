@@ -37,9 +37,9 @@ const ACCOUNT_BADGE: Record<PayoutStatus, { tone: 'success' | 'warning' | 'dange
 };
 
 const ACCOUNT_BODY: Record<PayoutStatus, string> = {
-  activated: 'Customers can pay online. Their money goes straight to your bank account.',
-  under_review: 'Cashfree is checking your bank details. This page updates by itself, so you can leave it open. Until it is ready, customers cannot pay online, and every order is paid online.',
-  created: 'Your account is being set up. Save your bank details to finish.',
+  activated: 'Customers can pay online. Their money goes straight to the bank account behind your UPI ID.',
+  under_review: 'Cashfree is checking your UPI ID. This page updates by itself, so you can leave it open. Until it is ready, customers cannot pay online, and every order is paid online.',
+  created: 'Your account is being set up. Save your UPI ID to finish.',
   needs_clarification: 'Cashfree could not accept these details yet. Fix what it says below and save again.',
   rejected: 'Cashfree could not approve these details. Check them and try again.'
 };
@@ -74,7 +74,7 @@ export default async function PayoutsPage() {
           Payouts
         </h1>
         <p className="mt-1 text-sm text-[var(--text-muted)]">
-          Online payments go directly from the customer to your bank account. Localty does not hold your money.
+          Online payments go directly from the customer to your UPI ID. Localty does not hold your money.
         </p>
       </div>
 
@@ -89,7 +89,7 @@ export default async function PayoutsPage() {
 
       <Card className="grid gap-4 p-5 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-display text-lg font-extrabold tracking-[-0.03em]">Bank account</h2>
+          <h2 className="font-display text-lg font-extrabold tracking-[-0.03em]">Get paid by UPI</h2>
           {account && (
             <Badge tone={ACCOUNT_BADGE[account.status].tone}>{ACCOUNT_BADGE[account.status].label}</Badge>
           )}
@@ -97,7 +97,7 @@ export default async function PayoutsPage() {
 
         {shop.status !== 'approved' ? (
           <p className="text-sm leading-relaxed text-[var(--text-muted)]">
-            You can add bank details once your shop is approved.
+            You can add your UPI ID once your shop is approved.
           </p>
         ) : (
           <>
@@ -118,6 +118,7 @@ export default async function PayoutsPage() {
                     </div>
                   </dl>
                 )}
+                {/* Shops set up before UPI payouts are still paid to the bank account they gave then. */}
                 {account.payout_method !== 'upi' && account.bank_last4 && (
                   <dl className="grid gap-1 rounded-[18px] bg-[var(--tile)] p-3.5 text-sm">
                     <div className="flex justify-between gap-3">
@@ -145,10 +146,10 @@ export default async function PayoutsPage() {
             {account?.bank_last4 || account?.upi_display ? (
               <details open={account.status === 'needs_clarification' || account.status === 'rejected'} className="border-t border-[var(--line)] pt-3">
                 <summary className="cursor-pointer text-sm font-bold text-[var(--leaf-ink)]">
-                  Change payout details
+                  {account.payout_method === 'upi' ? 'Change UPI ID' : 'Switch to your UPI ID'}
                 </summary>
                 <div className="mt-4">
-                  <PayoutForm hasAccount defaultName={shop.shop_name} defaultMethod={account.payout_method ?? 'bank'} />
+                  <PayoutForm hasAccount defaultName={shop.shop_name} />
                 </div>
               </details>
             ) : (

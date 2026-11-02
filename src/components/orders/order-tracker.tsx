@@ -81,7 +81,7 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
   // Set when the shop has no payout account yet, so only manual UPI is possible.
   const [upiOnly, setUpiOnly] = useState(false);
 
-  // Hide the online Pay button for a shop that has not added verified bank details.
+  // Hide the online Pay button for a shop whose payout details are not verified yet.
   const sellerId = order.seller?.id;
   useEffect(() => {
     if (!sellerId) return;

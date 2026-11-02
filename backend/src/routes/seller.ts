@@ -33,19 +33,6 @@ const correctedPanSchema = z.object({
     .transform((value) => value || undefined)
 });
 
-const bankSchema = z.object({
-  beneficiaryName: z.string().trim().min(2).max(100),
-  accountNumber: z.string().trim().regex(/^[0-9]{9,18}$/, 'Account number must be 9 to 18 digits.'),
-  ifsc: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, 'Enter a valid IFSC, like HDFC0001234.')
-});
-
-/** Where the shop is paid: a bank account, or a UPI ID (Cashfree takes one or the other, never both). */
-const methodSchema = z.object({ payoutMethod: z.enum(['bank', 'upi']).default('bank') });
-
 type Shop = { id: string; shop_name: string; phone: string; status: string; listing_mode: 'food' | 'items' };
 
 type Stored = {
@@ -127,17 +114,17 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
   });
 
   /**
-   * Saves a shop's payout and KYC details by creating (or updating) its Cashfree Easy Split vendor.
-   * The shop is paid to a bank account or to a UPI ID, as it chooses. Cashfree verifies either one
-   * before the shop can take online payments. The account number, UPI ID, PAN and ID numbers go to
-   * Cashfree and are never stored or logged here; only a masked form is kept for display.
+   * Saves a shop's UPI ID and KYC details by creating (or updating) its Cashfree Easy Split vendor.
+   * Shops are paid to their UPI ID, which Cashfree verifies before the shop can take online payments.
+   * (Shops set up earlier with a bank account keep it until they add a UPI ID.) The UPI ID, PAN and
+   * ID numbers go to Cashfree and are never stored or logged here; only a masked UPI ID is kept.
    */
   app.post('/payout', { config: { rateLimit: { max: 10, timeWindow: '1 hour' } } }, async (request) => {
     const user = await requireUser(request);
 
     const shop = await shopOf(user.id);
     if (shop.status !== 'approved') {
-      throw new AppError(409, 'Your shop must be approved before you add bank details.');
+      throw new AppError(409, 'Your shop must be approved before you add your UPI ID.');
     }
     if (!user.email) throw new AppError(400, 'Add an email address to your account first; Cashfree needs one for payouts.');
 
@@ -149,33 +136,28 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
       throw new AppError(400, 'Add an ID proof: Aadhaar, voter ID, driving licence or passport. Cashfree needs one besides the PAN.');
     }
 
-    // Once the shop is a vendor the payout details can be left out, so an owner can send only a KYC fix:
-    // Cashfree refuses bank changes while it is still setting up the first account.
+    // Once the shop is a vendor the UPI ID can be left out, so an owner can send only a KYC fix:
+    // Cashfree refuses payout changes while it is still setting up the first account.
     const body = (request.body ?? {}) as Record<string, unknown>;
-    const { payoutMethod } = methodSchema.parse(request.body ?? {});
-    const fields = payoutMethod === 'upi' ? ['upiHolder', 'upiId'] : ['beneficiaryName', 'accountNumber', 'ifsc'];
-    const payoutGiven = fields.some((key) => String(body[key] ?? '').trim());
-    const skip = existing && !payoutGiven;
-    const bank = skip || payoutMethod !== 'bank' ? null : bankSchema.parse(request.body);
-    const upi = skip || payoutMethod !== 'upi' ? null : upiSchema.parse(request.body);
+    const upiGiven = ['upiHolder', 'upiId'].some((key) => String(body[key] ?? '').trim());
+    const upi = existing && !upiGiven ? null : upiSchema.parse(request.body);
 
     const vendorId = existing?.cashfree_vendor_id ?? `shop_${shop.id.replace(/-/g, '')}`;
     const phone = shop.phone.replace(/\D/g, '').slice(-10);
-    // Exactly one of these goes to Cashfree: it refuses a vendor with both.
-    const bankBlock = bank && { account_number: bank.accountNumber, account_holder: bank.beneficiaryName, ifsc: bank.ifsc };
+    // Cashfree takes a UPI ID or a bank account, never both; a UPI ID replaces a bank account set up earlier.
     const upiBlock = upi && { vpa: upi.upiId, account_holder: upi.upiHolder };
-    const payoutBlock = bankBlock ? { bank: bankBlock } : upiBlock ? { upi: upiBlock } : {};
+    const payoutBlock = upiBlock ? { upi: upiBlock } : {};
 
     let vendor: CashfreeVendor;
     if (!identity) {
       // The PAN was fixed at creation; an owner whose PAN Cashfree rejected can send a corrected one.
       const correction = correctedPanSchema.parse(request.body).pan;
       const kycFix = { ...(correction ? { pan: correction } : {}), ...kycFields(kyc) };
-      if (!bankBlock && !upiBlock && !Object.keys(kycFix).length) {
-        throw new AppError(400, 'Enter new bank or UPI details, or the PAN or ID proof Cashfree asked for.');
+      if (!upiBlock && !Object.keys(kycFix).length) {
+        throw new AppError(400, 'Enter a new UPI ID, or the PAN or ID proof Cashfree asked for.');
       }
       vendor = await cashfree<CashfreeVendor>('PATCH', `/easy-split/vendors/${encodeURIComponent(vendorId)}`, {
-        ...(bankBlock || upiBlock ? { ...payoutBlock, verify_account: config.CASHFREE_VERIFY_VENDOR_BANK } : {}),
+        ...(upiBlock ? { ...payoutBlock, verify_account: config.CASHFREE_VERIFY_VENDOR_BANK } : {}),
         ...(Object.keys(kycFix).length ? { kyc_details: kycFix } : {})
       });
     } else {
@@ -214,18 +196,16 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
     // A vendor Cashfree has not finished checking is "under review", never "activated".
     const status = vendor.status ? toPayoutStatus(vendor.status) : 'under_review';
 
-    // What the owner sees on the Payouts page. Switching between bank and UPI clears the other one.
-    const shown = bank
-      ? { method: 'bank', name: bank.beneficiaryName, ifsc: bank.ifsc, last4: bank.accountNumber.slice(-4), upi: null }
-      : upi
-        ? { method: 'upi', name: upi.upiHolder, ifsc: null, last4: null, upi: maskUpi(upi.upiId) }
-        : {
-            method: existing?.payout_method ?? 'bank',
-            name: existing?.beneficiary_name ?? null,
-            ifsc: existing?.bank_ifsc ?? null,
-            last4: existing?.bank_last4 ?? null,
-            upi: existing?.upi_display ?? null
-          };
+    // What the owner sees on the Payouts page. A UPI ID replaces a bank account saved before.
+    const shown = upi
+      ? { method: 'upi', name: upi.upiHolder, ifsc: null, last4: null, upi: maskUpi(upi.upiId) }
+      : {
+          method: existing?.payout_method ?? 'bank',
+          name: existing?.beneficiary_name ?? null,
+          ifsc: existing?.bank_ifsc ?? null,
+          last4: existing?.bank_last4 ?? null,
+          upi: existing?.upi_display ?? null
+        };
 
     await asService((q) =>
       q.rows(

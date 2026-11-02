@@ -97,27 +97,27 @@ export default async function DashboardPage() {
         </Card>
       )}
 
-      {/* Only nag about bank details when the shop actually wants online payments. */}
+      {/* Only nag about payout details when the shop actually wants online payments. */}
       {shop.status === 'approved' && shop.prepaid_available && !acceptsOnline && (
         <Card className="flex flex-wrap items-center justify-between gap-3 p-5 ring-1 ring-warning/35 sm:p-6">
           <div className="min-w-0">
             <h2 className="font-display text-lg font-extrabold tracking-[-0.03em]">
-              Add your bank details to get paid online
+              Add your UPI ID to get paid online
             </h2>
             <p className="text-sm text-[var(--text-muted)]">
-              Without them, customers can only pay you by UPI or cash. With them, online payments go straight
-              to your bank account.
+              Without it, customers can only pay you by UPI or cash. With it, online payments go straight to
+              your UPI ID.
             </p>
           </div>
           <ButtonLink href="/business/payouts" variant="leaf" size="sm">
-            Add bank details
+            Add UPI ID
           </ButtonLink>
         </Card>
       )}
 
       <ShopControls shop={shop} />
 
-      {/* With online payment switched off the shop is not "accepting online" by choice, not for lack of bank details. */}
+      {/* With online payment switched off the shop is not "accepting online" by choice, not for lack of payout details. */}
       <DeliverySettings shop={shop} onlineReady={acceptsOnline || !shop.prepaid_available} />
 
       <ShopLocation shop={shop} />

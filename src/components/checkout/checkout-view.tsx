@@ -26,7 +26,7 @@ export function CheckoutView() {
   const { groups, ready, subtotal, setQuantity } = useCart();
   const { location } = useLocation();
   const { terms, loaded: termsLoaded } = useShopTerms(groups.map((group) => group.sellerId));
-  // Shops whose online payment is ready (bank details verified and switched on); null while loading.
+  // Shops whose online payment is ready (UPI ID verified and switched on); null while loading.
   const [onlineShops, setOnlineShops] = useState<string[] | null>(null);
   const [picked, setPicked] = useState<PayChoice | null>(null);
   const [who, setWho] = useState<Who | undefined>(undefined);

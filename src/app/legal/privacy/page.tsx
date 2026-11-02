@@ -15,7 +15,7 @@ export default function PrivacyPage() {
           <li><strong>Your location while browsing:</strong> the place you choose or allow, kept on your device and sent with searches to find shops in range. We do not track you in the background.</li>
           <li><strong>Orders:</strong> what you ordered, from which shop, the amount, how you paid, and the delivery progress.</li>
           <li><strong>Notifications:</strong> if you turn on alerts, your browser&rsquo;s push address, so we can send them. You can turn them off any time.</li>
-          <li><strong>Shop owners:</strong> shop details, and for approval an FSSAI licence and optionally a GST certificate, stored privately. PAN and bank details go to our payment partner; we keep only the last four digits of the account.</li>
+          <li><strong>Shop owners:</strong> shop details, and for approval an FSSAI licence and optionally a GST certificate, stored privately. PAN and UPI ID go to our payment partner; we keep only a masked UPI ID (for shops set up earlier with a bank account, the last four digits of the account).</li>
           <li><strong>Delivery partners:</strong> name, phone, vehicle, and their position, but only while they are delivering an order.</li>
         </ul>
       </section>

@@ -23,12 +23,6 @@ const ID_PROOFS = [
 
 type IdProof = (typeof ID_PROOFS)[number]['value'];
 
-type Method = 'upi' | 'bank';
-
-const METHODS = [
-  { value: 'upi', label: 'UPI ID', hint: 'Easiest. Just the UPI ID you already use, like yourshop@okhdfcbank.' },
-  { value: 'bank', label: 'Bank account', hint: 'Account number and IFSC, from your passbook or cheque.' }
-] as const;
 
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
@@ -74,20 +68,11 @@ function IdProofFields({ idType, setIdType, required }: { idType: IdProof; setId
 }
 
 /**
- * Bank and KYC details go to our server, which forwards them to Cashfree. They are
- * never kept here; after saving only the last four digits of the account are shown.
+ * The UPI ID and KYC details go to our server, which forwards them to Cashfree. They are
+ * never kept here; after saving only a masked UPI ID is shown.
  */
-export function PayoutForm({
-  hasAccount,
-  defaultName,
-  defaultMethod = 'upi'
-}: {
-  hasAccount: boolean;
-  defaultName: string;
-  defaultMethod?: Method;
-}) {
+export function PayoutForm({ hasAccount, defaultName }: { hasAccount: boolean; defaultName: string }) {
   const router = useRouter();
-  const [method, setMethod] = useState<Method>(defaultMethod);
   const [type, setType] = useState<'individual' | 'proprietorship'>('individual');
   const [idType, setIdType] = useState<IdProof>('aadhaar');
   const [saving, setSaving] = useState(false);
@@ -99,11 +84,6 @@ export function PayoutForm({
     const form = new FormData(event.currentTarget);
     const text = (key: string) => String(form.get(key) ?? '').trim();
 
-    if (method === 'bank' && text('accountNumber') !== text('accountNumberAgain')) {
-      setError('The two account numbers do not match.');
-      return;
-    }
-
     setSaving(true);
     setError('');
     const response = await callPaymentsApi('/v1/seller/payout', {
@@ -111,11 +91,8 @@ export function PayoutForm({
       ...(hasAccount ? { pan: text('pan') } : { contactName: text('contactName'), pan: text('pan') }),
       ...(text('idProofNumber') ? { idProofType: idType, idProofNumber: text('idProofNumber') } : {}),
       gstin: text('gstin'),
-      payoutMethod: method,
-      // Only the chosen way is sent; Cashfree takes a bank account or a UPI ID, never both.
-      ...(method === 'upi'
-        ? { upiHolder: text('upiHolder'), upiId: text('upiId') }
-        : { beneficiaryName: text('beneficiaryName'), accountNumber: text('accountNumber'), ifsc: text('ifsc') })
+      upiHolder: text('upiHolder'),
+      upiId: text('upiId')
     });
     const result = response ? ((await response.json().catch(() => ({}))) as { error?: string }) : {};
     setSaving(false);
@@ -131,8 +108,7 @@ export function PayoutForm({
   if (done) {
     return (
       <p role="status" className="rounded-[18px] bg-success/12 p-4 text-sm font-medium ring-1 ring-success/35">
-        Details sent to Cashfree for verification. We never keep your full{' '}
-        {method === 'upi' ? 'UPI ID' : 'account number'} or ID numbers.
+        Details sent to Cashfree for verification. We never keep your full UPI ID or ID numbers.
       </p>
     );
   }
@@ -209,97 +185,34 @@ export function PayoutForm({
         </div>
       )}
 
-      <div className="grid gap-4 border-t border-[var(--line)] pt-4">
-        <p className="text-sm font-bold">Where should we send your money?</p>
-        <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Get paid to">
-          {METHODS.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              role="radio"
-              aria-checked={method === option.value}
-              onClick={() => setMethod(option.value)}
-              className={
-                'rounded-[18px] border-[1.5px] p-3.5 text-left transition-all ' +
-                (method === option.value
-                  ? 'border-leaf-500 bg-[var(--leaf-soft)]'
-                  : 'border-[var(--line)] hover:border-leaf-300 hover:bg-[var(--tile)]')
-              }
-            >
-              <span className="block text-sm font-bold">{option.label}</span>
-              <span className="block text-xs leading-relaxed text-[var(--text-muted)]">{option.hint}</span>
-            </button>
-          ))}
-        </div>
+      <div className="grid gap-4 border-t border-[var(--line)] pt-4 sm:grid-cols-2">
         {hasAccount && (
-          <p className="text-sm text-[var(--text-muted)]">
-            Changing where you are paid? Enter the new details below. Leave these empty to keep your current ones.
+          <p className="text-sm text-[var(--text-muted)] sm:col-span-2">
+            Changing your UPI ID? Enter the new one below. Leave these empty to keep your current one.
           </p>
         )}
+        <Field label="Name on the account" hint="The name your UPI app shows for this UPI ID.">
+          <input name="upiHolder" required={!hasAccount} className={fieldClass} autoComplete="off" />
+        </Field>
+        <Field label="UPI ID" hint="Find it in your UPI app, under your profile. Cashfree checks it is real.">
+          <input
+            name="upiId"
+            required={!hasAccount}
+            placeholder="yourshop@okhdfcbank"
+            inputMode="email"
+            autoCapitalize="none"
+            spellCheck={false}
+            pattern="[A-Za-z0-9._\-]{2,256}@[A-Za-z][A-Za-z0-9.\-]{1,63}"
+            title="A UPI ID looks like yourshop@okhdfcbank"
+            className={fieldClass + ' lowercase'}
+            autoComplete="off"
+          />
+        </Field>
+        <p className="text-xs leading-relaxed text-[var(--text-muted)] sm:col-span-2">
+          Your earnings are paid to the bank account linked to this UPI ID. Use the UPI ID of the shop owner or the
+          business, not someone else&rsquo;s.
+        </p>
       </div>
-
-      {method === 'upi' ? (
-        <div key="upi" className="grid gap-4 sm:grid-cols-2">
-          <Field label="Name on the account" hint="The name your UPI app shows for this UPI ID.">
-            <input name="upiHolder" required={!hasAccount} className={fieldClass} autoComplete="off" />
-          </Field>
-          <Field label="UPI ID" hint="Find it in your UPI app, under your profile. Cashfree checks it is real.">
-            <input
-              name="upiId"
-              required={!hasAccount}
-              placeholder="yourshop@okhdfcbank"
-              inputMode="email"
-              autoCapitalize="none"
-              spellCheck={false}
-              pattern="[A-Za-z0-9._\-]{2,256}@[A-Za-z][A-Za-z0-9.\-]{1,63}"
-              title="A UPI ID looks like yourshop@okhdfcbank"
-              className={fieldClass + ' lowercase'}
-              autoComplete="off"
-            />
-          </Field>
-          <p className="text-xs leading-relaxed text-[var(--text-muted)] sm:col-span-2">
-            Your earnings are paid to the bank account linked to this UPI ID. Use the UPI ID of the shop owner or the
-            business, not someone else&rsquo;s.
-          </p>
-        </div>
-      ) : (
-        <div key="bank" className="grid gap-4 sm:grid-cols-2">
-          <Field label="Account holder name" hint="Exactly as the bank has it.">
-            <input name="beneficiaryName" required={!hasAccount} className={fieldClass} autoComplete="off" />
-          </Field>
-          <Field label="IFSC">
-            <input
-              name="ifsc"
-              required={!hasAccount}
-              maxLength={11}
-              placeholder="HDFC0001234"
-              className={fieldClass + ' uppercase'}
-              autoComplete="off"
-            />
-          </Field>
-          <Field label="Bank account number">
-            <input
-              name="accountNumber"
-              required={!hasAccount}
-              inputMode="numeric"
-              pattern="[0-9]{9,18}"
-              className={fieldClass}
-              autoComplete="off"
-            />
-          </Field>
-          <Field label="Confirm account number">
-            <input
-              name="accountNumberAgain"
-              required={!hasAccount}
-              inputMode="numeric"
-              pattern="[0-9]{9,18}"
-              className={fieldClass}
-              autoComplete="off"
-              onPaste={(event) => event.preventDefault()}
-            />
-          </Field>
-        </div>
-      )}
 
       {error && (
         <p role="alert" className="rounded-[16px] bg-danger/10 px-4 py-3 text-sm font-medium ring-1 ring-danger/30">
