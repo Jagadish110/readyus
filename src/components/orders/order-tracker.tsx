@@ -14,7 +14,6 @@ import {
   isEnded,
   minutesLeft,
   STATUS_LABEL,
-  STATUS_TONE,
   stepOf,
   timeAgo,
   TIMELINE,
@@ -23,9 +22,7 @@ import {
 import { payForOrder } from '@/lib/payments/checkout';
 import { LiveMap } from '@/components/maps/live-map';
 import { ReviewForm } from './review-form';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
-import { Eyebrow } from '@/components/ui/card';
+import { Button, ButtonLink } from '@/components/ui/button';
 import { cn, formatPaise } from '@/lib/utils';
 import { comboSummary } from '@/lib/menu';
 
@@ -93,7 +90,8 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
   const prep = order.seller?.eta_minutes ?? 15;
   const eta = useMemo(() => etaFor(order, prep), [order, prep]);
   const left = minutesLeft(eta.at, now);
-  const step = stepOf(status);
+  // A shop that accepted stays accepted while the customer pays.
+  const step = Math.max(stepOf(status), order.accepted_at ? 1 : 0);
   const ended = isEnded(status);
   const shopName = order.seller?.shop_name ?? 'the shop';
 
@@ -153,354 +151,445 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
   const riderPoint =
     map && map.rider_lat !== null && map.rider_lng !== null ? { lat: map.rider_lat, lng: map.rider_lng } : null;
 
+  const paidOnline = order.verified_prepaid_paise > 0;
+  const hero = heroCopy(order, shopName, map?.rider_name ?? null, eta.minutes);
+  // An arrival time only means something once the shop has taken the order and it is paid for.
+  const showEta =
+    ['accepted', 'preparing', 'packed', 'assigned', 'out_for_delivery'].includes(status) ||
+    (status === 'payment_confirmed' && Boolean(order.accepted_at));
+
   return (
-    <div className="mx-auto grid max-w-2xl gap-5">
-      <div className="animate-rise">
-        <Link
-          href="/orders"
-          transitionTypes={['nav-back']}
-          className="-ml-1 inline-flex h-11 items-center rounded-full px-1 text-sm font-bold text-[var(--leaf-ink)] hover:underline"
-        >
-          &larr; All orders
-        </Link>
-        <div className="mt-1 flex flex-wrap items-start justify-between gap-3">
-          <div className="min-w-0">
-            <Eyebrow>{order.order_code}</Eyebrow>
-            <h1 className="mt-2 font-display text-[clamp(1.6rem,3.5vw,2.1rem)] leading-[1.05] font-extrabold tracking-[-0.04em]">
-              {shopName}
-            </h1>
-          </div>
-          <Badge tone={STATUS_TONE[status]}>{STATUS_LABEL[status]}</Badge>
-        </div>
-      </div>
+    <div className="grid gap-5 lg:grid-cols-[1fr_340px] lg:items-start">
+      <div className="grid gap-5">
+        <div className="animate-rise">
+          <Link
+            href="/orders"
+            transitionTypes={['nav-back']}
+            className="-ml-1 inline-flex h-11 items-center rounded-full px-1 text-sm font-bold text-[var(--leaf-ink)] hover:underline"
+          >
+            &larr; All orders
+          </Link>
 
-      {error && (
-        <p role="alert" className="rounded-[16px] bg-danger/10 px-4 py-3 text-sm font-medium ring-1 ring-danger/30">
-          {error}
-        </p>
-      )}
-
-      {/* The one line that matters most right now. */}
-      {!ended && status !== 'delivered' && (
-        <section className="animate-rise rounded-[26px] bg-[var(--leaf-soft)] p-5 ring-1 ring-[var(--line)]">
-          {status === 'pending' || status === 'payment_confirmed' ? (
-            <>
-              <p className="text-xs font-extrabold tracking-[0.16em] text-[var(--leaf-ink)] uppercase">
-                Waiting for {shopName}
-              </p>
-              <p className="mt-1.5 font-display text-2xl font-extrabold tracking-[-0.035em]">
-                Your order is with the shop
-              </p>
-              <p className="mt-1 text-sm text-[var(--text-muted)]">
-                You will see it here the moment they accept.{' '}
-                {order.required_online_paise > order.verified_prepaid_paise
-                  ? 'Then you pay online here, and they start preparing it. '
-                  : ''}
-                Usual delivery after accepting is about {eta.minutes} minutes. You can cancel until they start preparing it.
-              </p>
-            </>
-          ) : status === 'payment_required' || status === 'payment_rejected' ? (
-            order.accepted_at ? (
-              <>
-                <p className="text-xs font-extrabold tracking-[0.16em] text-[var(--leaf-ink)] uppercase">
-                  {shopName} accepted your order
+          {/* What is happening now, when it arrives and how far along it is, all in one place. */}
+          <section
+            className={cn(
+              'mt-1 rounded-[26px] p-5 ring-1 sm:p-6',
+              ended ? 'bg-danger/10 ring-danger/30' : 'bg-[var(--leaf-soft)] ring-[var(--line)]'
+            )}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                {sellerId ? (
+                  <Link href={`/shop/${sellerId}`} className="text-sm font-bold text-[var(--leaf-ink)] hover:underline">
+                    {shopName}
+                  </Link>
+                ) : (
+                  <p className="text-sm font-bold text-[var(--leaf-ink)]">{shopName}</p>
+                )}
+                <h1 className="mt-1.5 font-display text-[clamp(1.5rem,4vw,2rem)] leading-[1.1] font-extrabold tracking-[-0.04em]">
+                  {hero.title}
+                </h1>
+              </div>
+              {showEta && (
+                <p className="shrink-0 rounded-[18px] bg-[var(--surface)] px-4 py-2.5 text-center shadow-sm ring-1 ring-[var(--line)]">
+                  <span className="block font-display text-2xl leading-none font-extrabold tracking-[-0.04em] whitespace-nowrap tabular-nums">
+                    {left > 0 ? `${left} min` : 'Soon'}
+                  </span>
+                  <span className="mt-1 block text-xs font-semibold text-[var(--text-muted)]">by {formatClock(eta.at)}</span>
                 </p>
-                <p className="mt-1.5 font-display text-2xl font-extrabold tracking-[-0.035em]">Pay now to confirm it</p>
-                <p className="mt-1 text-sm text-[var(--text-muted)]">
-                  They start preparing it as soon as your payment goes through. Unpaid orders are cancelled after 15
-                  minutes.
-                </p>
-              </>
-            ) : (
-              <p className="font-display text-xl font-extrabold tracking-[-0.03em]">Pay to start your order</p>
-            )
-          ) : status === 'customer_claimed_paid' ? (
-            <p className="font-display text-xl font-extrabold tracking-[-0.03em]">
-              The shop is checking your payment
-            </p>
-          ) : (
-            <>
-              <p className="text-xs font-extrabold tracking-[0.16em] text-[var(--leaf-ink)] uppercase">
-                Estimated arrival
-              </p>
-              <p className="mt-1.5 font-display text-3xl font-extrabold tracking-[-0.04em]">
-                {left > 0 ? `${left} min` : 'Any minute now'}
-                <span className="ml-2 text-base font-bold text-[var(--text-muted)]">by {formatClock(eta.at)}</span>
-              </p>
-            </>
-          )}
-        </section>
-      )}
-
-      {(status === 'payment_required' || status === 'payment_rejected') && (
-        <section className="animate-rise rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)]">
-          {status === 'payment_rejected' && (
-            <p className="mb-3 rounded-[16px] bg-danger/10 px-4 py-3 text-sm font-medium ring-1 ring-danger/30">
-              The shop could not find your payment. Check the amount and UPI ID, then try again.
-            </p>
-          )}
-          <p className="text-sm text-[var(--text-muted)]">Pay exactly</p>
-          <p className="font-display text-3xl font-extrabold tracking-[-0.04em] text-brand-600">
-            {formatPaise(order.required_online_paise)}
-          </p>
-          {!upiOnly && (
-            <>
-              <Button variant="leaf" size="lg" fullWidth className="mt-4" onClick={payOnline} loading={busy}>
-                Pay {formatPaise(order.required_online_paise)} securely
-              </Button>
-              <p className="mt-2 text-xs text-[var(--text-muted)]">
-                UPI, cards and net banking. The money goes straight to {shopName}.
-              </p>
-            </>
-          )}
-          <details open={upiOnly} className="mt-4 border-t border-[var(--line)] pt-3">
-            <summary className="cursor-pointer text-sm font-bold text-[var(--leaf-ink)]">
-              {upiOnly ? 'Pay the shop by UPI' : 'Or pay the shop by UPI yourself'}
-            </summary>
-          {upi ? (
-            <>
-              <p className="mt-2 text-sm">
-                to UPI ID <span className="font-extrabold break-all">{upi}</span>
-              </p>
-              {payUrl && (
-                <a
-                  href={payUrl}
-                  className="mt-3 inline-flex h-11 items-center rounded-full bg-[var(--leaf-soft)] px-5 text-sm font-bold text-[var(--leaf-ink)] md:hidden"
-                >
-                  Open my UPI app
-                </a>
               )}
-            </>
-          ) : (
-            <p className="mt-2 text-sm text-[var(--text-muted)]">
-              This shop has not added a UPI ID. Ask them for payment details
-              {order.seller?.phone ? (
+            </div>
+
+            <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+              {ended ? (
                 <>
-                  : <a href={`tel:${order.seller.phone}`} className="font-bold text-[var(--leaf-ink)] underline">{order.seller.phone}</a>
+                  <span className="block">{order.cancel_reason || 'This order will not be delivered.'}</span>
+                  {paidOnline && (
+                    <span className="mt-1 block">
+                      {status === 'delivery_failed'
+                        ? 'This was not refunded automatically. If that is wrong, report a problem and we will look at it.'
+                        : 'Your online payment is refunded to the account you paid from.'}
+                    </span>
+                  )}
                 </>
               ) : (
-                '.'
+                hero.detail
               )}
             </p>
-          )}
-          <input
-            value={reference}
-            onChange={(event) => setReference(event.target.value)}
-            placeholder="UPI reference / UTR (optional)"
-            className="mt-4 h-12 w-full rounded-[16px] border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-4 text-sm outline-none focus:border-leaf-500 focus:ring-4 focus:ring-leaf-500/20"
-          />
-          <Button variant="leaf" fullWidth className="mt-3" onClick={claimPaid} loading={busy}>
-            I have paid
-          </Button>
-          <p className="mt-2 text-xs text-[var(--text-muted)]">
-            The shop confirms the money has arrived before they start. This does not charge you.
-          </p>
-          </details>
-        </section>
-      )}
 
-      {ended && (
-        <section className="animate-rise rounded-[26px] bg-danger/10 p-5 ring-1 ring-danger/30">
-          <p className="font-display text-xl font-extrabold tracking-[-0.03em]">{STATUS_LABEL[status]}</p>
-          <p className="mt-1 text-sm text-[var(--text-muted)]">
-            {order.cancel_reason || 'This order will not be delivered.'} Any online payment is refunded to your original payment method.
-          </p>
-          <Link href="/browse" className="mt-3 inline-block text-sm font-bold text-[var(--leaf-ink)] underline">
-            Find another shop
-          </Link>
-        </section>
-      )}
+            {ended ? (
+              <ButtonLink href="/browse" variant="leaf-outline" size="sm" className="mt-4">
+                Find another shop
+              </ButtonLink>
+            ) : (
+              <ProgressSteps step={step} delivered={status === 'delivered'} />
+            )}
 
-      {code && (
-        <section className="animate-rise rounded-[26px] bg-[var(--surface)] p-5 text-center shadow-sm ring-1 ring-[var(--line)]">
-          <p className="text-xs font-extrabold tracking-[0.16em] text-[var(--leaf-ink)] uppercase">
-            Delivery code
-          </p>
-          <p
-            aria-label={`Delivery code ${code.split('').join(' ')}`}
-            className="mt-2 font-display text-4xl font-extrabold tracking-[0.3em] tabular-nums"
-          >
-            {code}
-          </p>
-          <p className="mt-2 text-sm text-[var(--text-muted)]">
-            Tell this to your rider when they arrive. Do not share it before.
-          </p>
-        </section>
-      )}
+            {isActive(status) && !live && (
+              <p role="status" className="mt-3 text-xs font-semibold text-[var(--text-muted)]">
+                Reconnecting. This page updates by itself.
+              </p>
+            )}
+          </section>
+        </div>
 
-      {/* Live map once the rider has picked the order up. */}
-      {map && status === 'out_for_delivery' && (
-        <section className="animate-rise grid gap-3 rounded-[26px] bg-[var(--surface)] p-4 shadow-sm ring-1 ring-[var(--line)]">
-          <div className="flex flex-wrap items-center justify-between gap-2 px-1">
-            <h2 className="font-display text-lg font-extrabold tracking-[-0.03em]">On the map</h2>
-            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--text-muted)]">
-              <span
-                aria-hidden
-                className={cn('size-2 rounded-full', live ? 'animate-pulse bg-success' : 'bg-ink-300')}
-              />
-              {map.rider_updated_at ? `Rider updated ${timeAgo(map.rider_updated_at, now)}` : 'Waiting for the rider’s location'}
-            </span>
-          </div>
-          <LiveMap
-            shop={{ lat: map.shop_lat, lng: map.shop_lng }}
-            home={{ lat: map.dest_lat, lng: map.dest_lng }}
-            rider={riderPoint}
-          />
-          {map.rider_name && (
-            <p className="px-1 text-sm">
-              <span className="font-bold">{map.rider_name}</span> is bringing your order
-              {map.rider_phone && (
+        {error && (
+          <p role="alert" className="rounded-[16px] bg-danger/10 px-4 py-3 text-sm font-medium ring-1 ring-danger/30">
+            {error}
+          </p>
+        )}
+
+        {(status === 'payment_required' || status === 'payment_rejected') && (
+          <section className="animate-rise rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)]">
+            {status === 'payment_rejected' && (
+              <p className="mb-3 rounded-[16px] bg-danger/10 px-4 py-3 text-sm font-medium ring-1 ring-danger/30">
+                The shop could not find your payment. Check the amount and UPI ID, then try again.
+              </p>
+            )}
+            {!upiOnly && (
+              <>
+                <Button size="lg" fullWidth onClick={payOnline} loading={busy}>
+                  Pay {formatPaise(order.required_online_paise)} securely
+                </Button>
+                <p className="mt-2 text-center text-xs text-[var(--text-muted)]">
+                  UPI, cards and net banking. The money goes straight to {shopName}.
+                </p>
+              </>
+            )}
+            <details open={upiOnly} className={cn(!upiOnly && 'mt-4 border-t border-[var(--line)] pt-3')}>
+              <summary className="cursor-pointer text-sm font-bold text-[var(--leaf-ink)]">
+                {upiOnly ? 'Pay the shop by UPI' : 'Or pay the shop by UPI yourself'}
+              </summary>
+              <p className="mt-3 text-sm text-[var(--text-muted)]">Pay exactly</p>
+              <p className="font-display text-3xl font-extrabold tracking-[-0.04em] text-brand-600">
+                {formatPaise(order.required_online_paise)}
+              </p>
+              {upi ? (
                 <>
-                  {' '}
-                  &middot;{' '}
-                  <a href={`tel:${map.rider_phone}`} className="font-bold text-[var(--leaf-ink)] underline">
-                    Call
-                  </a>
+                  <p className="mt-2 text-sm">
+                    to UPI ID <span className="font-extrabold break-all">{upi}</span>
+                  </p>
+                  {payUrl && (
+                    <a
+                      href={payUrl}
+                      className="mt-3 inline-flex h-11 items-center rounded-full bg-[var(--leaf-soft)] px-5 text-sm font-bold text-[var(--leaf-ink)] md:hidden"
+                    >
+                      Open my UPI app
+                    </a>
+                  )}
                 </>
+              ) : (
+                <p className="mt-2 text-sm text-[var(--text-muted)]">
+                  This shop has not added a UPI ID. Ask them for payment details
+                  {order.seller?.phone ? (
+                    <>
+                      : <a href={`tel:${order.seller.phone}`} className="font-bold text-[var(--leaf-ink)] underline">{order.seller.phone}</a>
+                    </>
+                  ) : (
+                    '.'
+                  )}
+                </p>
               )}
+              <input
+                value={reference}
+                onChange={(event) => setReference(event.target.value)}
+                placeholder="UPI reference / UTR (optional)"
+                className="mt-4 h-12 w-full rounded-[16px] border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-4 text-sm outline-none focus:border-leaf-500 focus:ring-4 focus:ring-leaf-500/20"
+              />
+              <Button variant="leaf" fullWidth className="mt-3" onClick={claimPaid} loading={busy}>
+                I have paid
+              </Button>
+              <p className="mt-2 text-xs text-[var(--text-muted)]">
+                The shop confirms the money has arrived before they start. This does not charge you.
+              </p>
+            </details>
+          </section>
+        )}
+
+        {/* The code is only for the handover, so it stays out of the way until the rider has the order. */}
+        {code && status === 'out_for_delivery' && (
+          <section className="animate-rise flex flex-wrap items-center justify-between gap-x-6 gap-y-2 rounded-[26px] border-2 border-dashed border-leaf-300 bg-[var(--surface)] p-5">
+            <div className="min-w-0 flex-1 basis-52">
+              <h2 className="font-display text-base font-extrabold tracking-[-0.025em]">Delivery code</h2>
+              <p className="mt-0.5 text-sm text-[var(--text-muted)]">Tell this to your rider when they arrive. Do not share it before.</p>
+            </div>
+            <p
+              aria-label={`Delivery code ${code.split('').join(' ')}`}
+              className="font-display text-3xl font-extrabold tracking-[0.2em] tabular-nums"
+            >
+              {code}
             </p>
-          )}
-        </section>
-      )}
+          </section>
+        )}
 
-      {(status === 'assigned' || status === 'packed') && (
-        <p className="animate-rise rounded-[22px] bg-[var(--tile)] px-5 py-4 text-sm ring-1 ring-[var(--line)]">
-          {status === 'assigned' && map?.rider_name
-            ? `${map.rider_name} is on the way to ${shopName}. The live map appears once they pick up your order.`
-            : 'Packed and waiting for a delivery partner to pick it up.'}
-        </p>
-      )}
+        {/* Live map once the rider has picked the order up. */}
+        {map && status === 'out_for_delivery' && (
+          <section className="animate-rise grid gap-3 rounded-[26px] bg-[var(--surface)] p-4 shadow-sm ring-1 ring-[var(--line)]">
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+              <h2 className="font-display text-lg font-extrabold tracking-[-0.03em]">On the map</h2>
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[var(--text-muted)]">
+                <span
+                  aria-hidden
+                  className={cn('size-2 rounded-full', live ? 'animate-pulse bg-success' : 'bg-ink-300')}
+                />
+                {map.rider_updated_at ? `Rider updated ${timeAgo(map.rider_updated_at, now)}` : 'Waiting for the rider’s location'}
+              </span>
+            </div>
+            <LiveMap
+              shop={{ lat: map.shop_lat, lng: map.shop_lng }}
+              home={{ lat: map.dest_lat, lng: map.dest_lng }}
+              rider={riderPoint}
+            />
+            {map.rider_name && (
+              <p className="px-1 text-sm">
+                <span className="font-bold">{map.rider_name}</span> is bringing your order
+                {map.rider_phone && (
+                  <>
+                    {' '}
+                    &middot;{' '}
+                    <a href={`tel:${map.rider_phone}`} className="font-bold text-[var(--leaf-ink)] underline">
+                      Call
+                    </a>
+                  </>
+                )}
+              </p>
+            )}
+          </section>
+        )}
 
-      {!ended && (
-        <section className="animate-rise rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)] sm:p-6">
-          <h2 className="font-display text-lg font-extrabold tracking-[-0.03em]">Order status</h2>
-          <ol className="mt-4 grid gap-0">
-            {TIMELINE.map((entry, index) => {
-              const done = index < step || status === 'delivered';
-              const current = index === step && status !== 'delivered';
-              const at = stepTime[index];
-              return (
-                <li key={entry.key} className="relative flex gap-3.5 pb-5 last:pb-0">
-                  {index < TIMELINE.length - 1 && (
+        {status === 'delivered' && (
+          <ReviewForm
+            orderId={orderId}
+            shopName={shopName}
+            items={items}
+            existing={reviews}
+            onSaved={refetch}
+          />
+        )}
+
+        {/* The times behind the progress bar, for anyone who wants them. */}
+        {!ended && (
+          <details className="group animate-rise rounded-[26px] bg-[var(--surface)] shadow-sm ring-1 ring-[var(--line)]">
+            <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-5 font-display text-base font-extrabold tracking-[-0.025em] [&::-webkit-details-marker]:hidden">
+              Order timeline
+              <span aria-hidden className="text-xl leading-none text-[var(--text-muted)] transition-transform group-open:rotate-90">
+                &rsaquo;
+              </span>
+            </summary>
+            <ol className="grid gap-0 px-5 pt-1 pb-5">
+              {TIMELINE.map((entry, index) => {
+                const done = index < step || status === 'delivered';
+                const current = index === step && status !== 'delivered';
+                const at = stepTime[index];
+                return (
+                  <li key={entry.key} className="relative flex gap-3.5 pb-5 last:pb-0">
+                    {index < TIMELINE.length - 1 && (
+                      <span
+                        aria-hidden
+                        className={cn(
+                          'absolute top-7 bottom-0 left-[13px] w-0.5',
+                          index < step ? 'bg-leaf-500' : 'bg-[var(--line)]'
+                        )}
+                      />
+                    )}
                     <span
                       aria-hidden
                       className={cn(
-                        'absolute top-7 bottom-0 left-[13px] w-0.5',
-                        index < step ? 'bg-leaf-500' : 'bg-[var(--line)]'
-                      )}
-                    />
-                  )}
-                  <span
-                    aria-hidden
-                    className={cn(
-                      'relative z-10 mt-0.5 grid size-7 shrink-0 place-items-center rounded-full text-xs font-extrabold',
-                      done && 'bg-leaf-600 text-white',
-                      current && 'bg-[var(--leaf-soft)] text-[var(--leaf-ink)] ring-2 ring-leaf-500',
-                      !done && !current && 'bg-[var(--tile)] text-ink-400 ring-1 ring-[var(--line)]'
-                    )}
-                  >
-                    {done ? '✓' : index + 1}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span
-                      className={cn(
-                        'block text-sm font-bold',
-                        !done && !current && 'text-[var(--text-muted)]'
+                        'relative z-10 mt-0.5 grid size-7 shrink-0 place-items-center rounded-full text-xs font-extrabold',
+                        done && 'bg-leaf-600 text-white',
+                        current && 'bg-[var(--leaf-soft)] text-[var(--leaf-ink)] ring-2 ring-leaf-500',
+                        !done && !current && 'bg-[var(--tile)] text-ink-400 ring-1 ring-[var(--line)]'
                       )}
                     >
-                      {entry.label}
-                      {(done || current) && at && (
-                        <span className="ml-2 text-xs font-medium text-[var(--text-muted)]">
-                          {formatClock(new Date(at))}
-                        </span>
-                      )}
+                      {done ? '✓' : index + 1}
                     </span>
-                    {current && <span className="block text-xs text-[var(--text-muted)]">{entry.hint}</span>}
-                  </span>
-                </li>
-              );
-            })}
-          </ol>
+                    <span className="min-w-0 flex-1">
+                      <span
+                        className={cn(
+                          'block text-sm font-bold',
+                          !done && !current && 'text-[var(--text-muted)]'
+                        )}
+                      >
+                        {entry.label}
+                        {(done || current) && at && (
+                          <span className="ml-2 text-xs font-medium text-[var(--text-muted)]">
+                            {formatClock(new Date(at))}
+                          </span>
+                        )}
+                      </span>
+                      {current && <span className="block text-xs text-[var(--text-muted)]">{entry.hint}</span>}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          </details>
+        )}
+      </div>
+
+      <aside className="grid gap-5 lg:mt-12">
+        <section className="animate-rise rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)] [animation-delay:60ms]">
+          <h2 className="font-display text-lg font-extrabold tracking-[-0.03em]">Your items</h2>
+          <ul className="mt-3 grid gap-2 text-sm">
+            {items.map((item) => (
+              <li key={item.id} className="flex justify-between gap-3">
+                <span className="min-w-0">
+                  {item.quantity} &times; {item.name}
+                  {item.variant_label && <span className="text-[var(--text-muted)]"> ({item.variant_label})</span>}
+                  {item.combo_items?.length ? (
+                    <span className="block text-xs text-[var(--text-muted)]">Includes {comboSummary(item.combo_items)}</span>
+                  ) : null}
+                </span>
+                <span className="shrink-0 font-bold tabular-nums">{formatPaise(item.line_total_paise)}</span>
+              </li>
+            ))}
+          </ul>
+          <dl className="mt-3 grid gap-1.5 border-t border-[var(--line)] pt-3 text-sm">
+            <div className="flex justify-between">
+              <dt className="text-[var(--text-muted)]">Items</dt>
+              <dd className="font-bold tabular-nums">{formatPaise(order.subtotal_paise)}</dd>
+            </div>
+            <div className="flex justify-between">
+              <dt className="text-[var(--text-muted)]">Delivery</dt>
+              <dd className="font-bold tabular-nums">
+                {order.delivery_fee_paise + order.platform_fee_paise > 0
+                  ? formatPaise(order.delivery_fee_paise + order.platform_fee_paise)
+                  : 'Free'}
+              </dd>
+            </div>
+            <div className="flex items-baseline justify-between border-t border-[var(--line)] pt-2">
+              <dt className="font-bold">
+                {order.payment_mode === 'normal_cod' ? 'Pay on delivery' : 'Total'}
+              </dt>
+              <dd className="font-display text-lg font-extrabold tabular-nums text-brand-600">
+                {formatPaise(order.total_paise)}
+              </dd>
+            </div>
+          </dl>
+          <div className="mt-4 border-t border-[var(--line)] pt-3 text-sm">
+            <p className="text-xs font-extrabold tracking-[0.14em] text-[var(--text-muted)] uppercase">Delivering to</p>
+            <p className="mt-1 font-semibold">
+              {address.label}
+              {address.recipient && <span className="font-medium text-[var(--text-muted)]"> &middot; {address.recipient}</span>}
+            </p>
+            <p className="text-[var(--text-muted)]">{addressLine}</p>
+            {order.customer_note && <p className="mt-2 text-[var(--text-muted)]">Note: {order.customer_note}</p>}
+          </div>
         </section>
-      )}
 
-      {status === 'delivered' && (
-        <ReviewForm
+        {/* The status card above already says why an ended order ended. */}
+        <OrderHelp
           orderId={orderId}
-          shopName={shopName}
-          items={items}
-          existing={reviews}
-          onSaved={refetch}
+          status={status}
+          shopPhone={order.seller?.phone ?? null}
+          cancelReason=""
+          paidOnline={paidOnline}
         />
-      )}
 
-      <section className="animate-rise rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)] sm:p-6">
-        <h2 className="font-display text-lg font-extrabold tracking-[-0.03em]">Your items</h2>
-        <ul className="mt-3 grid gap-2 text-sm">
-          {items.map((item) => (
-            <li key={item.id} className="flex justify-between gap-3">
-              <span className="min-w-0">
-                {item.quantity} &times; {item.name}
-                {item.variant_label && <span className="text-[var(--text-muted)]"> ({item.variant_label})</span>}
-                {item.combo_items?.length ? (
-                  <span className="block text-xs text-[var(--text-muted)]">Includes {comboSummary(item.combo_items)}</span>
-                ) : null}
+        {canCancel(status) && (
+          <div className="animate-rise text-center">
+            <Button variant="ghost" size="sm" className="text-danger" onClick={cancel} loading={busy}>
+              Cancel order
+            </Button>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">
+              You can cancel until the shop starts preparing.
+            </p>
+          </div>
+        )}
+      </aside>
+    </div>
+  );
+}
+
+/** The headline and one line of detail for where an order is right now. */
+function heroCopy(
+  order: OrderView['order'],
+  shopName: string,
+  riderName: string | null,
+  etaMinutes: number
+): { title: string; detail: string } {
+  const accepted = Boolean(order.accepted_at);
+  switch (order.status) {
+    case 'pending':
+      return {
+        title: `Waiting for ${shopName} to accept`,
+        detail: `You will see it here the moment they accept. ${
+          order.required_online_paise > order.verified_prepaid_paise ? 'Then you pay here, and they start preparing it. ' : ''
+        }Delivery usually takes about ${etaMinutes} minutes after that.`
+      };
+    case 'payment_required':
+    case 'payment_rejected':
+      return accepted
+        ? {
+            title: 'Accepted! Pay now to confirm',
+            detail: 'They start preparing it as soon as your payment goes through. Unpaid orders are cancelled after 15 minutes.'
+          }
+        : { title: 'Pay to start your order', detail: 'The shop gets your order once your payment goes through.' };
+    case 'customer_claimed_paid':
+      return { title: 'The shop is checking your payment', detail: 'They start preparing it once they see the money arrive.' };
+    case 'payment_confirmed':
+      return accepted
+        ? { title: 'Payment received', detail: `${shopName} will start preparing your order now.` }
+        : { title: `Waiting for ${shopName} to accept`, detail: 'Your payment is received. You will see it here the moment they accept.' };
+    case 'accepted':
+      return { title: 'Your order is accepted', detail: `${shopName} will start preparing it shortly.` };
+    case 'preparing':
+      return { title: 'Your order is being prepared', detail: `${shopName} is working on it now.` };
+    case 'packed':
+      return { title: 'Packed and ready', detail: 'Waiting for a delivery partner to pick it up.' };
+    case 'assigned':
+      return {
+        title: `${riderName ?? 'A rider'} is heading to the shop`,
+        detail: 'The live map appears once they pick up your order.'
+      };
+    case 'out_for_delivery':
+      return { title: 'On the way to you', detail: `${riderName ?? 'Your rider'} has picked up your order.` };
+    case 'delivered':
+      return {
+        title: 'Delivered. Enjoy!',
+        detail: order.delivered_at ? `Arrived at ${formatClock(new Date(order.delivered_at))}.` : 'Your order has arrived.'
+      };
+    default:
+      return { title: STATUS_LABEL[order.status], detail: '' };
+  }
+}
+
+/** One segment per stage, filled up to where the order is, so progress reads at a glance. */
+function ProgressSteps({ step, delivered }: { step: number; delivered: boolean }) {
+  return (
+    <div className="mt-5">
+      <ol className="grid grid-cols-6 gap-1">
+        {TIMELINE.map((entry, index) => {
+          const done = delivered || index < step;
+          const current = !delivered && index === step;
+          return (
+            <li key={entry.key} aria-current={current ? 'step' : undefined} className="min-w-0">
+              <span
+                aria-hidden
+                className={cn(
+                  'block h-1.5 rounded-full',
+                  done && 'bg-leaf-600',
+                  current && 'animate-pulse bg-leaf-500',
+                  !done && !current && 'bg-ink-300/40'
+                )}
+              />
+              <span
+                className={cn(
+                  'mt-1.5 hidden truncate text-xs leading-tight font-semibold sm:block',
+                  current ? 'font-extrabold text-[var(--leaf-ink)]' : 'text-[var(--text-muted)]'
+                )}
+              >
+                {entry.label === 'Order placed' ? 'Placed' : entry.label}
               </span>
-              <span className="shrink-0 font-bold tabular-nums">{formatPaise(item.line_total_paise)}</span>
             </li>
-          ))}
-        </ul>
-        <dl className="mt-3 grid gap-1.5 border-t border-[var(--line)] pt-3 text-sm">
-          <div className="flex justify-between">
-            <dt className="text-[var(--text-muted)]">Items</dt>
-            <dd className="font-bold tabular-nums">{formatPaise(order.subtotal_paise)}</dd>
-          </div>
-          <div className="flex justify-between">
-            <dt className="text-[var(--text-muted)]">Delivery</dt>
-            <dd className="font-bold tabular-nums">
-              {order.delivery_fee_paise + order.platform_fee_paise > 0
-                ? formatPaise(order.delivery_fee_paise + order.platform_fee_paise)
-                : 'Free'}
-            </dd>
-          </div>
-          <div className="flex items-baseline justify-between border-t border-[var(--line)] pt-2">
-            <dt className="font-bold">
-              {order.payment_mode === 'normal_cod' ? 'Pay on delivery' : 'Total'}
-            </dt>
-            <dd className="font-display text-lg font-extrabold tabular-nums text-brand-600">
-              {formatPaise(order.total_paise)}
-            </dd>
-          </div>
-        </dl>
-        <div className="mt-4 border-t border-[var(--line)] pt-3 text-sm">
-          <p className="text-xs font-extrabold tracking-[0.14em] text-[var(--text-muted)] uppercase">Delivering to</p>
-          <p className="mt-1 font-semibold">
-            {address.label}
-            {address.recipient && <span className="font-medium text-[var(--text-muted)]"> &middot; {address.recipient}</span>}
-          </p>
-          <p className="text-[var(--text-muted)]">{addressLine}</p>
-          {order.customer_note && <p className="mt-2 text-[var(--text-muted)]">Note: {order.customer_note}</p>}
-        </div>
-      </section>
-
-      <OrderHelp
-        orderId={orderId}
-        status={status}
-        shopPhone={order.seller?.phone ?? null}
-        cancelReason={order.cancel_reason ?? ''}
-        paidOnline={order.verified_prepaid_paise > 0}
-      />
-
-      {canCancel(status) && (
-        <div className="animate-rise">
-          <Button variant="outline" onClick={cancel} loading={busy}>
-            Cancel order
-          </Button>
-          <p className="mt-2 text-xs text-[var(--text-muted)]">
-            You can cancel until the shop starts preparing.
-          </p>
-        </div>
-      )}
+          );
+        })}
+      </ol>
+      {/* Six labels do not fit a phone, so there it names only the stage the order is at. */}
+      <p className="mt-2 text-xs font-semibold text-[var(--text-muted)] sm:hidden">
+        <span className="font-extrabold text-[var(--leaf-ink)]">{delivered ? 'Delivered' : TIMELINE[step].label}</span>
+        {!delivered && ` · Step ${step + 1} of ${TIMELINE.length}`}
+      </p>
     </div>
   );
 }

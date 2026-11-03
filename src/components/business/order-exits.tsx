@@ -5,7 +5,7 @@ import { api } from '@/lib/api/client';
 import { friendlyError } from '@/lib/orders/errors';
 import { timeAgo } from '@/lib/orders/status';
 import { Button } from '@/components/ui/button';
-import { formatPaise } from '@/lib/utils';
+import { cn, formatPaise } from '@/lib/utils';
 
 /** Small pieces the orders board uses for the ways an order can end badly. */
 
@@ -21,18 +21,26 @@ const FAIL_CAUSES: Array<{ key: string; label: string; note: string }> = [
 
 type Run = (key: string, path: string, body: Record<string, unknown>) => Promise<void>;
 
-/** "Cancel order": pick a reason, confirm. Offered until the rider has the food. */
-export function CancelBox({ orderId, busy, run }: { orderId: string; busy: string; run: Run }) {
+/**
+ * "Cancel order": pick a reason, confirm. Offered until the rider has the food.
+ * `onLime` is for the green prepaid card, where red text cannot be read.
+ */
+export function CancelBox({ orderId, busy, run, onLime }: { orderId: string; busy: string; run: Run; onLime?: boolean }) {
   const [open, setOpen] = useState(false);
   if (!open) {
     return (
-      <Button size="sm" variant="ghost" className="justify-self-start text-danger" onClick={() => setOpen(true)}>
+      <Button
+        size="sm"
+        variant="ghost"
+        className={cn('justify-self-start', onLime ? 'text-white hover:bg-white/15 hover:text-white' : 'text-danger')}
+        onClick={() => setOpen(true)}
+      >
         Cancel this order
       </Button>
     );
   }
   return (
-    <div className="grid gap-2 rounded-[18px] bg-[var(--tile)] p-3.5">
+    <div className="grid w-full gap-2 rounded-[18px] bg-[var(--tile)] p-3.5 text-[var(--text)]">
       <p className="text-sm font-bold">Why are you cancelling? The customer will see this, and any online payment is refunded.</p>
       <div className="flex flex-wrap gap-2">
         {CANCEL_REASONS.map((reason) => (

@@ -297,24 +297,27 @@ export function OrdersBoard() {
       <Group title="Preparing" count={kitchen.length}>
         {kitchen.map((order) => (
           <OrderCard key={order.id} order={order}>
-            {order.status === 'accepted' ? (
-              <Button
-                variant="leaf"
-                loading={busy === `prep-${order.id}`}
-                onClick={() => act(`prep-${order.id}`, `/v1/seller/orders/${order.id}/stage`, { stage: 'preparing' })}
-              >
-                Start preparing
-              </Button>
-            ) : (
-              <Button
-                variant="leaf"
-                loading={busy === `ready-${order.id}`}
-                onClick={() => act(`ready-${order.id}`, `/v1/seller/orders/${order.id}/stage`, { stage: 'packed' })}
-              >
-                Mark ready for pickup
-              </Button>
-            )}
-            <CancelBox orderId={order.id} busy={busy} run={act} />
+            {/* Sized to its words rather than the whole card, with Cancel beside it. */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {order.status === 'accepted' ? (
+                <Button
+                  {...kitchenButton(order)}
+                  loading={busy === `prep-${order.id}`}
+                  onClick={() => act(`prep-${order.id}`, `/v1/seller/orders/${order.id}/stage`, { stage: 'preparing' })}
+                >
+                  Start preparing
+                </Button>
+              ) : (
+                <Button
+                  {...kitchenButton(order)}
+                  loading={busy === `ready-${order.id}`}
+                  onClick={() => act(`ready-${order.id}`, `/v1/seller/orders/${order.id}/stage`, { stage: 'packed' })}
+                >
+                  Mark ready for pickup
+                </Button>
+              )}
+              <CancelBox orderId={order.id} busy={busy} run={act} onLime={fullyPaidOnline(order)} />
+            </div>
           </OrderCard>
         ))}
       </Group>
@@ -328,7 +331,7 @@ export function OrdersBoard() {
               label="Assign rider"
               onAssign={(agentId) => act(`assign-${order.id}`, `/v1/seller/orders/${order.id}/assign`, { agentId })}
             />
-            <CancelBox orderId={order.id} busy={busy} run={act} />
+            <CancelBox orderId={order.id} busy={busy} run={act} onLime={fullyPaidOnline(order)} />
           </OrderCard>
         ))}
       </Group>
@@ -363,7 +366,7 @@ export function OrdersBoard() {
                 </div>
               </details>
             )}
-            {order.status === 'assigned' && <CancelBox orderId={order.id} busy={busy} run={act} />}
+            {order.status === 'assigned' && <CancelBox orderId={order.id} busy={busy} run={act} onLime={fullyPaidOnline(order)} />}
             <FailBox orderId={order.id} busy={busy} run={act} />
           </OrderCard>
         ))}
@@ -495,6 +498,13 @@ const DECLINE_REASONS = [
 /** The whole bill is already in: nothing to collect at the door. Only money that has arrived counts. */
 const fullyPaidOnline = (order: SellerOrder) =>
   order.payment_mode !== 'normal_cod' && order.total_paise > 0 && order.verified_prepaid_paise >= order.total_paise;
+
+/** A green button would vanish on the lime prepaid card, so there it is white like the "Paid online" tag. */
+function kitchenButton(order: SellerOrder) {
+  return fullyPaidOnline(order)
+    ? ({ variant: 'leaf-outline', className: 'border-white bg-white text-[#3f6212] hover:border-white hover:bg-white/90' } as const)
+    : ({ variant: 'leaf' } as const);
+}
 
 function OrderCard({
   order,

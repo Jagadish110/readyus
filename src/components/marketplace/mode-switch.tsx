@@ -9,8 +9,8 @@ const MODES = [
   { id: 'items', label: 'Items' }
 ] as const;
 
-/** Food vs everyday items. The two halves of the marketplace. */
-export function ModeSwitch({ active }: { active: 'food' | 'items' }) {
+/** Food vs everyday items. The two halves of the marketplace. A white thumb slides to the chosen side. */
+export function ModeSwitch({ active, onDark }: { active: 'food' | 'items'; onDark?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
@@ -32,8 +32,21 @@ export function ModeSwitch({ active }: { active: 'food' | 'items' }) {
   return (
     <div
       aria-busy={pending}
-      className="inline-flex gap-1 rounded-full border border-[var(--line)] bg-[var(--tile)] p-1 shadow-[inset_0_1px_3px_rgb(28_22_20/0.05)]"
+      className={cn(
+        'relative inline-grid shrink-0 grid-cols-2 rounded-full border p-1',
+        onDark
+          ? 'border-white/15 bg-white/12'
+          : 'border-[var(--line)] bg-[var(--tile)] shadow-[inset_0_1px_3px_rgb(28_22_20/0.05)]'
+      )}
     >
+      <span
+        aria-hidden
+        className={cn(
+          'absolute inset-y-1 left-1 w-[calc(50%-0.25rem)] rounded-full shadow-sm transition-transform duration-300 ease-[var(--ease-smooth)]',
+          onDark ? 'bg-white' : 'bg-[var(--surface)]',
+          shown === 'items' && 'translate-x-full'
+        )}
+      />
       {MODES.map((mode) => (
         <button
           key={mode.id}
@@ -41,10 +54,14 @@ export function ModeSwitch({ active }: { active: 'food' | 'items' }) {
           onClick={() => select(mode.id)}
           aria-pressed={shown === mode.id}
           className={cn(
-            'h-11 rounded-full px-6 text-sm font-bold transition-all duration-200 active:scale-[0.96]',
+            'relative h-11 rounded-full px-5 text-sm font-bold transition-[color,transform] duration-200 active:scale-[0.96] sm:px-6',
             shown === mode.id
-              ? 'bg-[var(--surface)] text-[var(--leaf-ink)] shadow-sm'
-              : 'text-[var(--text-muted)] hover:text-[var(--text)]',
+              ? onDark
+                ? 'text-leaf-700'
+                : 'text-[var(--leaf-ink)]'
+              : onDark
+                ? 'text-white/85 hover:text-white'
+                : 'text-[var(--text-muted)] hover:text-[var(--text)]',
             pending && shown === mode.id && 'animate-pulse'
           )}
         >

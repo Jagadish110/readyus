@@ -64,7 +64,7 @@ Everything else from the audit is built and tested.
 | 12 | Security headers | Done except a Content-Security-Policy (needs a nonce and a Cashfree test; plan in the runbook) |
 | 13 | Cash held by riders | Done: rider and shop screens, handover confirmation (0030) |
 | 14 | Refund after delivery, complaints | Done: customers report a problem; shop or admin refunds. **Not built:** review replies and moderation (reviews are not shown publicly yet) |
-| 15 | Receipt | Done: printable order receipt. It is **not a tax invoice** |
+| 15 | Receipt | Removed on request (2026-11-03): the order page shows the items and total; there is no printable receipt |
 | 16 | Phone login | Done: off by default (`NEXT_PUBLIC_PHONE_LOGIN=true` turns it on once an SMS provider exists) |
 | 17 | Account export and deletion | Done: download your data; delete your account (orders kept but anonymised) (0032) |
 | 18 | `notification_devices` | Removed (0032) |

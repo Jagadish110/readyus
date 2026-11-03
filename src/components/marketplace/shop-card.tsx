@@ -35,7 +35,12 @@ export function ShopCard({ shop }: { shop: NearbySeller }) {
           <StarIcon className="size-3.5 text-saffron-500" />
           {shop.rating > 0 ? shop.rating.toFixed(1) : 'New'}
         </span>
-        {!shop.business_open && (
+        {shop.business_open ? (
+          <span className="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 text-[0.7rem] font-extrabold text-ink-900 shadow-sm">
+            <span aria-hidden className="size-2 animate-pulse rounded-full bg-success" />
+            Open now
+          </span>
+        ) : (
           <span className="absolute top-3 left-3 rounded-full bg-ink-900/85 px-2.5 py-1 text-[0.7rem] font-bold text-white">
             {opensAt(shop.open_time, shop.close_time) ? `Closed · ${opensAt(shop.open_time, shop.close_time)}` : 'Closed now'}
           </span>

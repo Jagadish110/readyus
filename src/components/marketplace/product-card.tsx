@@ -8,7 +8,7 @@ import { useCart } from '@/lib/state/cart';
 import { VegMark } from '@/components/ui/badge';
 import { Dish } from '@/components/art/dish-photo';
 import { dishForProduct } from '@/components/art/dish-map';
-import { cn, deliveryMinutes, discountPercent, formatRupees } from '@/lib/utils';
+import { cn, deliveryMinutes, discountPercent, formatDistance, formatRupees } from '@/lib/utils';
 import { comboSummary, variantCount } from '@/lib/menu';
 import { MinusIcon, PlusIcon, StarIcon } from '@/components/shell/icons';
 import { useChangePulse } from '@/components/motion/use-change-pulse';
@@ -68,7 +68,7 @@ export function ProductCard({ product, showShop = true, layout = 'card' }: Props
       href={`/shop/${product.seller_id}`} transitionTypes={FORWARD}
       className="block truncate text-xs font-semibold text-[var(--text-muted)] transition-colors hover:text-[var(--leaf-ink)]"
     >
-      {product.seller_name} · {product.distance_km.toFixed(1)} km · ~{deliveryMinutes(product.distance_km, product.eta_minutes)} min
+      {product.seller_name} · {formatDistance(product.distance_km)} · ~{deliveryMinutes(product.distance_km, product.eta_minutes)} min
     </Link>
   );
 
@@ -152,7 +152,7 @@ export function ProductCard({ product, showShop = true, layout = 'card' }: Props
           )}
           <span className="absolute top-3 right-3 inline-flex items-center gap-1 rounded-full bg-white/95 px-2.5 py-1 text-[0.74rem] font-extrabold text-ink-900 shadow-sm">
             <StarIcon className="size-3.5 text-saffron-500" />
-            {product.rating.toFixed(1)}
+            {product.rating > 0 ? product.rating.toFixed(1) : 'New'}
           </span>
           {!soldOut && product.listing_mode === 'items' && product.stock <= 5 && (
             <span className="absolute inset-x-0 bottom-0 bg-ink-900/80 py-1.5 text-center text-xs font-bold text-white">

@@ -1,15 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { lineKey, useCart } from '@/lib/state/cart';
+import { useCart } from '@/lib/state/cart';
 import { useLocation } from '@/lib/state/location';
-import { useShopTerms } from '@/lib/state/use-shop-terms';
 import { deliveryFeeFor, shortOfMinimum } from '@/lib/shop-terms';
-import { createClient } from '@/lib/supabase/client';
 import { api } from '@/lib/api/client';
-import { friendlyError } from '@/lib/orders/errors';
 import { parsePoint } from '@/lib/orders/geo';
+import { useOrdering } from '@/lib/orders/use-ordering';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/card';
 import { Dish } from '@/components/art/dish-photo';
@@ -18,34 +15,28 @@ import { cn, formatRupees } from '@/lib/utils';
 
 // Each shop's delivery charge and minimum order come from src/lib/shop-terms.ts, the same rules
 // place_order applies (migration 0036). There is no platform fee.
-type Who = { id: string } | null;
-type PayChoice = 'online' | 'cod';
-
 export function CheckoutView() {
-  const router = useRouter();
-  const { groups, ready, subtotal, setQuantity } = useCart();
+  const { groups, ready, subtotal } = useCart();
   const { location } = useLocation();
-  const { terms, loaded: termsLoaded } = useShopTerms(groups.map((group) => group.sellerId));
-  // Shops whose online payment is ready (UPI ID verified and switched on); null while loading.
-  const [onlineShops, setOnlineShops] = useState<string[] | null>(null);
-  const [picked, setPicked] = useState<PayChoice | null>(null);
-  const [who, setWho] = useState<Who | undefined>(undefined);
+  const {
+    who,
+    terms,
+    termsLoaded,
+    payLoading,
+    onlineOk,
+    codOk,
+    choice,
+    pick,
+    place,
+    placing,
+    redirecting,
+    problems,
+    setProblems
+  } = useOrdering();
   const [addresses, setAddresses] = useState<AddressRow[] | null>(null);
   const [addressId, setAddressId] = useState('');
   const [adding, setAdding] = useState(false);
   const [note, setNote] = useState('');
-  const [placing, setPlacing] = useState(false);
-  const [redirecting, setRedirecting] = useState(false);
-  const [problems, setProblems] = useState<string[]>([]);
-
-  useEffect(() => {
-    const supabase = createClient();
-    if (!supabase) {
-      setWho(null);
-      return;
-    }
-    supabase.auth.getUser().then(({ data }) => setWho(data.user ? { id: data.user.id } : null));
-  }, []);
 
   const loadAddresses = useCallback(async (select?: string) => {
     const result = await api<{ addresses: AddressRow[] }>('GET', '/v1/addresses');
@@ -58,25 +49,11 @@ export function CheckoutView() {
     setAddresses(list);
     setAddressId((current) => select ?? (list.some((a) => a.id === current) ? current : (list[0]?.id ?? '')));
     if (!list.length) setAdding(true);
-  }, []);
+  }, [setProblems]);
 
   useEffect(() => {
     if (who) loadAddresses();
   }, [who, loadAddresses]);
-
-  const shopIds = groups.map((group) => group.sellerId).join(',');
-  useEffect(() => {
-    if (!who || !shopIds) return;
-    api<{ ready: string[] }>('GET', `/v1/shops/online?ids=${shopIds}`).then((result) =>
-      setOnlineShops(result.ok ? result.data.ready : [])
-    );
-  }, [who, shopIds]);
-
-  // A way to pay is offered only when every shop in the cart takes it; one order per shop, one choice.
-  const onlineOk = onlineShops !== null && groups.every((group) => onlineShops.includes(group.sellerId));
-  const codOk = termsLoaded && groups.every((group) => terms[group.sellerId]?.cod_available);
-  const choice: PayChoice | null =
-    picked === 'online' && onlineOk ? 'online' : picked === 'cod' && codOk ? 'cod' : onlineOk ? 'online' : codOk ? 'cod' : null;
 
   const fees = groups.map((group) => {
     const shopTerms = terms[group.sellerId];
@@ -94,65 +71,7 @@ export function CheckoutView() {
     [location]
   );
 
-  async function placeAll() {
-    if (!who || !addressId || !choice) return;
-
-    setPlacing(true);
-    setProblems([]);
-
-    // One request; the backend places each shop as its own order, so one shop
-    // failing never undoes the others, and it prices everything from the database.
-    const result = await api<{ placed: string[]; failed: Array<{ sellerId: string; message: string }> }>(
-      'POST',
-      '/v1/checkout',
-      {
-        addressId,
-        payOnline: choice === 'online',
-        note: note.trim(),
-        shops: groups.map((group) => ({
-          sellerId: group.sellerId,
-          lines: group.lines.map((line) => ({
-            productId: line.productId,
-            variantId: line.variantId ?? '',
-            // The server prices these itself; it only needs to know which were chosen.
-            extraIds: (line.extras ?? []).map((extra) => extra.id),
-            quantity: line.quantity
-          }))
-        }))
-      }
-    );
-
-    if (!result.ok) {
-      setPlacing(false);
-      setProblems([friendlyError(result.error)]);
-      return;
-    }
-
-    const { placed, failed } = result.data;
-    const nameOf = (sellerId: string) => groups.find((group) => group.sellerId === sellerId)?.sellerName ?? 'A shop';
-    const reasons = failed.map((item) => nameOf(item.sellerId) + ': ' + friendlyError(item.message));
-
-    // Clear only the shops that went through; the rest stay in the cart.
-    const placedSellers = new Set(groups.map((group) => group.sellerId));
-    for (const item of failed) placedSellers.delete(item.sellerId);
-    for (const group of groups) {
-      if (placedSellers.has(group.sellerId)) for (const line of group.lines) setQuantity(lineKey(line), 0);
-    }
-
-    setProblems(reasons);
-
-    if (placed.length && !failed.length) {
-      // The cart is already empty; keep the loading state so the "Nothing to
-      // check out" screen never flashes before the order page opens.
-      setRedirecting(true);
-      router.push(placed.length === 1 ? `/orders/${placed[0]}` : '/orders');
-    } else {
-      setPlacing(false);
-      if (placed.length) {
-        setProblems([...reasons, `${placed.length} order${placed.length > 1 ? 's were' : ' was'} placed. See Orders.`]);
-      }
-    }
-  }
+  const placeAll = () => place(addressId, note);
 
   if (redirecting || !ready || who === undefined) return <div className="skeleton h-72 rounded-[26px]" />;
 
@@ -284,7 +203,7 @@ export function CheckoutView() {
         <section className="animate-rise rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)] [animation-delay:100ms]">
           <h2 className="font-display text-base font-extrabold tracking-[-0.025em]">How you will pay</h2>
 
-          {onlineShops === null || !termsLoaded ? (
+          {payLoading ? (
             <div className="skeleton mt-3 h-16 rounded-[18px]" />
           ) : !onlineOk && !codOk ? (
             <p className="mt-3 rounded-[18px] bg-warning/12 px-4 py-3 text-sm leading-relaxed font-medium ring-1 ring-warning/35">
@@ -297,7 +216,7 @@ export function CheckoutView() {
               {onlineOk && (
                 <PayOption
                   active={choice === 'online'}
-                  onPick={() => setPicked('online')}
+                  onPick={() => pick('online')}
                   title="Pay online"
                   hint="UPI, cards or net banking. You pay once the shop accepts your order."
                 />
@@ -305,7 +224,7 @@ export function CheckoutView() {
               {codOk && (
                 <PayOption
                   active={choice === 'cod'}
-                  onPick={() => setPicked('cod')}
+                  onPick={() => pick('cod')}
                   title="Cash on delivery"
                   hint="Pay the rider in cash when your food arrives."
                 />

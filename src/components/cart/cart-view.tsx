@@ -1,25 +1,39 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { extrasSummary } from '@/lib/menu';
 import Image from 'next/image';
 import Link from 'next/link';
+import { api } from '@/lib/api/client';
+import { useOrdering } from '@/lib/orders/use-ordering';
 import { lineKey, useCart } from '@/lib/state/cart';
-import { useShopTerms } from '@/lib/state/use-shop-terms';
 import { deliveryFeeFor, moreForFreeDelivery, shortOfMinimum } from '@/lib/shop-terms';
-import { ButtonLink } from '@/components/ui/button';
+import type { AddressRow } from '@/components/checkout/address-form';
+import { Button, ButtonLink } from '@/components/ui/button';
 import { VegMark } from '@/components/ui/badge';
 import { Eyebrow } from '@/components/ui/card';
 import { Dish } from '@/components/art/dish-photo';
 import { dishForProduct } from '@/components/art/dish-map';
 import { MinusIcon, PlusIcon } from '@/components/shell/icons';
 import { RollingNumber } from '@/components/motion/rolling-number';
-import { formatRupees } from '@/lib/utils';
+import { cn, formatRupees } from '@/lib/utils';
+
+const PAY_LABEL = { online: 'Pay online', cod: 'Cash on delivery' } as const;
 
 export function CartView() {
   const { groups, ready, subtotal, count, setQuantity, removeSeller } = useCart();
-  const { terms } = useShopTerms(groups.map((group) => group.sellerId));
+  const { who, terms, payLoading, onlineOk, codOk, choice, pick, place, placing, redirecting, problems } = useOrdering();
+  const [addresses, setAddresses] = useState<AddressRow[] | null>(null);
 
-  if (!ready) {
+  useEffect(() => {
+    if (!who) return;
+    api<{ addresses: AddressRow[] }>('GET', '/v1/addresses').then((result) =>
+      setAddresses(result.ok ? result.data.addresses : [])
+    );
+  }, [who]);
+
+  // Keeps the empty-cart screen from flashing between placing an order and its page opening.
+  if (!ready || redirecting) {
     return (
       <div className="grid gap-4">
         <div className="skeleton h-10 w-40 rounded-full" />
@@ -63,6 +77,19 @@ export function CartView() {
   const delivery = perShop.reduce((total, shop) => total + shop.fee, 0);
   const total = subtotal + delivery;
   const belowMinimum = perShop.filter((shop) => shop.short !== null);
+
+  // The saved address the order goes to; the default comes first. With none, checkout asks for one.
+  const address = addresses?.[0] ?? null;
+  const loading = who === undefined || (who !== null && addresses === null) || (address !== null && payLoading);
+  const goFirst = loading
+    ? null
+    : !who
+      ? { href: '/sign-in?next=/cart', label: 'Sign in to order' }
+      : !address
+        ? { href: '/checkout', label: 'Add delivery address' }
+        : null;
+  const noWayToPay = !loading && address !== null && choice === null;
+  const placeLabel = 'Place ' + (groups.length > 1 ? groups.length + ' orders' : 'order');
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_340px] lg:items-start">
@@ -172,13 +199,13 @@ export function CartView() {
 
             <div className="grid gap-1.5 px-1 text-sm">
               {group.lines.length > 1 && (
-                <p className="flex items-center justify-between">
-                  <span className="font-semibold text-[var(--text-muted)]">Shop subtotal</span>
+                <p className="flex items-center justify-between sm:justify-start">
+                  <span className="font-semibold text-[var(--text-muted)] sm:w-32">Shop subtotal</span>
                   <span className="font-display font-extrabold tabular-nums">{formatRupees(group.subtotal)}</span>
                 </p>
               )}
-              <p className="flex items-center justify-between">
-                <span className="font-semibold text-[var(--text-muted)]">Delivery</span>
+              <p className="flex items-center justify-between sm:justify-start">
+                <span className="font-semibold text-[var(--text-muted)] sm:w-32">Delivery</span>
                 <span className="font-bold">{fee > 0 ? formatRupees(fee) : <span className="text-[var(--leaf-ink)]">Free</span>}</span>
               </p>
             </div>
@@ -231,36 +258,128 @@ export function CartView() {
           </p>
         )}
 
+        {address && (
+          <div className="grid gap-1 border-t border-[var(--line)] pt-3 text-sm">
+            <p className="flex items-center justify-between gap-3">
+              <span className="font-bold">Delivering to {address.label}</span>
+              <Link
+                href="/checkout"
+                transitionTypes={['nav-forward']}
+                className="shrink-0 py-1 text-xs font-bold text-[var(--leaf-ink)] hover:underline"
+              >
+                Change or add a note
+              </Link>
+            </p>
+            <p className="text-xs leading-relaxed text-[var(--text-muted)]">
+              {[address.line1, address.line2, address.landmark, address.city, address.pincode].filter(Boolean).join(', ')}
+            </p>
+          </div>
+        )}
+
+        {address && !payLoading && choice !== null && (
+          <div className="grid gap-2 border-t border-[var(--line)] pt-3">
+            {onlineOk && codOk ? (
+              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Way to pay">
+                {(['online', 'cod'] as const).map((way) => (
+                  <button
+                    key={way}
+                    type="button"
+                    role="radio"
+                    aria-checked={choice === way}
+                    onClick={() => pick(way)}
+                    className={cn(
+                      'h-11 rounded-full border-[1.5px] px-3 text-xs font-bold transition-colors',
+                      choice === way
+                        ? 'border-leaf-500 bg-[var(--leaf-soft)] text-[var(--leaf-ink)]'
+                        : 'border-[var(--line)] hover:border-leaf-300 hover:bg-[var(--tile)]'
+                    )}
+                  >
+                    {PAY_LABEL[way]}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm font-bold">{PAY_LABEL[choice]}</p>
+            )}
+            <p className="text-xs leading-relaxed text-[var(--text-muted)]">
+              {choice === 'online'
+                ? 'Nothing is charged now. The shop accepts your order first, then you pay on the order page.'
+                : 'The shop accepts your order first. Pay the rider in cash when it arrives.'}
+            </p>
+          </div>
+        )}
+
+        {noWayToPay && (
+          <p className="rounded-[16px] bg-warning/12 px-4 py-3 text-xs leading-relaxed font-medium ring-1 ring-warning/35">
+            {groups.length > 1
+              ? 'These shops take different ways to pay. Remove one shop from your cart and order from each separately.'
+              : 'This shop is not taking payments right now. Please try again later.'}
+          </p>
+        )}
+
+        {problems.length > 0 && (
+          <ul role="alert" className="grid gap-1.5 rounded-[16px] bg-danger/10 px-4 py-3 text-xs font-medium ring-1 ring-danger/30">
+            {problems.map((problem) => (
+              <li key={problem}>{problem}</li>
+            ))}
+          </ul>
+        )}
+
         {belowMinimum.length > 0 ? (
           <p className="text-sm font-semibold text-[var(--text-muted)]">
             Reach {belowMinimum.length === 1 ? 'the shop' : 'each shop'}&rsquo;s minimum order to check out.
           </p>
-        ) : (
-          <ButtonLink href="/checkout" transitionTypes={['nav-forward']} size="lg" fullWidth className="hidden md:inline-flex">
-            Proceed to checkout
+        ) : goFirst ? (
+          <ButtonLink href={goFirst.href} transitionTypes={['nav-forward']} size="lg" fullWidth className="hidden md:inline-flex">
+            {goFirst.label}
           </ButtonLink>
+        ) : noWayToPay ? null : (
+          <div className="hidden md:block">
+            <Button size="lg" fullWidth onClick={() => address && place(address.id)} disabled={loading} loading={placing}>
+              {placeLabel}
+            </Button>
+          </div>
         )}
       </aside>
 
-      {/* On a phone the way to pay stays pinned above the bottom bar, however long the cart is. */}
-      {belowMinimum.length === 0 && (
+      {/* On a phone the order button stays pinned above the bottom bar, however long the cart is. */}
+      {belowMinimum.length === 0 && !noWayToPay && (
         <div
           // Named so it holds still while pages slide (see the page transition rules in globals.css).
           style={{ viewTransitionName: 'action-bar' }}
           className="fixed inset-x-0 bottom-[calc(4.6rem+env(safe-area-inset-bottom))] z-30 px-4 md:hidden"
         >
-          <ButtonLink
-            href="/checkout"
-            transitionTypes={['nav-forward']}
-            size="lg"
-            fullWidth
-            className="mx-auto max-w-lg justify-between overflow-hidden px-6 shadow-[0_14px_34px_rgb(255_77_28/0.4)]"
-          >
-            <span>Proceed to checkout</span>
-            <RollingNumber value={total} className="tabular-nums">
-              {formatRupees(total)}
-            </RollingNumber>
-          </ButtonLink>
+          {goFirst ? (
+            <ButtonLink
+              href={goFirst.href}
+              transitionTypes={['nav-forward']}
+              size="lg"
+              fullWidth
+              className="mx-auto max-w-lg justify-between overflow-hidden px-6 shadow-[0_14px_34px_rgb(255_77_28/0.4)]"
+            >
+              <span>{goFirst.label}</span>
+              <RollingNumber value={total} className="tabular-nums">
+                {formatRupees(total)}
+              </RollingNumber>
+            </ButtonLink>
+          ) : (
+            <Button
+              size="lg"
+              fullWidth
+              onClick={() => address && place(address.id)}
+              disabled={loading}
+              loading={placing}
+              className="mx-auto max-w-lg justify-between overflow-hidden px-6 shadow-[0_14px_34px_rgb(255_77_28/0.4)]"
+            >
+              <span className="grid text-left leading-tight">
+                <span>{placeLabel}</span>
+                {choice && <span className="text-xs font-semibold opacity-90">{PAY_LABEL[choice]}</span>}
+              </span>
+              <RollingNumber value={total} className="tabular-nums">
+                {formatRupees(total)}
+              </RollingNumber>
+            </Button>
+          )}
         </div>
       )}
     </div>

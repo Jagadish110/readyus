@@ -32,7 +32,7 @@ export function DietFilter({ active }: { active?: string }) {
   }
 
   return (
-    <div role="group" aria-label="Diet" aria-busy={pending} className="flex flex-wrap gap-2">
+    <div role="group" aria-label="Diet" aria-busy={pending} className="flex shrink-0 gap-2">
       {DIETS.map((diet) => (
         <button
           key={diet.key}
@@ -40,9 +40,9 @@ export function DietFilter({ active }: { active?: string }) {
           aria-pressed={shown === diet.key}
           onClick={() => select(diet.key)}
           className={cn(
-            'inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm font-bold ring-1 transition-[color,background-color,box-shadow,transform] active:scale-[0.96]',
+            'inline-flex h-11 items-center gap-2 rounded-full px-4 text-sm font-bold whitespace-nowrap ring-1 transition-[color,background-color,box-shadow,transform] active:scale-[0.96]',
             shown === diet.key
-              ? 'bg-[var(--leaf-soft)] text-[var(--leaf-ink)] ring-leaf-500'
+              ? 'animate-pop bg-[var(--leaf-soft)] text-[var(--leaf-ink)] ring-leaf-500'
               : 'bg-[var(--surface)] text-[var(--text-muted)] ring-[var(--line)] hover:text-[var(--leaf-ink)]',
             pending && shown === diet.key && 'animate-pulse'
           )}

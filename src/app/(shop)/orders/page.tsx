@@ -1,28 +1,15 @@
 import type { Metadata } from 'next';
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { serverApi } from '@/lib/api/server';
-import { isActive, STATUS_LABEL, STATUS_TONE, type OrderStatus } from '@/lib/orders/status';
+import { isActive } from '@/lib/orders/status';
 import { AutoRefresh } from '@/components/orders/auto-refresh';
-import { Badge } from '@/components/ui/badge';
+import { OrderHistory, type ListedOrder } from '@/components/orders/order-history';
 import { ButtonLink } from '@/components/ui/button';
-import { Eyebrow } from '@/components/ui/card';
 import { Dish } from '@/components/art/dish-photo';
-import { formatPaise } from '@/lib/utils';
 
 export const metadata: Metadata = { title: 'Your orders' };
 export const dynamic = 'force-dynamic';
-
-type ListedOrder = {
-  id: string;
-  order_code: string;
-  status: OrderStatus;
-  total_paise: number;
-  created_at: string;
-  seller: { shop_name: string } | null;
-  order_items: Array<{ name: string; quantity: number }>;
-};
 
 export default async function OrdersPage() {
   const supabase = await createClient();
@@ -36,18 +23,12 @@ export default async function OrdersPage() {
   if (!result.ok) throw new Error('We could not load your orders right now. Please try again.');
   const orders = result.data.orders;
 
-  const live = orders.filter((order) => isActive(order.status));
-  const past = orders.filter((order) => !isActive(order.status));
-
   return (
-    <div className="mx-auto grid max-w-2xl gap-6">
-      {live.length > 0 && <AutoRefresh />}
-      <div className="animate-rise">
-        <Eyebrow>Your orders</Eyebrow>
-        <h1 className="mt-2 font-display text-[clamp(1.6rem,3.5vw,2.1rem)] font-extrabold tracking-[-0.04em]">
-          Orders
-        </h1>
-      </div>
+    <div className="mx-auto grid max-w-2xl grid-cols-1 gap-6">
+      {orders.some((order) => isActive(order.status)) && <AutoRefresh />}
+      <h1 className="animate-rise font-display text-[clamp(1.6rem,3.5vw,2.1rem)] font-extrabold tracking-[-0.04em]">
+        Your orders
+      </h1>
 
       {orders.length === 0 && (
         <div className="animate-rise rounded-[30px] bg-[var(--surface)] p-9 text-center shadow-sm ring-1 ring-[var(--line)]">
@@ -64,54 +45,7 @@ export default async function OrdersPage() {
         </div>
       )}
 
-      {live.length > 0 && <Section title="In progress" orders={live} />}
-      {past.length > 0 && <Section title="Earlier" orders={past} />}
+      <OrderHistory orders={orders} />
     </div>
-  );
-}
-
-function Section({ title, orders }: { title: string; orders: ListedOrder[] }) {
-  return (
-    <section className="animate-rise grid gap-3">
-      <h2 className="text-xs font-extrabold tracking-[0.16em] text-[var(--text-muted)] uppercase">{title}</h2>
-      <ul className="grid gap-3">
-        {orders.map((order) => {
-          const summary = order.order_items.map((item) => `${item.quantity} × ${item.name}`).join(', ');
-          return (
-            <li key={order.id}>
-              <Link
-                href={`/orders/${order.id}`}
-                transitionTypes={['nav-forward']}
-                className="block rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:ring-leaf-400 active:scale-[0.98] active:duration-100"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="truncate font-display text-base font-extrabold tracking-[-0.025em]">
-                      {order.seller?.shop_name ?? 'Shop'}
-                    </p>
-                    <p className="mt-0.5 text-xs text-[var(--text-muted)]">
-                      {order.order_code} &middot;{' '}
-                      {new Date(order.created_at).toLocaleString('en-IN', {
-                        day: 'numeric',
-                        month: 'short',
-                        hour: 'numeric',
-                        minute: '2-digit'
-                      })}
-                    </p>
-                  </div>
-                  <Badge tone={STATUS_TONE[order.status]} className="shrink-0">
-                    {STATUS_LABEL[order.status]}
-                  </Badge>
-                </div>
-                <p className="mt-3 line-clamp-2 text-sm text-[var(--text-muted)]">{summary}</p>
-                <p className="mt-3 text-sm font-extrabold tabular-nums text-brand-600">
-                  {formatPaise(order.total_paise)}
-                </p>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
   );
 }

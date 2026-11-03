@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { api } from '@/lib/api/client';
 import { friendlyError } from '@/lib/orders/errors';
 import { isEnded, timeAgo, type OrderStatus } from '@/lib/orders/status';
@@ -21,7 +20,7 @@ type Issue = { id: string; kind: string; message: string; status: 'open' | 'reso
 
 /**
  * Everything a customer needs when something is not right: why an ended order ended, a way to call the
- * shop, a way to tell the shop and Localty what went wrong, and the receipt.
+ * shop, and a way to tell the shop and Localty what went wrong.
  */
 export function OrderHelp({ orderId, status, shopPhone, cancelReason, paidOnline }: { orderId: string; status: OrderStatus; shopPhone: string | null; cancelReason: string; paidOnline: boolean }) {
   const [issues, setIssues] = useState<Issue[]>([]);
@@ -83,9 +82,6 @@ export function OrderHelp({ orderId, status, shopPhone, cancelReason, paidOnline
             Report a problem
           </Button>
         )}
-        <Link href={`/orders/${orderId}/receipt`} className="inline-flex h-11 items-center rounded-full border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-5 text-sm font-bold hover:border-leaf-500">
-          Receipt
-        </Link>
       </div>
 
       {sent && <p role="status" className="text-sm font-semibold text-[var(--leaf-ink)]">Sent. The shop and our team have been told.</p>}

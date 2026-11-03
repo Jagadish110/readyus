@@ -99,7 +99,7 @@ export default async function AccountPage() {
       >
         <ul className="divide-y divide-[var(--line)]">
           {[
-            { href: '/orders', label: 'Your orders', hint: 'Track, reorder and get receipts', Icon: OrdersIcon },
+            { href: '/orders', label: 'Your orders', hint: 'Track them and get help', Icon: OrdersIcon },
             { href: '/favourites', label: 'Favourite shops', hint: 'Shops you saved', Icon: HeartIcon },
             held.includes('seller')
               ? { href: '/business', label: 'Your shop dashboard', hint: 'Orders, menu and payouts', Icon: StoreIcon }

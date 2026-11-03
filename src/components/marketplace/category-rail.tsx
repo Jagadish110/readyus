@@ -7,10 +7,13 @@ import { cn } from '@/lib/utils';
 
 export function CategoryRail({
   categories,
-  active
+  active,
+  leading
 }: {
   categories: NearbyCategory[];
   active?: string;
+  /** Other filters that scroll along at the start of the strip. */
+  leading?: React.ReactNode;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -33,11 +36,13 @@ export function CategoryRail({
   }
 
   // The padding gives chips room to lift on hover and show their full border; the negative margins keep the
-  // strip lined up with the page. A scrolling strip clips anything that sticks out of it.
+  // strip lined up with the page. A scrolling strip clips anything that sticks out of it. The right edge fades
+  // to show there is more, and the end padding lets the last chip scroll clear of the fade.
   return (
     <div
       aria-busy={pending}
-      className="no-scrollbar -mx-4 -my-1.5 flex min-w-0 gap-2.5 overflow-x-auto px-4 py-1.5 sm:-mx-1 sm:px-1">
+      className="no-scrollbar -mx-4 -my-1.5 flex min-w-0 items-center gap-2.5 overflow-x-auto py-1.5 pr-12 pl-4 [mask-image:linear-gradient(to_right,#000_calc(100%-3rem),transparent)] sm:-mx-1 sm:pl-1">
+      {leading}
       <Chip label="All" active={!shown} loading={pending && !shown} onClick={() => select()} />
       {categories.map((category) => (
         <Chip
@@ -72,7 +77,7 @@ function Chip({
         'inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full border px-5 text-[0.92rem] font-bold whitespace-nowrap',
         'transition-[transform,background-color,border-color,color,box-shadow] duration-200 active:scale-[0.96]',
         active
-          ? 'border-leaf-600 bg-leaf-600 text-white'
+          ? 'animate-pop border-leaf-600 bg-leaf-600 text-white'
           : 'border-[var(--line)] bg-[var(--surface)] text-[var(--text-muted)] hover:-translate-y-0.5 hover:border-leaf-400 hover:text-[var(--leaf-ink)]',
         loading && 'animate-pulse'
       )}
