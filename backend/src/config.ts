@@ -99,7 +99,14 @@ const schema = z.object({
   INTERNAL_API_KEY: secret(32).optional(),
 
   // Protects the scheduled refund sweep.
-  CRON_SECRET: secret(16)
+  CRON_SECRET: secret(16),
+
+  // Run order expiry, refunds and billing reminders inside the API on a timer (lib/jobs.ts). Set to false
+  // only if an outside scheduler calls the /internal routes instead.
+  IN_PROCESS_JOBS: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true')
 });
 
 const checked = schema.superRefine((value, ctx) => {

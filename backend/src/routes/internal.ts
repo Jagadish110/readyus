@@ -1,14 +1,9 @@
 import { timingSafeEqual } from 'node:crypto';
 import type { FastifyPluginAsync, FastifyRequest } from 'fastify';
 import { config } from '../config.js';
-import { syncSubscription } from '../lib/billing.js';
 import { drainPushQueue } from '../lib/push.js';
-import { cashfree, CashfreeError, toRupees } from '../lib/cashfree.js';
-import { asService } from '../lib/db.js';
 import { AppError } from '../lib/errors.js';
-
-type Pending = { order_id: string; cashfree_order: string; vendor_id: string; amount_paise: number };
-type Refund = { cf_refund_id?: string | number; refund_id?: string; refund_status?: string };
+import { billingReminders, expireOrders, resyncBilling, sweepRefunds } from '../lib/jobs.js';
 
 function safeEqual(a: string, b: string) {
   const left = Buffer.from(a);
@@ -24,113 +19,38 @@ function requireCron(request: FastifyRequest) {
   }
 }
 
-/** A refund Cashfree has refused or abandoned must not be recorded as money returned. */
-const FAILED = /^(CANCELLED|FAILED|REJECTED)$/i;
 /**
- * Cashfree has the refund but is holding it (for example until the account has enough balance or
- * someone approves it). Money has not moved yet, so it is not recorded; the next run looks again.
+ * The background jobs, on demand. The API already runs them itself on a timer (lib/jobs.ts); these routes
+ * let an outside scheduler run them too, as a safety net or on a host that cannot keep a timer alive.
  */
-const WAITING = /^(ONHOLD|PENDING_APPROVAL)$/i;
-
 export const internalRoutes: FastifyPluginAsync = async (app) => {
-  /**
-   * Returns online payments for orders the shop declined, timed out or the customer cancelled.
-   * The refund names the shop's vendor so Easy Split takes the money back from that shop.
-   * Run it every few minutes from a scheduler.
-   */
-  app.post('/refunds/sweep', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request) => {
+  const limit = { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } };
+
+  /** Returns online payments for orders the shop declined, timed out or the customer cancelled. */
+  app.post('/refunds/sweep', limit, async (request) => {
     requireCron(request);
-
-    const pending = await asService((q) => q.rows<Pending>('select * from orders_needing_refund()'));
-
-    let refunded = 0;
-    const waiting: string[] = [];
-    const failed: string[] = [];
-
-    for (const item of pending) {
-      // Stable per order and amount, so a retry after a crash finds the refund it already made.
-      const refundId = `rf${item.order_id.replace(/-/g, '').slice(0, 20)}_${item.amount_paise}`;
-      const amount = toRupees(item.amount_paise);
-      const path = `/orders/${encodeURIComponent(item.cashfree_order)}/refunds`;
-      const base = { refund_id: refundId, refund_amount: amount, refund_note: 'Order not fulfilled', refund_speed: 'STANDARD' };
-
-      try {
-        let refund: Refund;
-        try {
-          refund = await cashfree<Refund>('POST', path, { ...base, refund_splits: [{ vendor_id: item.vendor_id, amount }] });
-        } catch (error) {
-          if (!(error instanceof CashfreeError)) throw error;
-          if (/already (exist|present)|duplicate/i.test(error.message)) {
-            // We made this refund on an earlier run but did not get to record it.
-            refund = await cashfree<Refund>('GET', `${path}/${encodeURIComponent(refundId)}`);
-          } else if (/split|vendor/i.test(error.message)) {
-            // Not a split order after all: refund plainly.
-            refund = await cashfree<Refund>('POST', path, base);
-          } else {
-            throw error;
-          }
-        }
-
-        if (refund.refund_status && FAILED.test(refund.refund_status)) throw new Error(`refund ${refund.refund_status}`);
-        if (refund.refund_status && WAITING.test(refund.refund_status)) {
-          waiting.push(item.order_id);
-          continue;
-        }
-
-        await asService((q) =>
-          q.rows('select record_refund($1, $2, $3)', [item.order_id, String(refund.cf_refund_id ?? refundId), item.amount_paise])
-        );
-        refunded += 1;
-      } catch (cause) {
-        request.log.error({ order: item.order_id, cause }, 'refund failed');
-        failed.push(item.order_id);
-      }
-    }
-
-    return { refunded, waiting, failed };
+    return sweepRefunds(request.log);
   });
 
-  /**
-   * Closes orders nobody will act on: paid orders the shop ignored (the refund sweep then returns
-   * the money) and orders abandoned at the payment step (their stock goes back on the shelf).
-   */
-  app.post('/orders/expire', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request) => {
+  /** Closes orders nobody will act on, and puts their stock back. */
+  app.post('/orders/expire', limit, async (request) => {
     requireCron(request);
-    const row = await asService((q) => q.one<{ closed: number }>('select expire_stale_orders() as closed'));
-    return { closed: row?.closed ?? 0 };
+    return expireOrders();
   });
 
-  /** In-app reminders about trials ending, overdue subscriptions and licences expiring. Run hourly. */
-  app.post('/billing/reminders', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request) => {
+  /** In-app reminders about trials ending, overdue subscriptions and licences expiring. */
+  app.post('/billing/reminders', limit, async (request) => {
     requireCron(request);
-    const row = await asService((q) =>
-      q.one<{ billing: number; compliance: number }>('select billing_reminders() as billing, compliance_reminders() as compliance')
-    );
-    return { lookedAt: row?.billing ?? 0, compliance: row?.compliance ?? 0 };
+    return billingReminders();
   });
 
-  /**
-   * Asks Cashfree about every mandate that should have paid or is about to, so a webhook that never
-   * arrived cannot leave a paying shop suspended. Run every few hours.
-   */
-  app.post('/billing/resync', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request) => {
+  /** Asks Cashfree about every mandate that should have paid or is about to. */
+  app.post('/billing/resync', limit, async (request) => {
     requireCron(request);
-    const due = await asService((q) => q.rows<{ cashfree_subscription_id: string }>('select * from billing_syncable()'));
-    let synced = 0;
-    const failed: string[] = [];
-    for (const item of due) {
-      try {
-        await syncSubscription(item.cashfree_subscription_id, request.log);
-        synced += 1;
-      } catch (cause) {
-        request.log.error({ subscription: item.cashfree_subscription_id, cause }, 'subscription resync failed');
-        failed.push(item.cashfree_subscription_id);
-      }
-    }
-    return { synced, failed };
+    return resyncBilling(request.log);
   });
 
-  /** The same pass the in-process worker runs, for hosts that cannot keep a worker alive (or as a safety net). */
+  /** The same pass the in-process push worker runs. */
   app.post('/push/drain', { config: { rateLimit: { max: 30, timeWindow: '1 minute' } } }, async (request) => {
     requireCron(request);
     return drainPushQueue();

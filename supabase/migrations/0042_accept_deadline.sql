@@ -11,6 +11,10 @@
 --   * accept_order() refuses an order whose deadline has passed, even before the next sweep runs, so the shop
 --     cannot accept an order it has already lost. Declining one still works.
 --   * An order paid before 0040 (customer paid first) keeps its own clock, which starts when the money arrives.
+--   * This covers cash orders too. 0020 had let a cash order wait for the shop indefinitely; now every order,
+--     however it is paid, is lost if the shop does not accept it within the window.
+--   * The API runs expire_stale_orders() itself every minute (backend/src/lib/jobs.ts), so an order is closed
+--     within about a minute of its deadline; the shop's Accept button stops working at the deadline itself.
 
 -- ---------- Accepting: not after the deadline ----------
 

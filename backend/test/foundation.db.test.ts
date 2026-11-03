@@ -225,13 +225,19 @@ describe.skipIf(!HAS_DB)('order expiry (database)', () => {
     expect(await stockOf(shop.productId)).toBe(5);
   });
 
-  it('leaves an unpaid cash order waiting for the shop, as before', async () => {
-    const shop = await makeShop();
+  it('times out a cash order the shop did not accept in time, like an online one', async () => {
+    const shop = await makeShop({ stock: 5 });
     const customer = await makeCustomer();
     const orderId = await placeOrder(customer, shop);
-    await asService((q) => q.rows(`update orders set accept_deadline_at = now() - interval '1 day', created_at = now() - interval '1 day' where id = $1`, [orderId]));
+    const fresh = await placeOrder(customer, shop);
+    await asService((q) => q.rows(`update orders set accept_deadline_at = now() - interval '1 minute' where id = $1`, [orderId]));
+
+    await expect(accept(shop, orderId)).rejects.toThrow(/ORDER_TIMED_OUT/);
     await asService((q) => q.rows('select expire_stale_orders()'));
-    expect((await orderRow(orderId))!.status).toBe('pending');
+
+    expect((await orderRow(orderId))!.status).toBe('timed_out');
+    expect((await orderRow(fresh))!.status).toBe('pending');
+    expect(await stockOf(shop.productId)).toBe(4);
   });
 
   it('keeps a late payment for a closed order on the books so it gets refunded', async () => {
