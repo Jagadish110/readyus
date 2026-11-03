@@ -152,6 +152,41 @@ describe.skipIf(!HAS_DB)('order expiry (database)', () => {
     expect(await stockOf(shop.productId)).toBe(10);
   });
 
+  it('cancels an unpaid order the shop ignored past its deadline, frees its stock, tells both sides, and refuses a late accept', async () => {
+    const shop = await makeShop({ stock: 5 });
+    const customer = await makeCustomer();
+    const late = await placeOrder(customer, shop, { online: true });
+    const waiting = await placeOrder(customer, shop, { online: true });
+    expect(await stockOf(shop.productId)).toBe(3);
+    await asService((q) => q.rows(`update orders set accept_deadline_at = now() - interval '1 minute' where id = $1`, [late]));
+
+    // Too late to accept, even before the sweep has run.
+    await expect(accept(shop, late)).rejects.toThrow(/ORDER_TIMED_OUT/);
+    expect((await orderRow(late))!.status).toBe('pending');
+
+    const closed = await asService((q) => q.one<{ n: number }>('select expire_stale_orders() as n'));
+    expect(closed!.n).toBe(1);
+    expect((await orderRow(late))!.status).toBe('timed_out');
+    expect((await orderRow(waiting))!.status).toBe('pending');
+    expect(await stockOf(shop.productId)).toBe(4);
+
+    const customerTold = await asService((q) => q.rows<{ title: string }>('select title from notifications where user_id = $1', [customer.userId]));
+    expect(customerTold.map((n) => n.title)).toContain('Order timed out');
+    const shopTold = await asService((q) => q.rows<{ title: string }>('select title from notifications where user_id = $1', [shop.userId]));
+    expect(shopTold.map((n) => n.title)).toContain('Order lost: not accepted in time');
+
+    // Nothing was charged, so nothing to refund; the order still inside its window can be accepted.
+    const refunds = await asService((q) => q.rows<{ order_id: string }>('select * from orders_needing_refund()'));
+    expect(refunds.find((row) => row.order_id === late)).toBeUndefined();
+    await accept(shop, waiting);
+    expect((await orderRow(waiting))!.status).toBe('payment_required');
+
+    // Running it again changes nothing.
+    const again = await asService((q) => q.one<{ n: number }>('select expire_stale_orders() as n'));
+    expect(again!.n).toBe(0);
+    expect(await stockOf(shop.productId)).toBe(4);
+  });
+
   it('cancels an order accepted but left unpaid for 15 minutes, frees its stock and tells the shop', async () => {
     const shop = await makeShop({ stock: 5 });
     const customer = await makeCustomer();

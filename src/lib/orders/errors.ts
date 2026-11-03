@@ -19,6 +19,7 @@ const KNOWN: Record<string, string> = {
   ORDER_NOT_FOUND: 'We could not find that order.',
   ORDER_NOT_CANCELLABLE: 'The shop has already started on this order, so it can no longer be cancelled.',
   ORDER_NOT_DECIDABLE: 'This order has already been handled.',
+  ORDER_TIMED_OUT: 'Too late: the 5-minute window to accept this order has passed, so the customer has been told it was cancelled.',
   NO_CLAIM_TO_VERIFY: 'There is no payment waiting to be checked.',
   PAYMENT_NOT_PENDING: 'This order is not waiting for a payment.',
   INVALID_DELIVERY_CODE: 'That code is not right. Ask the customer to read it again.',

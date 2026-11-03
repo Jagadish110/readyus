@@ -471,7 +471,13 @@ function waitingNote(order: SellerOrder, now: number) {
   const waited = Math.max(0, Math.floor((now - new Date(order.created_at).getTime()) / 60_000));
   const parts = [waited < 1 ? 'Just now' : `Waiting ${waited} min`];
   if (order.required_online_paise > order.verified_prepaid_paise) {
-    parts.push('the customer pays online once you accept');
+    // Nothing is paid yet: the shop has a few minutes to accept, or the order is lost.
+    if (order.status === 'pending' && order.accept_deadline_at) {
+      const left = Math.ceil((new Date(order.accept_deadline_at).getTime() - now) / 60_000);
+      parts.push(left > 0 ? `accept within ${left} min or the order is lost` : 'time is up: the order is being cancelled');
+    } else {
+      parts.push('the customer pays online once you accept');
+    }
   } else if (order.verified_prepaid_paise > 0 && order.accept_deadline_at) {
     const left = Math.ceil((new Date(order.accept_deadline_at).getTime() - now) / 60_000);
     parts.push(left > 0 ? `paid online: accept within ${left} min or it is refunded` : 'paid online: refund pending');
