@@ -5,8 +5,8 @@ import { requireUser } from '../lib/auth.js';
 import {
   cashfree,
   CashfreeError,
+  payoutDetail,
   toPayoutStatus,
-  vendorProblem,
   type CashfreeVendor,
   type PayoutStatus
 } from '../lib/cashfree.js';
@@ -88,7 +88,7 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
       try {
         const live = await cashfree<CashfreeVendor>('GET', `/easy-split/vendors/${encodeURIComponent(stored.cashfree_vendor_id)}`);
         const status = toPayoutStatus(live.status);
-        const detail = vendorProblem(live);
+        const detail = payoutDetail(status, live);
         if (status !== stored.status || detail !== stored.status_detail) {
           await asService((q) =>
             q.rows('update seller_payout_accounts set status = $2, status_detail = $3 where seller_id = $1', [shop.id, status, detail])
@@ -222,7 +222,7 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
           shop.id,
           vendorId,
           status,
-          vendorProblem(vendor),
+          payoutDetail(status, vendor),
           identity?.businessType ?? existing?.business_type ?? null,
           shown.name,
           shown.ifsc,

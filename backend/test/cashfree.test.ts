@@ -83,3 +83,20 @@ describe('subscription helpers', () => {
     expect(mandateInPlace(null)).toBe(false);
   });
 });
+
+describe('payoutDetail', () => {
+  const stale = { status: 'IN_BANK_VALIDATION', remarks: 'Account not available for vpa' };
+
+  it('hides an old complaint while the corrected details are still being checked, or once accepted', async () => {
+    const { payoutDetail } = await import('../src/lib/cashfree.js');
+    expect(payoutDetail('under_review', stale)).toBe('');
+    expect(payoutDetail('created', stale)).toBe('');
+    expect(payoutDetail('activated', { ...stale, status: 'ACTIVE' })).toBe('');
+  });
+
+  it('shows Cashfree’s reason when the shop really needs to fix something', async () => {
+    const { payoutDetail } = await import('../src/lib/cashfree.js');
+    expect(payoutDetail('needs_clarification', { remarks: 'Account not available for vpa' })).toBe('Account not available for vpa');
+    expect(payoutDetail('rejected', { remarks: 'Blocked' })).toBe('Blocked');
+  });
+});

@@ -157,6 +157,15 @@ export type CashfreeVendor = {
   related_docs?: Array<{ doc_name?: string; doc_value?: string; status?: string; remarks?: string }>;
 };
 
+/**
+ * The reason to show the owner. Cashfree keeps the remark from an earlier failed attempt on a vendor while it
+ * checks a corrected one, so it is only shown once the status really is "needs attention" or "rejected". While
+ * the new details are being checked, or after they are accepted, an old complaint would be misleading.
+ */
+export function payoutDetail(status: PayoutStatus, vendor: CashfreeVendor): string {
+  return status === 'needs_clarification' || status === 'rejected' ? vendorProblem(vendor) : '';
+}
+
 /** A readable reason when Cashfree needs something more from the shop. */
 export function vendorProblem(vendor: CashfreeVendor): string {
   // Cashfree lists every document it knows about; one a shop never gave (like a GSTIN for an
