@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FIXTURE_ORIGIN } from '@/lib/data/fixtures';
+import { refreshWhenVisible } from '@/lib/refresh-when-visible';
 
 export type DeliveryLocation = {
   lat: number;
@@ -156,7 +157,7 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
       }
       writeCookie(next);
       // Server Components re-run with the new radius.
-      router.refresh();
+      refreshWhenVisible(() => router.refresh());
     },
     [router]
   );
