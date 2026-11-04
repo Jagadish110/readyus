@@ -4,6 +4,8 @@ export type PayoutStatus = 'created' | 'under_review' | 'needs_clarification' | 
 export type PayoutAccount = {
   status: PayoutStatus;
   status_detail: string;
+  /** 'individual', 'business', or 'proprietorship' for shops saved by earlier versions of the form. */
+  business_type?: string | null;
   beneficiary_name: string | null;
   bank_ifsc: string | null;
   bank_last4: string | null;

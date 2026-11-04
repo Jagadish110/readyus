@@ -1,9 +1,10 @@
 import { z } from 'zod';
 
 /**
- * The KYC Cashfree asks of an Easy Split vendor besides the PAN. Every individual vendor needs an
- * address proof, and each kind goes in its own field; a GSTIN is optional. Formats catch typos
- * only: Cashfree decides whether a number is real. None of these are stored on our side.
+ * The KYC Cashfree asks of an Easy Split vendor besides the PAN. An individual needs an address
+ * proof, each kind in its own field; a business needs a CIN, and a GSTIN once its settlements pass
+ * Rs 20 lakh in a year. Formats catch typos only: Cashfree decides whether a number is real. None of
+ * these are stored on our side.
  */
 export const ID_PROOFS = {
   aadhaar: { field: 'uidai', pattern: /^[0-9]{12}$/, message: 'An Aadhaar number has 12 digits.' },
@@ -26,6 +27,10 @@ export const kycSchema = z
   .object({
     idProofType: z.enum(['aadhaar', 'voter_id', 'driving_license', 'passport']).optional(),
     idProofNumber: optionalText,
+    cin: optionalText.refine(
+      (value) => !value || /^[LU][0-9]{5}[A-Z]{2}[0-9]{4}[A-Z]{3}[0-9]{6}$/.test(value),
+      'Enter a valid 21-character CIN, like U12345KA2020PTC123456.'
+    ),
     gstin: optionalText.refine(
       (value) => !value || /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(value),
       'Enter a valid 15-character GSTIN, like 29AAICP2912R1ZR.'
@@ -45,6 +50,7 @@ export type Kyc = z.infer<typeof kycSchema>;
 export function kycFields(kyc: Kyc): Record<string, string> {
   return {
     ...(kyc.idProofType && kyc.idProofNumber ? { [ID_PROOFS[kyc.idProofType].field]: kyc.idProofNumber } : {}),
+    ...(kyc.cin ? { cin: kyc.cin } : {}),
     ...(kyc.gstin ? { gst: kyc.gstin } : {})
   };
 }

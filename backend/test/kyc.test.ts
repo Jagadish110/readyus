@@ -20,6 +20,12 @@ describe('vendor KYC', () => {
     expect(kycFields(kycSchema.parse({ idProofNumber: '', gstin: '' }))).toEqual({});
   });
 
+  it('sends a CIN as cin, tidied, and rejects one of the wrong shape', () => {
+    expect(kycFields(kycSchema.parse({ cin: 'u12345ka2020ptc123456' }))).toEqual({ cin: 'U12345KA2020PTC123456' });
+    expect(kycFields(kycSchema.parse({ cin: '' }))).toEqual({});
+    expect(() => kycSchema.parse({ cin: 'U12345' })).toThrow(/CIN/);
+  });
+
   it('rejects a number that does not fit the chosen ID, or a number with no ID chosen', () => {
     expect(() => kycSchema.parse({ idProofType: 'aadhaar', idProofNumber: '12345' })).toThrow(/12 digits/);
     expect(() => kycSchema.parse({ idProofType: 'passport', idProofNumber: 'AB123' })).toThrow(/passport/i);

@@ -17,7 +17,8 @@ import { maskUpi, upiSchema } from '../lib/upi.js';
 
 /** Only needed the first time, when the shop becomes a Cashfree vendor. */
 const identitySchema = z.object({
-  businessType: z.enum(['individual', 'proprietorship']),
+  // 'proprietorship' is what earlier versions of the form sent; shops saved with it stay business accounts.
+  businessType: z.enum(['individual', 'business', 'proprietorship']),
   contactName: z.string().trim().min(2).max(80),
   pan: z
     .string()
@@ -104,6 +105,7 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
       account: {
         status: stored.status,
         status_detail: stored.status_detail,
+        business_type: stored.business_type,
         beneficiary_name: stored.beneficiary_name,
         bank_ifsc: stored.bank_ifsc,
         bank_last4: stored.bank_last4,
@@ -132,7 +134,9 @@ export const sellerRoutes: FastifyPluginAsync = async (app) => {
     // Required only on the first save.
     const identity = existing ? null : identitySchema.parse(request.body);
     const kyc = kycSchema.parse(request.body);
-    if (identity && !kyc.idProofNumber) {
+    if (identity?.businessType === 'business') {
+      if (!kyc.cin) throw new AppError(400, 'Add your company’s CIN. Cashfree needs one besides the business PAN.');
+    } else if (identity && !kyc.idProofNumber) {
       throw new AppError(400, 'Add an ID proof: Aadhaar, voter ID, driving licence or passport. Cashfree needs one besides the PAN.');
     }
 

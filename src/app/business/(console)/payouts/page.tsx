@@ -149,11 +149,11 @@ export default async function PayoutsPage() {
                   {account.payout_method === 'upi' ? 'Change UPI ID' : 'Switch to your UPI ID'}
                 </summary>
                 <div className="mt-4">
-                  <PayoutForm hasAccount defaultName={shop.shop_name} />
+                  <PayoutForm hasAccount isBusiness={account.business_type !== 'individual'} />
                 </div>
               </details>
             ) : (
-              <PayoutForm hasAccount={Boolean(account)} defaultName="" />
+              <PayoutForm hasAccount={Boolean(account)} isBusiness={account?.business_type !== 'individual'} />
             )}
           </>
         )}
