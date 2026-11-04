@@ -18,7 +18,7 @@ export default async function OrdersPage() {
   } = await supabase.auth.getUser();
   if (!user) redirect('/sign-in?next=/orders');
 
-  const result = await serverApi<{ orders: ListedOrder[] }>('/v1/orders');
+  const result = await serverApi<{ orders: ListedOrder[]; server_now?: string }>('/v1/orders');
   // An outage must not look like an empty order history.
   if (!result.ok) throw new Error('We could not load your orders right now. Please try again.');
   const orders = result.data.orders;
@@ -45,7 +45,7 @@ export default async function OrdersPage() {
         </div>
       )}
 
-      <OrderHistory orders={orders} />
+      <OrderHistory orders={orders} serverNow={result.data.server_now} />
     </div>
   );
 }

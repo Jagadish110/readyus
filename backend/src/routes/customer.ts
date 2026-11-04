@@ -328,7 +328,7 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
     const user = await requireUser(request);
     return asUser(user.id, async (q) => ({
       orders: await q.rows(
-        `select o.id, o.order_code, o.status, o.total_paise, o.accepted_at, o.created_at,
+        `select o.id, o.order_code, o.status, o.total_paise, o.accepted_at, o.pay_deadline_at, o.created_at,
                 jsonb_build_object('shop_name', s.shop_name) as seller,
                 coalesce((select jsonb_agg(jsonb_build_object('name', i.name, 'quantity', i.quantity))
                           from order_items i where i.order_id = o.id), '[]'::jsonb) as order_items
@@ -337,7 +337,9 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
          order by o.created_at desc
          limit 50`,
         [user.id]
-      )
+      ),
+      // So the countdowns are right even on a phone set to the wrong time.
+      server_now: new Date().toISOString()
     }));
   });
 

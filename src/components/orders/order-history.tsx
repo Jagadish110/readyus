@@ -1,12 +1,14 @@
 import Link from 'next/link';
 import { isActive, STATUS_LABEL, STATUS_TONE, stepOf, TIMELINE, type OrderStatus } from '@/lib/orders/status';
 import { cn, formatPaise } from '@/lib/utils';
+import { PayNow } from './pay-now';
 
 export type ListedOrder = {
   id: string;
   status: OrderStatus;
   total_paise: number;
   accepted_at?: string | null;
+  pay_deadline_at?: string | null;
   created_at: string;
   seller: { shop_name: string } | null;
   order_items: Array<{ name: string; quantity: number }>;
@@ -36,7 +38,7 @@ const summaryOf = (order: ListedOrder) => order.order_items.map((item) => `${ite
 const needsPayment = (order: ListedOrder) => order.status === 'payment_required' || order.status === 'payment_rejected';
 
 /** Orders still moving come first and big, since they may need the customer; the past is a quiet list by day. */
-export function OrderHistory({ orders }: { orders: ListedOrder[] }) {
+export function OrderHistory({ orders, serverNow }: { orders: ListedOrder[]; serverNow?: string }) {
   const now = new Date();
   // Anything waiting on the customer's payment goes to the very top.
   const live = orders.filter((order) => isActive(order.status)).sort((a, b) => Number(needsPayment(b)) - Number(needsPayment(a)));
@@ -58,7 +60,7 @@ export function OrderHistory({ orders }: { orders: ListedOrder[] }) {
           <ul className="grid grid-cols-1 gap-3">
             {live.map((order) => (
               <li key={order.id}>
-                <LiveCard order={order} />
+                <LiveCard order={order} serverNow={serverNow} />
               </li>
             ))}
           </ul>
@@ -90,15 +92,11 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   return <h2 className="text-xs font-extrabold tracking-[0.16em] text-[var(--text-muted)] uppercase">{children}</h2>;
 }
 
-function LiveCard({ order }: { order: ListedOrder }) {
+function LiveCard({ order, serverNow }: { order: ListedOrder; serverNow?: string }) {
   // A shop that accepted stays accepted while the customer pays, as on the order page.
   const step = Math.max(stepOf(order.status), order.accepted_at ? 1 : 0);
-  return (
-    <Link
-      href={`/orders/${order.id}`}
-      transitionTypes={['nav-forward']}
-      className="block rounded-[26px] bg-[var(--leaf-soft)] p-5 ring-1 ring-[var(--line)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:ring-leaf-400 active:scale-[0.98] active:duration-100"
-    >
+  const summary = (
+    <>
       <p className="truncate text-sm font-bold text-[var(--leaf-ink)]">{order.seller?.shop_name ?? 'Shop'}</p>
       <p className="mt-1 font-display text-2xl leading-[1.15] font-extrabold tracking-[-0.035em]">{STATUS_LABEL[order.status]}</p>
 
@@ -117,17 +115,40 @@ function LiveCard({ order }: { order: ListedOrder }) {
       </div>
 
       <p className="mt-3.5 truncate text-sm text-[var(--text-muted)]">{summaryOf(order)}</p>
+    </>
+  );
 
+  // The Pay button opens Cashfree right here, so only the top of this card links to the order.
+  if (needsPayment(order)) {
+    return (
+      <div className="rounded-[26px] bg-[var(--leaf-soft)] p-5 ring-1 ring-[var(--line)]">
+        <Link href={`/orders/${order.id}`} transitionTypes={['nav-forward']} className="block">
+          {summary}
+        </Link>
+        <PayNow
+          orderId={order.id}
+          totalPaise={order.total_paise}
+          placedAt={clock(new Date(order.created_at))}
+          deadline={order.pay_deadline_at}
+          serverNow={serverNow}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={`/orders/${order.id}`}
+      transitionTypes={['nav-forward']}
+      className="block rounded-[26px] bg-[var(--leaf-soft)] p-5 ring-1 ring-[var(--line)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:ring-leaf-400 active:scale-[0.98] active:duration-100"
+    >
+      {summary}
       <div className="mt-3 flex items-center justify-between gap-3">
         <p className="min-w-0 text-sm">
           <span className="font-extrabold tabular-nums">{formatPaise(order.total_paise)}</span>
           <span className="text-[var(--text-muted)]"> &middot; {clock(new Date(order.created_at))}</span>
         </p>
-        {needsPayment(order) ? (
-          <span className="inline-flex h-10 shrink-0 items-center rounded-full bg-brand-600 px-5 text-sm font-bold text-white">Pay now</span>
-        ) : (
-          <span className="shrink-0 text-sm font-bold text-[var(--leaf-ink)]">Track order &rsaquo;</span>
-        )}
+        <span className="shrink-0 text-sm font-bold text-[var(--leaf-ink)]">Track order &rsaquo;</span>
       </div>
     </Link>
   );

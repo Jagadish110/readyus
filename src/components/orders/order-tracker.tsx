@@ -221,6 +221,86 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
               )}
             </p>
 
+            {(status === 'payment_required' || status === 'payment_rejected') && (
+              <div className="mt-4 grid gap-3">
+                {status === 'payment_rejected' && (
+                  <p className="rounded-[16px] bg-danger/10 px-4 py-3 text-sm font-medium ring-1 ring-danger/30">
+                    The shop could not find your payment. Check the amount and UPI ID, then try again.
+                  </p>
+                )}
+                {order.pay_deadline_at && (
+                  <Countdown
+                    label="Time left to pay"
+                    left={payLeft}
+                    totalSeconds={PAY_WINDOW_SECONDS}
+                    expired="Time is up. This order is being cancelled."
+                  />
+                )}
+                {upiOnly ? (
+                  // Only a shop that cannot take online payments yet is paid by hand.
+                  <div>
+                    <p className="text-sm text-[var(--text-muted)]">Pay exactly</p>
+                    <p className="font-display text-3xl font-extrabold tracking-[-0.04em] text-brand-600">
+                      {formatPaise(order.required_online_paise)}
+                    </p>
+                    {upi ? (
+                      <>
+                        <p className="mt-2 text-sm">
+                          to UPI ID <span className="font-extrabold break-all">{upi}</span>
+                        </p>
+                        {payUrl && (
+                          <a
+                            href={payUrl}
+                            className="mt-3 inline-flex h-11 items-center rounded-full bg-[var(--surface)] px-5 text-sm font-bold text-[var(--leaf-ink)] ring-1 ring-[var(--line)] md:hidden"
+                          >
+                            Open my UPI app
+                          </a>
+                        )}
+                      </>
+                    ) : (
+                      <p className="mt-2 text-sm text-[var(--text-muted)]">
+                        This shop has not added a UPI ID. Ask them for payment details
+                        {order.seller?.phone ? (
+                          <>
+                            : <a href={`tel:${order.seller.phone}`} className="font-bold text-[var(--leaf-ink)] underline">{order.seller.phone}</a>
+                          </>
+                        ) : (
+                          '.'
+                        )}
+                      </p>
+                    )}
+                    <input
+                      value={reference}
+                      onChange={(event) => setReference(event.target.value)}
+                      placeholder="UPI reference / UTR (optional)"
+                      className="mt-4 h-12 w-full rounded-[16px] border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-4 text-sm outline-none focus:border-leaf-500 focus:ring-4 focus:ring-leaf-500/20"
+                    />
+                    <Button variant="leaf" fullWidth className="mt-3" onClick={claimPaid} loading={busy} disabled={payTimeOver}>
+                      I have paid
+                    </Button>
+                    <p className="mt-2 text-xs text-[var(--text-muted)]">
+                      The shop confirms the money has arrived before they start. This does not charge you.
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <Button size="lg" fullWidth onClick={payOnline} loading={busy} disabled={payTimeOver}>
+                      Pay {formatPaise(order.required_online_paise)} securely
+                    </Button>
+                    <p className="mt-2 text-center text-xs text-[var(--text-muted)]">
+                      UPI, cards and net banking. The money goes straight to {shopName}.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {error && (
+              <p role="alert" className="mt-4 rounded-[16px] bg-danger/10 px-4 py-3 text-sm font-medium ring-1 ring-danger/30">
+                {error}
+              </p>
+            )}
+
             {ended ? (
               <ButtonLink href="/browse" variant="leaf-outline" size="sm" className="mt-4">
                 Find another shop
@@ -236,89 +316,6 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
             )}
           </section>
         </div>
-
-        {error && (
-          <p role="alert" className="rounded-[16px] bg-danger/10 px-4 py-3 text-sm font-medium ring-1 ring-danger/30">
-            {error}
-          </p>
-        )}
-
-        {(status === 'payment_required' || status === 'payment_rejected') && (
-          <section className="animate-rise rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)]">
-            {status === 'payment_rejected' && (
-              <p className="mb-3 rounded-[16px] bg-danger/10 px-4 py-3 text-sm font-medium ring-1 ring-danger/30">
-                The shop could not find your payment. Check the amount and UPI ID, then try again.
-              </p>
-            )}
-            {order.pay_deadline_at && (
-              <div className="mb-4">
-                <Countdown
-                  label="Time left to pay"
-                  left={payLeft}
-                  totalSeconds={PAY_WINDOW_SECONDS}
-                  expired="Time is up. This order is being cancelled."
-                />
-              </div>
-            )}
-            {!upiOnly && (
-              <>
-                <Button size="lg" fullWidth onClick={payOnline} loading={busy} disabled={payTimeOver}>
-                  Pay {formatPaise(order.required_online_paise)} securely
-                </Button>
-                <p className="mt-2 text-center text-xs text-[var(--text-muted)]">
-                  UPI, cards and net banking. The money goes straight to {shopName}.
-                </p>
-              </>
-            )}
-            <details open={upiOnly} className={cn(!upiOnly && 'mt-4 border-t border-[var(--line)] pt-3')}>
-              <summary className="cursor-pointer text-sm font-bold text-[var(--leaf-ink)]">
-                {upiOnly ? 'Pay the shop by UPI' : 'Or pay the shop by UPI yourself'}
-              </summary>
-              <p className="mt-3 text-sm text-[var(--text-muted)]">Pay exactly</p>
-              <p className="font-display text-3xl font-extrabold tracking-[-0.04em] text-brand-600">
-                {formatPaise(order.required_online_paise)}
-              </p>
-              {upi ? (
-                <>
-                  <p className="mt-2 text-sm">
-                    to UPI ID <span className="font-extrabold break-all">{upi}</span>
-                  </p>
-                  {payUrl && (
-                    <a
-                      href={payUrl}
-                      className="mt-3 inline-flex h-11 items-center rounded-full bg-[var(--leaf-soft)] px-5 text-sm font-bold text-[var(--leaf-ink)] md:hidden"
-                    >
-                      Open my UPI app
-                    </a>
-                  )}
-                </>
-              ) : (
-                <p className="mt-2 text-sm text-[var(--text-muted)]">
-                  This shop has not added a UPI ID. Ask them for payment details
-                  {order.seller?.phone ? (
-                    <>
-                      : <a href={`tel:${order.seller.phone}`} className="font-bold text-[var(--leaf-ink)] underline">{order.seller.phone}</a>
-                    </>
-                  ) : (
-                    '.'
-                  )}
-                </p>
-              )}
-              <input
-                value={reference}
-                onChange={(event) => setReference(event.target.value)}
-                placeholder="UPI reference / UTR (optional)"
-                className="mt-4 h-12 w-full rounded-[16px] border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-4 text-sm outline-none focus:border-leaf-500 focus:ring-4 focus:ring-leaf-500/20"
-              />
-              <Button variant="leaf" fullWidth className="mt-3" onClick={claimPaid} loading={busy} disabled={payTimeOver}>
-                I have paid
-              </Button>
-              <p className="mt-2 text-xs text-[var(--text-muted)]">
-                The shop confirms the money has arrived before they start. This does not charge you.
-              </p>
-            </details>
-          </section>
-        )}
 
         {/* The code is only for the handover, so it stays out of the way until the rider has the order. */}
         {code && status === 'out_for_delivery' && (
@@ -536,7 +533,7 @@ function heroCopy(
       return accepted
         ? {
             title: 'Accepted! Pay now to confirm',
-            detail: 'They start preparing it as soon as your payment goes through. If the timer runs out, the order is cancelled.'
+            detail: 'They start preparing it as soon as you pay. If the timer runs out, the order is cancelled.'
           }
         : { title: 'Pay to start your order', detail: 'The shop gets your order once your payment goes through.' };
     case 'customer_claimed_paid':
