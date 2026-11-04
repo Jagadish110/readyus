@@ -437,7 +437,7 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
       return {
         orders: await q.rows(
           `select o.id, o.order_code, o.status, o.total_paise, o.payment_mode, o.required_online_paise,
-                  o.created_at, o.customer_note, o.verified_prepaid_paise, o.refunded_paise, o.refund_target_paise, o.accept_deadline_at,
+                  o.created_at, o.customer_note, o.verified_prepaid_paise, o.refunded_paise, o.refund_target_paise, o.accept_deadline_at, o.pay_deadline_at,
                   -- Only what the shop needs to hand the order over.
                   jsonb_build_object('recipient', o.delivery_address -> 'recipient',
                                      'line1', o.delivery_address -> 'line1',
@@ -455,7 +455,9 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
            from orders o where o.seller_id = $1
            order by o.created_at desc limit 60`,
           [shop.id]
-        )
+        ),
+        // So the countdowns are right even on a phone set to the wrong time.
+        server_now: new Date().toISOString()
       };
     });
   });

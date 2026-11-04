@@ -350,7 +350,7 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
       const order = await q.one(
         `select o.id, o.order_code, o.status, o.payment_mode, o.required_online_paise, o.verified_prepaid_paise,
                 o.subtotal_paise, o.delivery_fee_paise, o.platform_fee_paise, o.total_paise, o.delivery_address,
-                o.distance_km, o.customer_note, o.accepted_at, o.delivered_at,
+                o.distance_km, o.customer_note, o.accepted_at, o.pay_deadline_at, o.delivered_at,
                 o.cancel_reason, o.created_at,
                 jsonb_build_object('id', s.id, 'shop_name', s.shop_name, 'phone', s.phone,
                                    'eta_minutes', s.eta_minutes, 'upi_id', s.upi_id, 'address', s.address) as seller
@@ -372,7 +372,7 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
         q.rows('select product_id, rating from reviews where order_id = $1', [id])
       ]);
 
-      return { order, items, events, map, code: code?.code ?? null, reviews };
+      return { order, items, events, map, code: code?.code ?? null, reviews, server_now: new Date().toISOString() };
     });
   });
 

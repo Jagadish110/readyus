@@ -13,6 +13,7 @@ import {
   isActive,
   isEnded,
   minutesLeft,
+  PAY_WINDOW_SECONDS,
   STATUS_LABEL,
   stepOf,
   timeAgo,
@@ -20,6 +21,7 @@ import {
   type OrderStatus
 } from '@/lib/orders/status';
 import { payForOrder } from '@/lib/payments/checkout';
+import { Countdown, useSecondsLeft } from './countdown';
 import { LiveMap } from '@/components/maps/live-map';
 import { ReviewForm } from './review-form';
 import { Button, ButtonLink } from '@/components/ui/button';
@@ -71,6 +73,8 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
   const { order, items, events, map, code, reviews } = view;
   const status = order.status;
   const now = useNow(15_000);
+  const payLeft = useSecondsLeft(order.pay_deadline_at, view.server_now);
+  const payTimeOver = payLeft === 0;
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -246,9 +250,19 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
                 The shop could not find your payment. Check the amount and UPI ID, then try again.
               </p>
             )}
+            {order.pay_deadline_at && (
+              <div className="mb-4">
+                <Countdown
+                  label="Time left to pay"
+                  left={payLeft}
+                  totalSeconds={PAY_WINDOW_SECONDS}
+                  expired="Time is up. This order is being cancelled."
+                />
+              </div>
+            )}
             {!upiOnly && (
               <>
-                <Button size="lg" fullWidth onClick={payOnline} loading={busy}>
+                <Button size="lg" fullWidth onClick={payOnline} loading={busy} disabled={payTimeOver}>
                   Pay {formatPaise(order.required_online_paise)} securely
                 </Button>
                 <p className="mt-2 text-center text-xs text-[var(--text-muted)]">
@@ -296,7 +310,7 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
                 placeholder="UPI reference / UTR (optional)"
                 className="mt-4 h-12 w-full rounded-[16px] border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-4 text-sm outline-none focus:border-leaf-500 focus:ring-4 focus:ring-leaf-500/20"
               />
-              <Button variant="leaf" fullWidth className="mt-3" onClick={claimPaid} loading={busy}>
+              <Button variant="leaf" fullWidth className="mt-3" onClick={claimPaid} loading={busy} disabled={payTimeOver}>
                 I have paid
               </Button>
               <p className="mt-2 text-xs text-[var(--text-muted)]">
@@ -522,7 +536,7 @@ function heroCopy(
       return accepted
         ? {
             title: 'Accepted! Pay now to confirm',
-            detail: 'They start preparing it as soon as your payment goes through. Unpaid orders are cancelled after 15 minutes.'
+            detail: 'They start preparing it as soon as your payment goes through. If the timer runs out, the order is cancelled.'
           }
         : { title: 'Pay to start your order', detail: 'The shop gets your order once your payment goes through.' };
     case 'customer_claimed_paid':

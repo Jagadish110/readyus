@@ -27,6 +27,11 @@ export const TIMELINE = [
   { key: 'delivered', label: 'Delivered', hint: 'Enjoy' }
 ] as const;
 
+// How long each side has, for drawing the countdown bars. The deadlines themselves come from the database
+// (platform_settings: order_accept_window_seconds, order_pay_window_seconds).
+export const ACCEPT_WINDOW_SECONDS = 300;
+export const PAY_WINDOW_SECONDS = 600;
+
 /** Which timeline step an order has reached (0-based). */
 export function stepOf(status: OrderStatus): number {
   switch (status) {

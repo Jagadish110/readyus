@@ -25,6 +25,8 @@ export type OrderCore = {
   distance_km: number | string | null;
   customer_note: string;
   accepted_at: string | null;
+  /** When the time to pay runs out; null until the shop accepts an order that still has to be paid. */
+  pay_deadline_at: string | null;
   delivered_at: string | null;
   cancel_reason: string;
   created_at: string;
@@ -76,4 +78,5 @@ export type OrderView = {
   map: MapInfo | null;
   code: string | null;
   reviews: MyReview[];
+  server_now?: string;
 };

@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api/client';
 import { friendlyError } from '@/lib/orders/errors';
-import { STATUS_LABEL, STATUS_TONE, type OrderStatus } from '@/lib/orders/status';
+import { ACCEPT_WINDOW_SECONDS, PAY_WINDOW_SECONDS, STATUS_LABEL, STATUS_TONE, type OrderStatus } from '@/lib/orders/status';
+import { Countdown, useSecondsLeft } from '@/components/orders/countdown';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { cn, formatPaise } from '@/lib/utils';
@@ -22,6 +23,7 @@ type SellerOrder = {
   refunded_paise: number;
   refund_target_paise: number;
   accept_deadline_at: string | null;
+  pay_deadline_at: string | null;
   created_at: string;
   customer_note: string;
   delivery_address: { recipient?: string; line1?: string; city?: string };
@@ -54,6 +56,7 @@ function chime() {
 
 export function OrdersBoard() {
   const [orders, setOrders] = useState<SellerOrder[] | null>(null);
+  const [serverNow, setServerNow] = useState<string | null>(null);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
   const [declining, setDeclining] = useState<string | null>(null);
@@ -88,9 +91,13 @@ export function OrdersBoard() {
   }
 
   const refresh = useCallback(async () => {
-    const result = await api<{ orders: SellerOrder[] }>('GET', '/v1/seller/orders');
-    if (result.ok) setOrders(result.data.orders);
-    else setOrders((current) => current ?? []);
+    const result = await api<{ orders: SellerOrder[]; server_now?: string }>('GET', '/v1/seller/orders');
+    if (result.ok) {
+      setOrders(result.data.orders);
+      setServerNow((current) => current ?? result.data.server_now ?? null);
+    } else {
+      setOrders((current) => current ?? []);
+    }
   }, []);
 
   // The rider list barely changes, so it is read once, not on every poll.
@@ -227,6 +234,14 @@ export function OrdersBoard() {
       <Group title="Needs your decision" count={decide.length}>
         {decide.map((order) => (
           <OrderCard key={order.id} order={order} note={waitingNote(order, now)}>
+            {order.accept_deadline_at && (
+              <DeadlineClock
+                label="Time to accept"
+                deadline={order.accept_deadline_at}
+                serverNow={serverNow}
+                totalSeconds={ACCEPT_WINDOW_SECONDS}
+              />
+            )}
             {declining === order.id ? (
               <div className="grid gap-2">
                 <p className="text-sm font-bold">Why are you declining? The customer will see this.</p>
@@ -251,13 +266,12 @@ export function OrdersBoard() {
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap">
-                <Button
-                  variant="leaf"
+                <AcceptButton
+                  deadline={order.accept_deadline_at}
+                  serverNow={serverNow}
                   loading={busy === `acc-${order.id}`}
                   onClick={() => act(`acc-${order.id}`, `/v1/seller/orders/${order.id}/decide`, { accept: true, reason: '' })}
-                >
-                  Accept
-                </Button>
+                />
                 <Button variant="outline" onClick={() => setDeclining(order.id)}>
                   Decline
                 </Button>
@@ -377,8 +391,17 @@ export function OrdersBoard() {
           <OrderCard
             key={order.id}
             order={order}
-            note="You accepted this. Wait for the payment before you start: once paid it moves to your kitchen list by itself. Unpaid orders are cancelled after 15 minutes."
-          />
+            note="You accepted this. Wait for the payment before you start: once paid it moves to your kitchen list by itself."
+          >
+            {order.pay_deadline_at && (
+              <DeadlineClock
+                label="Time left for the customer to pay"
+                deadline={order.pay_deadline_at}
+                serverNow={serverNow}
+                totalSeconds={PAY_WINDOW_SECONDS}
+              />
+            )}
+          </OrderCard>
         ))}
       </Group>
 
@@ -469,23 +492,51 @@ function paymentLabel(order: SellerOrder) {
   return rest > 0 ? `Part paid online · collect ${formatPaise(rest)} cash` : 'Paid online';
 }
 
-/** How long an order has waited, and for orders paid online, how long until they are refunded. */
+/** How long an order has waited and how it gets paid. The time left to accept has its own clock on the card. */
 function waitingNote(order: SellerOrder, now: number) {
   const waited = Math.max(0, Math.floor((now - new Date(order.created_at).getTime()) / 60_000));
   const parts = [waited < 1 ? 'Just now' : `Waiting ${waited} min`];
   if (order.required_online_paise > order.verified_prepaid_paise) {
-    // Nothing is paid yet: the shop has a few minutes to accept, or the order is lost.
-    if (order.status === 'pending' && order.accept_deadline_at) {
-      const left = Math.ceil((new Date(order.accept_deadline_at).getTime() - now) / 60_000);
-      parts.push(left > 0 ? `accept within ${left} min or the order is lost` : 'time is up: the order is being cancelled');
-    } else {
-      parts.push('the customer pays online once you accept');
-    }
-  } else if (order.verified_prepaid_paise > 0 && order.accept_deadline_at) {
-    const left = Math.ceil((new Date(order.accept_deadline_at).getTime() - now) / 60_000);
-    parts.push(left > 0 ? `paid online: accept within ${left} min or it is refunded` : 'paid online: refund pending');
+    parts.push('the customer pays online once you accept');
+  } else if (order.verified_prepaid_paise > 0) {
+    parts.push('paid online: refunded if you do not accept in time');
   }
   return parts.join(' · ');
+}
+
+function DeadlineClock({
+  label,
+  deadline,
+  serverNow,
+  totalSeconds
+}: {
+  label: string;
+  deadline: string;
+  serverNow: string | null;
+  totalSeconds: number;
+}) {
+  const left = useSecondsLeft(deadline, serverNow);
+  return <Countdown label={label} left={left} totalSeconds={totalSeconds} expired="Time is up. This order is being cancelled." />;
+}
+
+/** Stops working when the time to accept runs out, as the server would refuse it from then on. */
+function AcceptButton({
+  deadline,
+  serverNow,
+  loading,
+  onClick
+}: {
+  deadline: string | null;
+  serverNow: string | null;
+  loading: boolean;
+  onClick: () => void;
+}) {
+  const left = useSecondsLeft(deadline, serverNow);
+  return (
+    <Button variant="leaf" loading={loading} disabled={left === 0} onClick={onClick}>
+      Accept
+    </Button>
+  );
 }
 
 const DECLINE_REASONS = [

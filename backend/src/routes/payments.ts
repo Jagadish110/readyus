@@ -18,6 +18,7 @@ type OrderRow = {
   verified_prepaid_paise: number;
   cashfree_order_id: string | null;
   phone: string | null;
+  pay_time_over: boolean;
 };
 
 type CreatedOrder = { order_id: string; payment_session_id: string };
@@ -37,7 +38,8 @@ export const paymentRoutes: FastifyPluginAsync = async (app) => {
     const { order, vendorId } = await asService(async (q) => {
       const found = await q.one<OrderRow>(
         `select id, order_code, customer_id, seller_id, status, required_online_paise,
-                verified_prepaid_paise, cashfree_order_id, delivery_address ->> 'phone' as phone
+                verified_prepaid_paise, cashfree_order_id, delivery_address ->> 'phone' as phone,
+                coalesce(pay_deadline_at < now(), false) as pay_time_over
          from orders where id = $1`,
         [orderId]
       );
@@ -46,6 +48,8 @@ export const paymentRoutes: FastifyPluginAsync = async (app) => {
       if (!PAYABLE.includes(found.status) || found.required_online_paise <= 0 || found.verified_prepaid_paise > 0) {
         throw new AppError(409, 'This order is not waiting for payment.');
       }
+      // The sweep closes it within a minute; no new payment starts in the meantime.
+      if (found.pay_time_over) throw new AppError(409, 'The time to pay for this order has run out.');
 
       const account = await q.one<{ cashfree_vendor_id: string }>(
         `select cashfree_vendor_id from seller_payout_accounts where seller_id = $1 and status = 'activated'`,

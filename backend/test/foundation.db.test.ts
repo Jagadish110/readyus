@@ -187,14 +187,14 @@ describe.skipIf(!HAS_DB)('order expiry (database)', () => {
     expect(await stockOf(shop.productId)).toBe(4);
   });
 
-  it('cancels an order accepted but left unpaid for 15 minutes, frees its stock and tells the shop', async () => {
+  it('cancels an order accepted but left unpaid past its 10 minutes, frees its stock and tells the shop', async () => {
     const shop = await makeShop({ stock: 5 });
     const customer = await makeCustomer();
     const stale = await placeOrder(customer, shop, { online: true });
     const fresh = await placeOrder(customer, shop, { online: true });
     await accept(shop, stale);
     await accept(shop, fresh);
-    await asService((q) => q.rows(`update orders set accepted_at = now() - interval '16 minutes' where id = $1`, [stale]));
+    await asService((q) => q.rows(`update orders set pay_deadline_at = now() - interval '1 second' where id = $1`, [stale]));
     expect(await stockOf(shop.productId)).toBe(3);
 
     await asService((q) => q.rows('select expire_stale_orders()'));
@@ -204,6 +204,40 @@ describe.skipIf(!HAS_DB)('order expiry (database)', () => {
     expect(await stockOf(shop.productId)).toBe(4);
     const shopTold = await asService((q) => q.rows<{ title: string }>('select title from notifications where user_id = $1', [shop.userId]));
     expect(shopTold.map((n) => n.title)).toContain('Order cancelled: not paid');
+  });
+
+  it('gives the customer 10 minutes to pay from when the shop accepts, and both sides can read the deadline', async () => {
+    const shop = await makeShop();
+    const customer = await makeCustomer();
+    const orderId = await placeOrder(customer, shop, { online: true });
+    expect((await orderRow(orderId))!.pay_deadline_at).toBeNull();
+
+    await accept(shop, orderId);
+
+    const secondsLeft = (new Date((await orderRow(orderId))!.pay_deadline_at).getTime() - Date.now()) / 1000;
+    expect(secondsLeft).toBeGreaterThan(590);
+    expect(secondsLeft).toBeLessThanOrEqual(600);
+
+    // Customers and shops read orders through per-column grants, so the new column must be granted to them.
+    const sql = 'select pay_deadline_at from orders where id = $1';
+    expect(await asUser(customer, (q) => q.one<{ pay_deadline_at: string }>(sql, [orderId]))).toMatchObject({ pay_deadline_at: expect.anything() });
+    expect(await asUser(shop.userId, (q) => q.one<{ pay_deadline_at: string }>(sql, [orderId]))).toMatchObject({ pay_deadline_at: expect.anything() });
+  });
+
+  it('holds an order accepted before deadlines were stored to 10 minutes from when it was accepted', async () => {
+    const shop = await makeShop();
+    const customer = await makeCustomer();
+    const stale = await placeOrder(customer, shop, { online: true });
+    const fresh = await placeOrder(customer, shop, { online: true });
+    await accept(shop, stale);
+    await accept(shop, fresh);
+    await asService((q) => q.rows(`update orders set pay_deadline_at = null, accepted_at = now() - interval '11 minutes' where id = $1`, [stale]));
+    await asService((q) => q.rows(`update orders set pay_deadline_at = null, accepted_at = now() - interval '9 minutes' where id = $1`, [fresh]));
+
+    await asService((q) => q.rows('select expire_stale_orders()'));
+
+    expect((await orderRow(stale))!.status).toBe('cancelled');
+    expect((await orderRow(fresh))!.status).toBe('payment_required');
   });
 
   it('leaves an online order waiting for the shop, however long, until it is accepted', async () => {
