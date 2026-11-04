@@ -14,13 +14,11 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
   app.get('/me', async (request) => {
     const user = await requireUser(request);
     return asUser(user.id, async (q) => {
-      const [profile, roles] = await Promise.all([
-        q.one(
-          'select full_name, phone, email, avatar_url, search_radius_km, created_at from profiles where id = $1',
-          [user.id]
-        ),
-        q.rows<{ role: string }>('select role from user_roles where user_id = $1', [user.id])
-      ]);
+      const profile = await q.one(
+        'select full_name, phone, email, avatar_url, search_radius_km, created_at from profiles where id = $1',
+        [user.id]
+      );
+      const roles = await q.rows<{ role: string }>('select role from user_roles where user_id = $1', [user.id]);
       return { profile, roles: roles.map((row) => row.role) };
     });
   });
@@ -29,27 +27,31 @@ export const accountRoutes: FastifyPluginAsync = async (app) => {
   app.get('/account/export', { config: { rateLimit: { max: 5, timeWindow: '1 hour' } } }, async (request) => {
     const user = await requireUser(request);
     return asUser(user.id, async (q) => {
-      const [profile, addresses, orders, reviews, favourites, notifications] = await Promise.all([
-        q.one('select full_name, phone, email, created_at from profiles where id = $1', [user.id]),
-        q.rows(
-          `select label, recipient, phone, line1, line2, landmark, city, pincode, is_default, created_at,
-                  st_y(location::geometry) as lat, st_x(location::geometry) as lng
-           from addresses where user_id = $1 order by created_at`,
-          [user.id]
-        ),
-        q.rows(
-          `select o.order_code, o.status, o.payment_mode, o.total_paise, o.verified_prepaid_paise, o.refunded_paise, o.created_at,
-                  o.delivery_address, o.customer_note, o.cancel_reason,
-                  (select shop_name from sellers where id = o.seller_id) as shop,
-                  coalesce((select jsonb_agg(jsonb_build_object('name', i.name, 'quantity', i.quantity, 'price_paise', i.unit_price_paise))
-                            from order_items i where i.order_id = o.id), '[]'::jsonb) as items
-           from orders o where o.customer_id = $1 order by o.created_at`,
-          [user.id]
-        ),
-        q.rows('select rating, body, created_at from reviews where author_id = $1 order by created_at', [user.id]),
-        q.rows('select (select shop_name from sellers where id = f.seller_id) as shop, created_at from favourite_sellers f where user_id = $1', [user.id]),
-        q.rows('select title, body, created_at from notifications where user_id = $1 order by created_at desc limit 200', [user.id])
-      ]);
+      const profile = await q.one('select full_name, phone, email, created_at from profiles where id = $1', [user.id]);
+      const addresses = await q.rows(
+        `select label, recipient, phone, line1, line2, landmark, city, pincode, is_default, created_at,
+                st_y(location::geometry) as lat, st_x(location::geometry) as lng
+         from addresses where user_id = $1 order by created_at`,
+        [user.id]
+      );
+      const orders = await q.rows(
+        `select o.order_code, o.status, o.payment_mode, o.total_paise, o.verified_prepaid_paise, o.refunded_paise, o.created_at,
+                o.delivery_address, o.customer_note, o.cancel_reason,
+                (select shop_name from sellers where id = o.seller_id) as shop,
+                coalesce((select jsonb_agg(jsonb_build_object('name', i.name, 'quantity', i.quantity, 'price_paise', i.unit_price_paise))
+                          from order_items i where i.order_id = o.id), '[]'::jsonb) as items
+         from orders o where o.customer_id = $1 order by o.created_at`,
+        [user.id]
+      );
+      const reviews = await q.rows('select rating, body, created_at from reviews where author_id = $1 order by created_at', [user.id]);
+      const favourites = await q.rows(
+        'select (select shop_name from sellers where id = f.seller_id) as shop, created_at from favourite_sellers f where user_id = $1',
+        [user.id]
+      );
+      const notifications = await q.rows(
+        'select title, body, created_at from notifications where user_id = $1 order by created_at desc limit 200',
+        [user.id]
+      );
       return { exported_at: new Date().toISOString(), profile, addresses, orders, reviews, favourites, notifications };
     });
   });

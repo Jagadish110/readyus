@@ -68,14 +68,12 @@ export const pushRoutes: FastifyPluginAsync = async (app) => {
   app.get('/notifications', async (request) => {
     const user = await requireUser(request);
     return asUser(user.id, async (q) => {
-      const [items, unread] = await Promise.all([
-        q.rows(
-          `select id, role, channel, title, body, href, read_at, created_at
-           from notifications where user_id = $1 order by created_at desc limit 30`,
-          [user.id]
-        ),
-        q.one<{ n: number }>('select count(*)::int as n from notifications where user_id = $1 and read_at is null', [user.id])
-      ]);
+      const items = await q.rows(
+        `select id, role, channel, title, body, href, read_at, created_at
+         from notifications where user_id = $1 order by created_at desc limit 30`,
+        [user.id]
+      );
+      const unread = await q.one<{ n: number }>('select count(*)::int as n from notifications where user_id = $1 and read_at is null', [user.id]);
       return { items, unread: unread?.n ?? 0 };
     });
   });

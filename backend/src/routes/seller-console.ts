@@ -615,19 +615,17 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
     const user = await requireUser(request);
     return asUser(user.id, async (q) => {
       const shop = await ownShop(q, user.id);
-      const [partners, invites] = await Promise.all([
-        q.rows(
-          `select r.id, r.agent_id, jsonb_build_object('full_name', a.full_name, 'phone', a.phone, 'vehicle', a.vehicle) as agent
-           from delivery_relationships r left join delivery_agents a on a.id = r.agent_id
-           where r.seller_id = $1 and r.active`,
-          [shop.id]
-        ),
-        q.rows(
-          `select id, code, expires_at, used_at from delivery_invites
-           where seller_id = $1 order by created_at desc limit 10`,
-          [shop.id]
-        )
-      ]);
+      const partners = await q.rows(
+        `select r.id, r.agent_id, jsonb_build_object('full_name', a.full_name, 'phone', a.phone, 'vehicle', a.vehicle) as agent
+         from delivery_relationships r left join delivery_agents a on a.id = r.agent_id
+         where r.seller_id = $1 and r.active`,
+        [shop.id]
+      );
+      const invites = await q.rows(
+        `select id, code, expires_at, used_at from delivery_invites
+         where seller_id = $1 order by created_at desc limit 10`,
+        [shop.id]
+      );
       return { partners, invites };
     });
   });

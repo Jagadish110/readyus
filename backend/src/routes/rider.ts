@@ -75,10 +75,8 @@ export const riderRoutes: FastifyPluginAsync = async (app) => {
           [status]
         );
 
-      const [active, history] = await Promise.all([
-        rows('claimed,picked_up', 'da.claimed_at asc', 20),
-        rows('delivered', 'da.delivered_at desc', 10)
-      ]);
+      const active = await rows('claimed,picked_up', 'da.claimed_at asc', 20);
+      const history = await rows('delivered', 'da.delivered_at desc', 10);
 
       // Coordinates for the route come from the same function the customer's map uses.
       const maps: Record<string, unknown> = {};

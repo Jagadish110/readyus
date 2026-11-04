@@ -30,21 +30,19 @@ export const adminRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/approvals', async (request) => {
     return requireAdmin(request, async (q) => {
-      const [sellers, products, documents] = await Promise.all([
-        q.rows(
-          `select id, shop_name, owner_name, phone, category, listing_mode, address, city, pincode, created_at,
-                  case when location is null then null
-                       else jsonb_build_object('lat', st_y(location::geometry), 'lng', st_x(location::geometry)) end as pin
-           from sellers where status = 'pending' order by created_at desc`
-        ),
-        q.rows(
-          `select p.id, p.name, p.price, p.unit, p.category_key, p.listing_mode, p.created_at,
-                  jsonb_build_object('shop_name', s.shop_name) as sellers
-           from products p left join sellers s on s.id = p.seller_id
-           where p.approval_status = 'pending' order by p.created_at desc`
-        ),
-        q.rows('select * from admin_pending_documents()')
-      ]);
+      const sellers = await q.rows(
+        `select id, shop_name, owner_name, phone, category, listing_mode, address, city, pincode, created_at,
+                case when location is null then null
+                     else jsonb_build_object('lat', st_y(location::geometry), 'lng', st_x(location::geometry)) end as pin
+         from sellers where status = 'pending' order by created_at desc`
+      );
+      const products = await q.rows(
+        `select p.id, p.name, p.price, p.unit, p.category_key, p.listing_mode, p.created_at,
+                jsonb_build_object('shop_name', s.shop_name) as sellers
+         from products p left join sellers s on s.id = p.seller_id
+         where p.approval_status = 'pending' order by p.created_at desc`
+      );
+      const documents = await q.rows('select * from admin_pending_documents()');
       return { sellers, products, documents };
     });
   });

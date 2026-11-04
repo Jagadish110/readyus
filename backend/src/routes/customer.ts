@@ -360,17 +360,15 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
       );
       if (!order) throw new AppError(404, 'Order not found.');
 
-      const [items, events, map, code, reviews] = await Promise.all([
-        q.rows(
-          `select id, product_id, name, variant_label, combo_items, extras, quantity, unit_price_paise, line_total_paise
-           from order_items where order_id = $1`,
-          [id]
-        ),
-        q.rows('select status, created_at, note from order_events where order_id = $1 order by created_at', [id]),
-        q.one('select * from order_map($1)', [id]),
-        q.one<{ code: string | null }>('select order_delivery_code($1) as code', [id]),
-        q.rows('select product_id, rating from reviews where order_id = $1', [id])
-      ]);
+      const items = await q.rows(
+        `select id, product_id, name, variant_label, combo_items, extras, quantity, unit_price_paise, line_total_paise
+         from order_items where order_id = $1`,
+        [id]
+      );
+      const events = await q.rows('select status, created_at, note from order_events where order_id = $1 order by created_at', [id]);
+      const map = await q.one('select * from order_map($1)', [id]);
+      const code = await q.one<{ code: string | null }>('select order_delivery_code($1) as code', [id]);
+      const reviews = await q.rows('select product_id, rating from reviews where order_id = $1', [id]);
 
       return { order, items, events, map, code: code?.code ?? null, reviews, server_now: new Date().toISOString() };
     });
