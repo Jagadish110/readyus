@@ -7,10 +7,21 @@ import { AppError } from '../lib/errors.js';
 const uuid = z.string().uuid();
 const idParams = z.object({ id: uuid });
 
+/**
+ * An Indian mobile number, which the shop and the rider call to confirm and deliver the order. Spaces, dashes
+ * and a +91, 91 or 0 in front are allowed; it is stored as the plain 10 digits.
+ */
+export const mobileNumber = z
+  .string()
+  .trim()
+  .max(20)
+  .transform((value) => value.replace(/[\s()-]/g, '').replace(/^(\+?91|0)(?=\d{10}$)/, ''))
+  .pipe(z.string().regex(/^[6-9]\d{9}$/, 'Enter a 10-digit mobile number so the shop can call you to confirm your order.'));
+
 const addressSchema = z.object({
   label: z.enum(['Home', 'Work', 'Other']),
   recipient: z.string().trim().max(80),
-  phone: z.string().trim().min(10).max(20),
+  phone: mobileNumber,
   line1: z.string().trim().min(3).max(200),
   line2: z.string().trim().max(200),
   landmark: z.string().trim().max(120),

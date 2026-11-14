@@ -75,13 +75,17 @@ export function AddressForm({ startPin, makeDefault, onSaved, onCancel }: Props)
 
     if (!pin) return setError('Set the pin for your door first, using your location or the map.');
     if (line1.trim().length < 3) return setError('Add your flat, house or building and street.');
-    if (phone.replace(/\D/g, '').length < 10) return setError('Add a 10-digit phone number so the rider can reach you.');
+    // The same rule as the server: an Indian mobile, with or without +91 or a leading 0.
+    const mobile = phone.replace(/[\s()-]/g, '').replace(/^(\+?91|0)(?=\d{10}$)/, '');
+    if (!/^[6-9]\d{9}$/.test(mobile)) {
+      return setError('Enter a 10-digit mobile number so the shop can call you to confirm your order.');
+    }
 
     setSaving(true);
     const result = await api<{ address: AddressRow }>('POST', '/v1/addresses', {
       label,
       recipient: recipient.trim(),
-      phone: phone.trim(),
+      phone: mobile,
       line1: line1.trim(),
       line2: line2.trim(),
       landmark: landmark.trim(),
@@ -131,11 +135,17 @@ export function AddressForm({ startPin, makeDefault, onSaved, onCancel }: Props)
           className={FIELD}
           value={phone}
           onChange={(event) => setPhone(event.target.value)}
-          placeholder="Phone number"
+          placeholder="Mobile number"
+          aria-label="Mobile number"
+          aria-describedby="address-phone-why"
           inputMode="tel"
           autoComplete="tel"
+          required
         />
       </div>
+      <p id="address-phone-why" className="-mt-1 px-1 text-xs text-[var(--text-muted)]">
+        The shop may call this number to confirm your order, and the rider to find you.
+      </p>
       <input
         className={FIELD}
         value={line1}

@@ -3,7 +3,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { config } from '../config.js';
 import { requireUser } from '../lib/auth.js';
-import { asUser, databaseMessage, type Q } from '../lib/db.js';
+import { asService, asUser, databaseMessage, type Q } from '../lib/db.js';
 import { AppError } from '../lib/errors.js';
 import { supabase } from '../lib/supabase.js';
 
@@ -435,16 +435,24 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
 
   app.get('/orders', async (request) => {
     const user = await requireUser(request);
-    return asUser(user.id, async (q) => {
+    const { orders, server_now } = await asUser(user.id, async (q) => {
       const shop = await ownShop(q, user.id);
       return {
-        orders: await q.rows(
-          `select o.id, o.order_code, o.status, o.total_paise, o.payment_mode, o.required_online_paise,
+        orders: await q.rows<{ customer_id: string | null } & Record<string, unknown>>(
+          `select o.id, o.order_code, o.status, o.total_paise, o.subtotal_paise, o.delivery_fee_paise, o.payment_mode,
+                  o.required_online_paise, o.customer_id,
                   o.created_at, o.customer_note, o.verified_prepaid_paise, o.refunded_paise, o.refund_target_paise, o.accept_deadline_at, o.pay_deadline_at,
-                  -- Only what the shop needs to hand the order over.
-                  jsonb_build_object('recipient', o.delivery_address -> 'recipient',
-                                     'line1', o.delivery_address -> 'line1',
-                                     'city', o.delivery_address -> 'city') as delivery_address,
+                  -- Where it goes. The full address only while the order is in progress; afterwards the street and city.
+                  case when o.status not in (${ENDED_SQL})
+                       then jsonb_build_object('recipient', o.delivery_address -> 'recipient',
+                                               'line1', o.delivery_address -> 'line1',
+                                               'line2', o.delivery_address -> 'line2',
+                                               'landmark', o.delivery_address -> 'landmark',
+                                               'city', o.delivery_address -> 'city',
+                                               'pincode', o.delivery_address -> 'pincode')
+                       else jsonb_build_object('recipient', o.delivery_address -> 'recipient',
+                                               'line1', o.delivery_address -> 'line1',
+                                               'city', o.delivery_address -> 'city') end as delivery_address,
                   -- The customer's phone and map pin, so the shop can call to confirm (a cash order especially)
                   -- and see where it is going. Only while the order is in progress: once it ends, they are hidden.
                   case when o.status not in (${ENDED_SQL})
@@ -455,7 +463,10 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
                   -- The size or choice and a combo's contents: the kitchen needs both to make the order.
                   coalesce((select jsonb_agg(jsonb_build_object('name', i.name, 'quantity', i.quantity,
                                                                 'variant_label', i.variant_label, 'combo_items', i.combo_items,
-                                                                'extras', i.extras))
+                                                                'extras', i.extras, 'image_url', i.image_url,
+                                                                'unit_price_paise', i.unit_price_paise,
+                                                                'line_total_paise', i.line_total_paise)
+                                      order by i.id)
                             from order_items i where i.order_id = o.id), '[]'::jsonb) as order_items,
                   -- Who is delivering it, once the shop has chosen.
                   (select jsonb_build_object('agent_id', da.agent_id, 'status', da.status,
@@ -470,6 +481,21 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
         server_now: new Date().toISOString()
       };
     });
+
+    // The customer's account name (from Google, or the name they signed up with), shown at the top of each order.
+    // A shop cannot read customer profiles itself, so only the names behind this shop's own orders, fetched
+    // above as the shop, are looked up here, and nothing else from the profile leaves the server.
+    const ids = [...new Set(orders.map((order) => order.customer_id).filter((id): id is string => Boolean(id)))];
+    const names = new Map(
+      ids.length
+        ? (await asService((q) => q.rows<{ id: string; full_name: string }>('select id, full_name from profiles where id = any($1::uuid[])', [ids])))
+            .map((row) => [row.id, row.full_name.trim()] as const)
+        : []
+    );
+    return {
+      orders: orders.map(({ customer_id, ...order }) => ({ ...order, customer_name: (customer_id && names.get(customer_id)) || null })),
+      server_now
+    };
   });
 
   /** Order and money lines for the Payouts page. */

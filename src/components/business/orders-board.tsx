@@ -7,6 +7,9 @@ import { ACCEPT_WINDOW_SECONDS, PAY_WINDOW_SECONDS, STATUS_LABEL, STATUS_TONE, t
 import { Countdown, useSecondsLeft } from '@/components/orders/countdown';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import Image from 'next/image';
+import { Dish } from '@/components/art/dish-photo';
+import { dishForProduct } from '@/components/art/dish-map';
 import { cn, formatPaise } from '@/lib/utils';
 import { comboSummary, extrasSummary } from '@/lib/menu';
 import type { ComboItem, OrderedExtra } from '@/lib/database.types';
@@ -26,11 +29,25 @@ type SellerOrder = {
   pay_deadline_at: string | null;
   created_at: string;
   customer_note: string;
-  delivery_address: { recipient?: string; line1?: string; city?: string };
+  subtotal_paise: number;
+  delivery_fee_paise: number;
+  /** The full address while the order is in progress; afterwards only the street and city. */
+  delivery_address: { recipient?: string; line1?: string; line2?: string; landmark?: string; city?: string; pincode?: string };
+  /** The customer's account name (Google, or the name they signed up with); null if they never gave one. */
+  customer_name?: string | null;
   /** Only while the order is in progress, so the shop can call to confirm and see where it goes. */
   customer_phone?: string | null;
   customer_pin?: { lat: number; lng: number } | null;
-  order_items: Array<{ name: string; quantity: number; variant_label?: string; combo_items?: ComboItem[] | null; extras?: OrderedExtra[] | null }>;
+  order_items: Array<{
+    name: string;
+    quantity: number;
+    variant_label?: string;
+    combo_items?: ComboItem[] | null;
+    extras?: OrderedExtra[] | null;
+    image_url?: string | null;
+    unit_price_paise?: number;
+    line_total_paise?: number;
+  }>;
   /** Who is delivering it, once the shop has chosen. */
   delivery: { agent_id: string; status: 'claimed' | 'picked_up' | 'delivered'; name: string; phone: string } | null;
 };
@@ -573,55 +590,115 @@ function OrderCard({
   // #4d7c0f keeps white text readable (contrast above 5:1); a lighter lime would not.
   const prepaid = fullyPaidOnline(order);
   const muted = prepaid ? 'text-white/85' : 'text-[var(--text-muted)]';
+  const address = order.delivery_address;
+  const name = order.customer_name || address.recipient || 'Customer';
+  // Someone ordering for a friend or family: say who will open the door.
+  const receiver = address.recipient && address.recipient.trim().toLowerCase() !== name.trim().toLowerCase() ? address.recipient : '';
+  const street = [address.line1, address.line2, address.landmark].filter(Boolean).join(', ');
+  const town = [address.city, address.pincode].filter(Boolean).join(' ');
+  const delivery = order.delivery_fee_paise ?? 0;
+
   return (
     <li
       className={cn(
-        'grid gap-3 rounded-[26px] p-5 shadow-sm ring-1',
+        'grid gap-4 rounded-[26px] p-5 shadow-sm ring-1',
         prepaid ? 'bg-[#4d7c0f] text-white ring-[#3f6212]' : 'bg-[var(--surface)] ring-[var(--line)]'
       )}
     >
-      <div className="flex flex-wrap items-start justify-between gap-2">
+      {/* Who and where first, like the cart's shop heading: the name to greet on the phone, the address to check. */}
+      <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="font-display text-base font-extrabold tracking-[-0.025em]">
-            {order.order_code}
-            {prepaid && (
-              <span className="ml-2 inline-block rounded-full bg-white px-2 py-0.5 align-middle text-[0.65rem] font-extrabold tracking-[0.08em] text-[#3f6212] uppercase">
-                Paid online
-              </span>
-            )}
+          <p className={cn('text-[0.64rem] font-bold tracking-[0.14em] uppercase', prepaid ? 'text-white/80' : 'text-[var(--leaf-ink)]')}>
+            {order.order_code} &middot;{' '}
+            {new Date(order.created_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}
           </p>
-          <p className={cn('text-xs', muted)}>
-            {order.delivery_address.recipient || 'Customer'} &middot;{' '}
-            {new Date(order.created_at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })} &middot;{' '}
-            {paymentLabel(order)}
-          </p>
+          <h3 className="truncate font-display text-xl font-extrabold tracking-[-0.03em]">{name}</h3>
+          {(street || town) && (
+            <p className={cn('mt-0.5 text-sm leading-snug', muted)}>
+              {street}
+              {street && town ? ', ' : ''}
+              {town}
+            </p>
+          )}
+          {receiver && <p className={cn('mt-0.5 text-xs font-semibold', muted)}>Deliver to {receiver}</p>}
         </div>
-        <Badge tone={STATUS_TONE[order.status]}>{STATUS_LABEL[order.status]}</Badge>
-      </div>
-      {/* What to make: the size or choice beside each dish, and what each combo includes. */}
-      <ul className="grid gap-1 text-sm">
-        {order.order_items.map((item, index) => (
-          <li key={`${item.name}-${item.variant_label ?? ''}-${index}`}>
-            <span className="font-semibold">
-              {item.quantity} &times; {item.name}
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <Badge tone={STATUS_TONE[order.status]}>{STATUS_LABEL[order.status]}</Badge>
+          {prepaid && (
+            <span className="rounded-full bg-white px-2 py-0.5 text-[0.65rem] font-extrabold tracking-[0.08em] text-[#3f6212] uppercase">
+              Paid online
             </span>
-            {item.variant_label && <span className={muted}> &middot; {item.variant_label}</span>}
-            {item.combo_items?.length ? (
-              <span className={cn('block text-xs', muted)}>Includes {comboSummary(item.combo_items)}</span>
-            ) : null}
-            {item.extras?.length ? <span className="block text-xs font-semibold">{extrasSummary(item.extras)}</span> : null}
+          )}
+        </div>
+      </header>
+
+      {/* What to make, laid out like the cart: photo, dish and size, price and quantity, line total. */}
+      <ul className="grid gap-2.5">
+        {order.order_items.map((item, index) => (
+          <li
+            key={`${item.name}-${item.variant_label ?? ''}-${index}`}
+            className={cn('flex gap-3 rounded-[18px] p-2.5 ring-1', prepaid ? 'bg-white/12 ring-white/20' : 'bg-[var(--tile)] ring-[var(--line)]')}
+          >
+            <span aria-hidden className="relative block size-16 shrink-0 overflow-hidden rounded-[14px] bg-[var(--surface)]">
+              {item.image_url ? (
+                <Image src={item.image_url} alt="" fill sizes="64px" className="object-cover" />
+              ) : (
+                <Dish name={dishForProduct({ id: item.name, name: item.name })} sizes="64px" />
+              )}
+            </span>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <p className="text-[0.92rem] leading-snug font-bold">
+                {item.name}
+                {item.variant_label && <span className={cn('font-semibold', muted)}> &middot; {item.variant_label}</span>}
+              </p>
+              {item.combo_items?.length ? (
+                <p className={cn('text-xs', muted)}>Includes {comboSummary(item.combo_items)}</p>
+              ) : null}
+              {item.extras?.length ? <p className="text-xs font-semibold">{extrasSummary(item.extras)}</p> : null}
+              <div className="mt-auto flex items-end justify-between gap-2 pt-1">
+                <p className={cn('text-sm font-semibold tabular-nums', muted)}>
+                  {item.unit_price_paise !== undefined && `${formatPaise(item.unit_price_paise)} × `}
+                  <span className={cn('font-extrabold', prepaid ? 'text-white' : 'text-[var(--text)]')}>{item.quantity}</span>
+                </p>
+                {item.line_total_paise !== undefined && (
+                  <p className={cn('font-display font-extrabold tabular-nums', prepaid ? 'text-white' : 'text-brand-600')}>
+                    {formatPaise(item.line_total_paise)}
+                  </p>
+                )}
+              </div>
+            </div>
           </li>
         ))}
       </ul>
-      <CustomerContact order={order} prepaid={prepaid} />
+
       {order.customer_note && (
         <p className={cn('rounded-[16px] px-3.5 py-2.5 text-sm', prepaid ? 'bg-white/15' : 'bg-[var(--tile)]')}>
           Note: {order.customer_note}
         </p>
       )}
-      <p className={cn('text-sm font-extrabold tabular-nums', prepaid ? 'text-white' : 'text-brand-600')}>
-        {formatPaise(order.total_paise)}
-      </p>
+
+      <dl className="grid gap-1.5 px-1 text-sm">
+        {order.order_items.length > 1 && order.subtotal_paise !== undefined && (
+          <div className="flex items-center justify-between">
+            <dt className={cn('font-semibold', muted)}>Subtotal</dt>
+            <dd className="font-display font-extrabold tabular-nums">{formatPaise(order.subtotal_paise)}</dd>
+          </div>
+        )}
+        <div className="flex items-center justify-between">
+          <dt className={cn('font-semibold', muted)}>Delivery</dt>
+          <dd className="font-bold">
+            {delivery > 0 ? formatPaise(delivery) : <span className={prepaid ? 'text-white' : 'text-[var(--leaf-ink)]'}>Free</span>}
+          </dd>
+        </div>
+        <div className="flex items-center justify-between">
+          <dt className="font-bold">Total &middot; <span className={cn('font-semibold', muted)}>{paymentLabel(order)}</span></dt>
+          <dd className={cn('font-display text-base font-extrabold tabular-nums', prepaid ? 'text-white' : 'text-brand-600')}>
+            {formatPaise(order.total_paise)}
+          </dd>
+        </div>
+      </dl>
+
+      <CustomerContact order={order} prepaid={prepaid} />
       {note && <p className={cn('text-xs font-semibold', muted)}>{note}</p>}
       {children}
     </li>
@@ -636,7 +713,6 @@ function CustomerContact({ order, prepaid }: { order: SellerOrder; prepaid: bool
   const phone = order.customer_phone;
   const pin = order.customer_pin;
   if (!phone && !pin) return null;
-  const place = [order.delivery_address.line1, order.delivery_address.city].filter(Boolean).join(', ');
   const link = cn(
     'inline-flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-bold ring-1 transition-colors',
     prepaid
@@ -645,7 +721,6 @@ function CustomerContact({ order, prepaid }: { order: SellerOrder; prepaid: bool
   );
   return (
     <div className="grid gap-2">
-      {place && <p className={cn('text-sm', prepaid ? 'text-white/90' : 'text-[var(--text-muted)]')}>{place}</p>}
       <div className="flex flex-wrap items-center gap-2">
         {phone && (
           <a href={`tel:${phone}`} className={link} aria-label={`Call the customer on ${phone}`}>
