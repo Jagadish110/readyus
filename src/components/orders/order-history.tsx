@@ -1,17 +1,32 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import { isActive, STATUS_LABEL, STATUS_TONE, stepOf, TIMELINE, type OrderStatus } from '@/lib/orders/status';
 import { cn, formatPaise } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
+import { NoPhoto } from '@/components/marketplace/no-photo';
 import { PayNow } from './pay-now';
 
 export type ListedOrder = {
   id: string;
+  order_code?: string;
   status: OrderStatus;
+  payment_mode?: 'full_prepaid' | 'normal_cod' | 'cod_partial_prepayment';
+  subtotal_paise?: number;
+  delivery_fee_paise?: number;
   total_paise: number;
+  cancel_reason?: string;
   accepted_at?: string | null;
   pay_deadline_at?: string | null;
   created_at: string;
   seller: { shop_name: string } | null;
-  order_items: Array<{ name: string; quantity: number }>;
+  order_items: Array<{
+    name: string;
+    quantity: number;
+    variant_label?: string;
+    image_url?: string | null;
+    unit_price_paise?: number;
+    line_total_paise?: number;
+  }>;
 };
 
 // This page renders on the server, which does not run on Indian time.
@@ -71,12 +86,12 @@ export function OrderHistory({ orders, serverNow }: { orders: ListedOrder[]; ser
         <section className="animate-rise grid grid-cols-1 gap-5 [animation-delay:60ms]">
           {live.length > 0 && <SectionTitle>Past orders</SectionTitle>}
           {[...days.entries()].map(([key, day]) => (
-            <div key={key} className="grid grid-cols-1 gap-2">
+            <div key={key} className="grid grid-cols-1 gap-2.5">
               <h3 className="px-1 text-sm font-bold text-[var(--text-muted)]">{day.label}</h3>
-              <ul className="divide-y divide-[var(--line)] overflow-hidden rounded-[22px] bg-[var(--surface)] shadow-sm ring-1 ring-[var(--line)]">
+              <ul className="grid grid-cols-1 gap-3">
                 {day.orders.map((order) => (
                   <li key={order.id}>
-                    <PastRow order={order} />
+                    <PastCard order={order} />
                   </li>
                 ))}
               </ul>
@@ -154,40 +169,95 @@ function LiveCard({ order, serverNow }: { order: ListedOrder; serverNow?: string
   );
 }
 
-const MARK = {
-  success: { glyph: '✓', className: 'bg-leaf-600 text-white' },
-  danger: { glyph: '!', className: 'bg-danger/15 text-danger' },
-  neutral: { glyph: '×', className: 'bg-[var(--tile)] text-[var(--text-muted)]' }
+const PAID_BY: Record<NonNullable<ListedOrder['payment_mode']>, string> = {
+  full_prepaid: 'Paid online',
+  normal_cod: 'Cash on delivery',
+  cod_partial_prepayment: 'Part online, part cash'
 };
 
-function PastRow({ order }: { order: ListedOrder }) {
+/** A finished order, laid out like the cart and the shop's order card: the shop, each line, the total. */
+function PastCard({ order }: { order: ListedOrder }) {
   const tone = STATUS_TONE[order.status];
-  const mark = tone === 'success' || tone === 'danger' ? MARK[tone] : MARK.neutral;
   const delivered = order.status === 'delivered';
+  const delivery = order.delivery_fee_paise ?? 0;
   return (
     <Link
       href={`/orders/${order.id}`}
       transitionTypes={['nav-forward']}
-      className="flex items-center gap-3.5 p-4 transition-colors hover:bg-[var(--tile)] focus-visible:bg-[var(--tile)]"
+      className="grid gap-4 rounded-[26px] bg-[var(--surface)] p-5 shadow-sm ring-1 ring-[var(--line)] transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:ring-leaf-400 active:scale-[0.99] active:duration-100"
     >
-      <span aria-hidden className={cn('grid size-9 shrink-0 place-items-center rounded-full text-sm font-extrabold', mark.className)}>
-        {mark.glyph}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-baseline justify-between gap-3">
-          <span className="truncate font-display text-[0.95rem] font-extrabold tracking-[-0.02em]">{order.seller?.shop_name ?? 'Shop'}</span>
-          <span className={cn('shrink-0 text-sm font-bold tabular-nums', !delivered && 'font-semibold text-[var(--text-muted)]')}>
+      <header className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[0.64rem] font-bold tracking-[0.14em] text-[var(--leaf-ink)] uppercase">
+            {order.order_code ? `${order.order_code} · ` : ''}
+            {clock(new Date(order.created_at))}
+          </p>
+          <h4 className="line-clamp-2 font-display text-xl leading-tight font-extrabold tracking-[-0.03em]">{order.seller?.shop_name ?? 'Shop'}</h4>
+        </div>
+        <Badge tone={tone} className="shrink-0">
+          {STATUS_LABEL[order.status]}
+        </Badge>
+      </header>
+
+      <ul className="grid gap-2.5">
+        {order.order_items.map((item, index) => (
+          <li key={`${item.name}-${item.variant_label ?? ''}-${index}`} className="flex gap-3 rounded-[18px] bg-[var(--tile)] p-2.5 ring-1 ring-[var(--line)]">
+            <span aria-hidden className="relative block size-14 shrink-0 overflow-hidden rounded-[14px] bg-[var(--surface)]">
+              {item.image_url ? (
+                <Image src={item.image_url} alt="" fill sizes="56px" className="object-cover" />
+              ) : (
+                <NoPhoto name={item.name} />
+              )}
+            </span>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <p className="line-clamp-2 text-[0.92rem] leading-snug font-bold">
+                {item.name}
+                {item.variant_label && <span className="font-semibold text-[var(--text-muted)]"> &middot; {item.variant_label}</span>}
+              </p>
+              <div className="mt-auto flex items-end justify-between gap-2 pt-1">
+                <p className="text-sm font-semibold text-[var(--text-muted)] tabular-nums">
+                  {item.unit_price_paise !== undefined && `${formatPaise(item.unit_price_paise)} × `}
+                  <span className="font-extrabold text-[var(--text)]">{item.quantity}</span>
+                </p>
+                {item.line_total_paise !== undefined && (
+                  <p className="font-display font-extrabold tabular-nums">{formatPaise(item.line_total_paise)}</p>
+                )}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <dl className="grid gap-1.5 px-1 text-sm">
+        {order.order_items.length > 1 && order.subtotal_paise !== undefined && (
+          <div className="flex items-center justify-between">
+            <dt className="font-semibold text-[var(--text-muted)]">Subtotal</dt>
+            <dd className="font-display font-extrabold tabular-nums">{formatPaise(order.subtotal_paise)}</dd>
+          </div>
+        )}
+        {order.delivery_fee_paise !== undefined && (
+          <div className="flex items-center justify-between">
+            <dt className="font-semibold text-[var(--text-muted)]">Delivery</dt>
+            <dd className="font-bold">{delivery > 0 ? formatPaise(delivery) : <span className="text-[var(--leaf-ink)]">Free</span>}</dd>
+          </div>
+        )}
+        <div className="flex items-center justify-between">
+          <dt className="font-bold">
+            Total
+            {order.payment_mode && <span className="font-semibold text-[var(--text-muted)]"> &middot; {PAID_BY[order.payment_mode]}</span>}
+          </dt>
+          <dd className={cn('font-display text-base font-extrabold tabular-nums', delivered ? 'text-brand-600' : 'text-[var(--text-muted)]')}>
             {formatPaise(order.total_paise)}
-          </span>
-        </span>
-        <span className="mt-0.5 block truncate text-sm text-[var(--text-muted)]">{summaryOf(order)}</span>
-        <span className="mt-0.5 block truncate text-xs font-medium text-[var(--text-muted)]">
-          <span className={cn(tone === 'danger' && 'font-bold text-danger')}>{STATUS_LABEL[order.status]}</span> &middot; {clock(new Date(order.created_at))}
-        </span>
-      </span>
-      <span aria-hidden className="shrink-0 text-xl leading-none text-[var(--text-muted)]">
-        &rsaquo;
-      </span>
+          </dd>
+        </div>
+      </dl>
+
+      <div className="flex items-center justify-between gap-3 border-t border-[var(--line)] pt-3 text-sm">
+        <p className={cn('min-w-0 truncate', tone === 'danger' ? 'font-semibold text-danger' : 'text-[var(--text-muted)]')}>
+          {delivered ? 'Delivered' : order.cancel_reason || STATUS_LABEL[order.status]}
+        </p>
+        <span className="shrink-0 font-bold text-[var(--leaf-ink)]">View order &rsaquo;</span>
+      </div>
     </Link>
   );
 }

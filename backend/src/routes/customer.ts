@@ -339,9 +339,15 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
     const user = await requireUser(request);
     return asUser(user.id, async (q) => ({
       orders: await q.rows(
-        `select o.id, o.order_code, o.status, o.total_paise, o.accepted_at, o.pay_deadline_at, o.created_at,
+        `select o.id, o.order_code, o.status, o.payment_mode, o.subtotal_paise, o.delivery_fee_paise, o.total_paise,
+                o.cancel_reason, o.accepted_at, o.pay_deadline_at, o.created_at,
                 jsonb_build_object('shop_name', s.shop_name) as seller,
-                coalesce((select jsonb_agg(jsonb_build_object('name', i.name, 'quantity', i.quantity))
+                -- Enough to show each line as the cart does: photo, size, price and quantity.
+                coalesce((select jsonb_agg(jsonb_build_object('name', i.name, 'quantity', i.quantity,
+                                                              'variant_label', i.variant_label, 'image_url', i.image_url,
+                                                              'unit_price_paise', i.unit_price_paise,
+                                                              'line_total_paise', i.line_total_paise)
+                                    order by i.id)
                           from order_items i where i.order_id = o.id), '[]'::jsonb) as order_items
          from orders o left join sellers s on s.id = o.seller_id
          where o.customer_id = $1
