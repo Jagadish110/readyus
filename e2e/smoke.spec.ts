@@ -10,7 +10,10 @@ const PEOPLE = {
 /** Signs the browser in as one of the seeded people, the way Supabase's own cookie would. */
 async function signInAs(context: BrowserContext, who: keyof typeof PEOPLE) {
   const u = PEOPLE[who];
-  const jwt = `${b64url('{"alg":"HS256","typ":"JWT"}')}.${b64url(JSON.stringify({ sub: u.id, role: 'authenticated', exp: 4102444800 }))}.sig-${u.token}`;
+  // The signature only has to carry the stub's token name, but it must decode as base64url: the website's
+  // getClaims() check rejects a token whose parts do not, before it ever asks the sign-in stub.
+  const signature = `sig-${u.token}`.padEnd(Math.ceil((u.token.length + 4) / 4) * 4, 'A');
+  const jwt = `${b64url('{"alg":"HS256","typ":"JWT"}')}.${b64url(JSON.stringify({ sub: u.id, role: 'authenticated', exp: 4102444800 }))}.${signature}`;
   const session = {
     access_token: jwt, refresh_token: 'r', token_type: 'bearer', expires_in: 3600, expires_at: 4102444800,
     user: { id: u.id, email: u.email, aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-01-01T00:00:00Z' }
@@ -53,6 +56,17 @@ test.describe('shop owner', () => {
     await expect(page.getByRole('heading', { name: /orders/i }).first()).toBeVisible({ timeout: 15_000 });
     await page.goto('/business/billing');
     await expect(page.getByRole('heading', { name: 'Your plan' })).toBeVisible();
+  });
+});
+
+test.describe('shop calls the customer', () => {
+  test('a new order shows Call customer and See location', async ({ context, page }) => {
+    await signInAs(context, 'owner');
+    await page.goto('/business/orders');
+    const call = page.getByRole('link', { name: /Call the customer on/ }).first();
+    await expect(call).toBeVisible({ timeout: 15_000 });
+    await expect(call).toHaveAttribute('href', /^tel:/);
+    await expect(page.getByRole('link', { name: 'See location' }).first()).toHaveAttribute('href', /google\.com\/maps/);
   });
 });
 

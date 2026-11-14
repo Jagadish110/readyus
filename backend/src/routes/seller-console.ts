@@ -33,6 +33,9 @@ async function ownShop(q: Q, userId: string): Promise<Shop> {
   return shop;
 }
 
+// Orders that are over. A fixed list, never built from input.
+const ENDED_SQL = `'delivered', 'rejected', 'cancelled_by_customer', 'cancelled', 'timed_out', 'delivery_failed'`;
+
 const KNOWN = /^[A-Z][A-Z_]+(:.*)?$/s;
 function ruleError(error: unknown): never {
   const message = databaseMessage(error);
@@ -442,6 +445,13 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
                   jsonb_build_object('recipient', o.delivery_address -> 'recipient',
                                      'line1', o.delivery_address -> 'line1',
                                      'city', o.delivery_address -> 'city') as delivery_address,
+                  -- The customer's phone and map pin, so the shop can call to confirm (a cash order especially)
+                  -- and see where it is going. Only while the order is in progress: once it ends, they are hidden.
+                  case when o.status not in (${ENDED_SQL})
+                       then nullif(o.delivery_address ->> 'phone', '') end as customer_phone,
+                  case when o.status not in (${ENDED_SQL})
+                       then jsonb_build_object('lat', st_y(o.delivery_location::geometry),
+                                               'lng', st_x(o.delivery_location::geometry)) end as customer_pin,
                   -- The size or choice and a combo's contents: the kitchen needs both to make the order.
                   coalesce((select jsonb_agg(jsonb_build_object('name', i.name, 'quantity', i.quantity,
                                                                 'variant_label', i.variant_label, 'combo_items', i.combo_items,

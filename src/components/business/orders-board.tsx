@@ -27,6 +27,9 @@ type SellerOrder = {
   created_at: string;
   customer_note: string;
   delivery_address: { recipient?: string; line1?: string; city?: string };
+  /** Only while the order is in progress, so the shop can call to confirm and see where it goes. */
+  customer_phone?: string | null;
+  customer_pin?: { lat: number; lng: number } | null;
   order_items: Array<{ name: string; quantity: number; variant_label?: string; combo_items?: ComboItem[] | null; extras?: OrderedExtra[] | null }>;
   /** Who is delivering it, once the shop has chosen. */
   delivery: { agent_id: string; status: 'claimed' | 'picked_up' | 'delivered'; name: string; phone: string } | null;
@@ -610,6 +613,7 @@ function OrderCard({
           </li>
         ))}
       </ul>
+      <CustomerContact order={order} prepaid={prepaid} />
       {order.customer_note && (
         <p className={cn('rounded-[16px] px-3.5 py-2.5 text-sm', prepaid ? 'bg-white/15' : 'bg-[var(--tile)]')}>
           Note: {order.customer_note}
@@ -621,5 +625,44 @@ function OrderCard({
       {note && <p className={cn('text-xs font-semibold', muted)}>{note}</p>}
       {children}
     </li>
+  );
+}
+
+/**
+ * Call the customer and see where the order is going. Most useful for a cash order: a quick call before
+ * cooking confirms it is real. Shown only while the order is in progress (the server sends nothing after).
+ */
+function CustomerContact({ order, prepaid }: { order: SellerOrder; prepaid: boolean }) {
+  const phone = order.customer_phone;
+  const pin = order.customer_pin;
+  if (!phone && !pin) return null;
+  const place = [order.delivery_address.line1, order.delivery_address.city].filter(Boolean).join(', ');
+  const link = cn(
+    'inline-flex h-10 items-center gap-1.5 rounded-full px-4 text-sm font-bold ring-1 transition-colors',
+    prepaid
+      ? 'bg-white text-[#3f6212] ring-white hover:bg-white/90'
+      : 'bg-[var(--leaf-soft)] text-[var(--leaf-ink)] ring-[var(--line)] hover:bg-[var(--tile)]'
+  );
+  return (
+    <div className="grid gap-2">
+      {place && <p className={cn('text-sm', prepaid ? 'text-white/90' : 'text-[var(--text-muted)]')}>{place}</p>}
+      <div className="flex flex-wrap items-center gap-2">
+        {phone && (
+          <a href={`tel:${phone}`} className={link} aria-label={`Call the customer on ${phone}`}>
+            Call customer <span className="font-semibold tabular-nums opacity-80">{phone}</span>
+          </a>
+        )}
+        {pin && (
+          <a
+            href={`https://www.google.com/maps/search/?api=1&query=${pin.lat},${pin.lng}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={link}
+          >
+            See location
+          </a>
+        )}
+      </div>
+    </div>
   );
 }
