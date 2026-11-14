@@ -13,6 +13,8 @@ export function LocationGate({ children }: { children: React.ReactNode }) {
     location,
     ready,
     locating,
+    detecting,
+    skipDetecting,
     error,
     useCurrentLocation: requestCurrentLocation,
     useSampleLocation: pickSampleLocation
@@ -25,6 +27,29 @@ export function LocationGate({ children }: { children: React.ReactNode }) {
         <div className="skeleton h-44 rounded-[26px]" />
         <div className="skeleton h-44 rounded-[26px]" />
       </div>
+    );
+  }
+
+  // As the site opens it reads where the phone is now. Until then, do not show the shops of a place saved
+  // on an earlier visit, which may be another town.
+  if (detecting) {
+    return (
+      <section role="status" className="animate-rise mx-auto mt-10 max-w-md text-center">
+        <span className="mx-auto grid size-16 animate-pulse place-items-center rounded-full bg-[var(--leaf-soft)] text-[var(--leaf-ink)] ring-1 ring-[var(--line)]">
+          <PinIcon className="size-7" />
+        </span>
+        <h1 className="mt-5 font-display text-[1.6rem] leading-tight font-extrabold tracking-[-0.04em]">
+          Finding shops near you
+        </h1>
+        <p className="mx-auto mt-2 max-w-[36ch] text-sm leading-relaxed text-[var(--text-muted)]">
+          Allow location if your browser asks, so we show the shops that can deliver to where you are now.
+        </p>
+        {location && (
+          <Button size="sm" variant="leaf-outline" className="mt-5" onClick={skipDetecting}>
+            Show shops near {location.label.split(',')[0]} instead
+          </Button>
+        )}
+      </section>
     );
   }
 

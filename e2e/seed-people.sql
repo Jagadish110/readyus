@@ -28,3 +28,5 @@ select set_config('request.jwt.claims', '{"sub":"11111111-1111-4111-8111-1111111
 select public.place_order('22222222-2222-4222-8222-222222222222',
                           (select id from public.sellers where shop_name = 'Paradise Corner Biryani'), false, '');
 commit;
+-- Shops get 5 minutes to accept; the build before the tests can take longer, so this order waits a day.
+update public.orders set accept_deadline_at = now() + interval '1 day' where status = 'pending';

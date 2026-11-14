@@ -40,7 +40,7 @@ function useTuckOnScroll() {
 }
 
 export function AppHeader() {
-  const { location, setRadius } = useLocation();
+  const { location, setRadius, detecting } = useLocation();
   const { count, ready } = useCart();
   // The badge bounces when something lands in the cart.
   const cartPulse = useChangePulse(count, ready);
@@ -84,7 +84,7 @@ export function AppHeader() {
                 )}
               </span>
               <span className="truncate text-[0.9rem] font-bold" title={location?.label}>
-                {location ? location.label.split(',')[0] : 'Choose your location'}
+                {detecting ? 'Finding your location…' : location ? location.label.split(',')[0] : 'Choose your location'}
               </span>
             </span>
             {location && (
