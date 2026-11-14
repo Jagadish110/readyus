@@ -1,16 +1,19 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { api } from '@/lib/api/client';
+import { useLocation } from '@/lib/state/location';
+import { AddressForm } from '@/components/checkout/address-form';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 
 type Address = { id: string; label: string; recipient: string; phone: string; line1: string; line2: string; landmark: string; city: string; pincode: string; is_default: boolean };
 
-/** The addresses a customer has saved: choose the usual one, or remove one. New ones are added at checkout, with the map pin. */
+/** The addresses a customer has saved: add one (with its map pin), choose the usual one, or remove one. */
 export function AddressBook() {
+  const { location } = useLocation();
   const [addresses, setAddresses] = useState<Address[] | null>(null);
+  const [adding, setAdding] = useState(false);
   const [busy, setBusy] = useState('');
   const [error, setError] = useState('');
 
@@ -40,7 +43,7 @@ export function AddressBook() {
         <div className="skeleton h-16 rounded-[18px]" />
       ) : addresses.length === 0 ? (
         <p className="text-sm text-[var(--text-muted)]">
-          None yet. You add an address, with its map pin, the first time you check out.
+          None yet. Add one below, with its map pin, so checkout is quicker.
         </p>
       ) : (
         <ul className="grid gap-2.5">
@@ -67,9 +70,22 @@ export function AddressBook() {
           ))}
         </ul>
       )}
-      <Link href="/checkout" className="inline-flex h-11 w-fit items-center text-sm font-bold text-[var(--leaf-ink)] hover:underline">
-        Add a new address at checkout
-      </Link>
+      {adding ? (
+        // The same form as checkout: the map starts where the customer is browsing from.
+        <AddressForm
+          startPin={location ? { lat: location.lat, lng: location.lng } : null}
+          makeDefault={!addresses?.length}
+          onSaved={() => {
+            setAdding(false);
+            void load();
+          }}
+          onCancel={() => setAdding(false)}
+        />
+      ) : (
+        <Button size="sm" variant="leaf-outline" className="w-fit" onClick={() => setAdding(true)}>
+          + Add a new address
+        </Button>
+      )}
     </section>
   );
 }

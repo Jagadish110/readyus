@@ -1,12 +1,11 @@
 import Image from 'next/image';
 import type { NearbySeller } from '@/lib/database.types';
-import { Dish } from '@/components/art/dish-photo';
-import { dishForSeller } from '@/components/art/dish-map';
 import { cn } from '@/lib/utils';
+import { NoPhoto } from './no-photo';
 
 /**
- * The picture for a shop: its own banner or photo when the owner uploaded one,
- * otherwise a stand-in dish. Fills its container, which must be positioned.
+ * The picture for a shop: its own banner or photo when the owner uploaded one, otherwise its initial on a
+ * plain tile (never a stock photo). Fills its container, which must be positioned.
  */
 export function ShopArt({
   shop,
@@ -23,5 +22,5 @@ export function ShopArt({
   if (own) {
     return <Image src={own} alt="" fill sizes={sizes} priority={priority} className={cn('object-cover', className)} />;
   }
-  return <Dish name={dishForSeller(shop)} sizes={sizes} priority={priority} className={className} />;
+  return <NoPhoto name={shop.shop_name} className={className} />;
 }

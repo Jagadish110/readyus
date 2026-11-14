@@ -156,7 +156,7 @@ async function ShopDetail({ id }: { id: string }) {
               <SectionTitle>
                 {sectionName(key)} <span className="text-base font-bold text-[var(--text-muted)]">({items.length})</span>
               </SectionTitle>
-              <div className="grid gap-3 lg:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                 {items.map((product) => (
                   <ProductCard key={product.id} product={product} showShop={false} layout="row" />
                 ))}

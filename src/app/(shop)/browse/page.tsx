@@ -14,7 +14,6 @@ import { Dish, type PhotoKey } from '@/components/art/dish-photo';
 import { Reveal } from '@/components/motion/reveal';
 import { SectionTitle } from '@/components/ui/card';
 import { ButtonLink } from '@/components/ui/button';
-import { SampleAreaButton } from '@/components/shell/sample-area-button';
 
 const DIET_LABEL: Record<string, string> = { veg: 'Veg', non_veg: 'Non-veg', egg: 'Egg' };
 
@@ -56,8 +55,6 @@ async function BrowseContent({ mode, category, diet }: { mode: ListingMode; cate
   // The gate renders the picker; this only runs once a pin exists.
   if (!location) return <BrowseSkeleton />;
 
-  if (mode === 'items') return <ItemsComingSoon radiusKm={location.radiusKm} />;
-
   const query = {
     lat: location.lat,
     lng: location.lng,
@@ -80,7 +77,11 @@ async function BrowseContent({ mode, category, diet }: { mode: ListingMode; cate
   const focused = Boolean(category || diet);
   const nothingNearby = focused ? false : !shops.length && !products.length;
 
-  const rail = foodCategoryRail(categories);
+  const food = mode === 'food';
+  // Words for what this tab lists: kitchens and dishes for food, shops and items for groceries.
+  const place = (n: number) => (food ? (n === 1 ? 'kitchen' : 'kitchens') : n === 1 ? 'shop' : 'shops');
+  const thing = (n: number) => (food ? (n === 1 ? 'dish' : 'dishes') : n === 1 ? 'item' : 'items');
+  const rail = food ? foodCategoryRail(categories) : categories;
   const openCount = shops.filter((shop) => shop.business_open).length;
   // Open kitchens first; each group stays nearest first, as the server sorted it.
   const shopsOpenFirst = [...shops].sort((a, b) => Number(b.business_open) - Number(a.business_open));
@@ -102,9 +103,9 @@ async function BrowseContent({ mode, category, diet }: { mode: ListingMode; cate
       <BrowseHero
         mode={mode}
         radiusKm={location.radiusKm}
-        title={mealPrompt()}
-        dishes={['biryani', 'chai', 'dosa']}
-        steam
+        title={food ? mealPrompt() : 'Everyday essentials'}
+        dishes={food ? ['biryani', 'chai', 'dosa'] : ['kirana', 'p-fruit-apple', 'p-veg-tomato']}
+        steam={food}
         status={
           <>
             {openCount > 0 && (
@@ -114,14 +115,14 @@ async function BrowseContent({ mode, category, diet }: { mode: ListingMode; cate
               </span>
             )}
             {shops.length === 0
-              ? 'No kitchens in range yet'
+              ? `No ${place(2)} in range yet`
               : openCount > 0
-                ? `${openCount} ${openCount === 1 ? 'kitchen' : 'kitchens'} open now, ${shops.length} nearby`
-                : `${shops.length} ${shops.length === 1 ? 'kitchen' : 'kitchens'} nearby, all closed right now`}
+                ? `${openCount} ${place(openCount)} open now, ${shops.length} nearby`
+                : `${shops.length} ${place(shops.length)} nearby, all closed right now`}
           </>
         }
       >
-        <SearchPrompt />
+        <SearchPrompt mode={mode} />
       </BrowseHero>
 
       {/* Stays in reach while scrolling the menu. On a phone it sits at the very top, where the header slides away. */}
@@ -130,24 +131,26 @@ async function BrowseContent({ mode, category, diet }: { mode: ListingMode; cate
           categories={rail}
           active={category}
           leading={
-            <>
-              <DietFilter active={diet} />
-              <span aria-hidden className="h-6 w-px shrink-0 bg-[var(--line)]" />
-            </>
+            food ? (
+              <>
+                <DietFilter active={diet} />
+                <span aria-hidden className="h-6 w-px shrink-0 bg-[var(--line)]" />
+              </>
+            ) : undefined
           }
         />
       </div>
 
       {nothingNearby ? (
-        <EmptyRadius radiusKm={location.radiusKm} />
+        <EmptyRadius radiusKm={location.radiusKm} food={food} />
       ) : (
         <>
           {!focused && shops.length > 0 && (
             <section className="grid grid-cols-1 gap-4">
               <div className="animate-rise flex items-baseline justify-between gap-3 [animation-delay:120ms]">
-                <SectionTitle>Kitchens near you</SectionTitle>
+                <SectionTitle>{food ? 'Kitchens near you' : 'Shops near you'}</SectionTitle>
                 <span className="shrink-0 text-xs font-bold text-[var(--text-muted)]">
-                  {shops.length} {shops.length === 1 ? 'kitchen' : 'kitchens'}
+                  {shops.length} {place(shops.length)}
                 </span>
               </div>
               {/* A swipeable row on a phone, so the menu below stays a thumb's reach away; a grid on wider screens. */}
@@ -167,15 +170,17 @@ async function BrowseContent({ mode, category, diet }: { mode: ListingMode; cate
 
           {products.length === 0 && !focused && (
             <p className="animate-rise rounded-[18px] bg-[var(--tile)] px-4 py-3 text-sm text-[var(--text-muted)]">
-              These shops have not listed any food for ordering yet. It will appear here as soon as they do.
+              These shops have not listed any {food ? 'food' : 'items'} for ordering yet. It will appear here as soon as they do.
             </p>
           )}
 
           {focused && products.length === 0 && (
             <div className="animate-rise mx-auto grid max-w-md justify-items-center gap-3 rounded-[26px] bg-[var(--surface)] p-7 text-center shadow-sm ring-1 ring-[var(--line)]">
               <h2 className="font-display text-lg font-extrabold tracking-[-0.03em]">Nothing matches that nearby</h2>
-              <p className="text-sm text-[var(--text-muted)]">Try another filter, or see everything these kitchens are serving.</p>
-              <ClearFilters />
+              <p className="text-sm text-[var(--text-muted)]">
+                Try another filter, or see everything these {place(2)} {food ? 'are serving' : 'have'}.
+              </p>
+              <ClearFilters mode={mode} />
             </div>
           )}
 
@@ -183,15 +188,15 @@ async function BrowseContent({ mode, category, diet }: { mode: ListingMode; cate
             <section className="grid grid-cols-1 gap-4">
               <Reveal as="div" className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-baseline gap-2.5">
-                  <SectionTitle>{focused ? filterTitle : 'On the menu today'}</SectionTitle>
+                  <SectionTitle>{focused ? filterTitle : food ? 'On the menu today' : 'In stock near you'}</SectionTitle>
                   <span className="shrink-0 text-xs font-bold text-[var(--text-muted)]">
-                    {products.length} {products.length === 1 ? 'dish' : 'dishes'}
+                    {products.length} {thing(products.length)}
                   </span>
                 </div>
-                {focused && <ClearFilters />}
+                {focused && <ClearFilters mode={mode} />}
               </Reveal>
               {/* Phones get full-width menu rows (name, shop and price fit on one line); wider screens get photo cards. */}
-              <div className="grid gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">
                 {products.map((product, index) => (
                   <Reveal key={product.id} delay={(index % 4) * 55}>
                     <div className="sm:hidden">
@@ -211,10 +216,10 @@ async function BrowseContent({ mode, category, diet }: { mode: ListingMode; cate
   );
 }
 
-function ClearFilters() {
+function ClearFilters({ mode }: { mode: ListingMode }) {
   return (
     <Link
-      href="/browse?mode=food"
+      href={`/browse?mode=${mode}`}
       scroll={false}
       transitionTypes={['nav-filter']}
       className="inline-flex h-11 shrink-0 items-center rounded-full bg-[var(--leaf-soft)] px-4 text-sm font-bold text-[var(--leaf-ink)] transition-transform active:scale-[0.96]"
@@ -290,42 +295,17 @@ function HeroDishes({ dishes: [big, top, bottom], steam }: { dishes: [PhotoKey, 
   );
 }
 
-/** Nothing can be ordered from Items yet, so the tab says so and lists nothing. */
-function ItemsComingSoon({ radiusKm }: { radiusKm: number }) {
-  return (
-    <div className="min-w-0">
-      <BrowseHero
-        mode="items"
-        radiusKm={radiusKm}
-        title="Coming soon"
-        dishes={['kirana', 'p-fruit-apple', 'p-veg-tomato']}
-        status="Groceries and daily needs from shops near you will be here soon."
-      >
-        <ButtonLink
-          href="/browse?mode=food"
-          scroll={false}
-          transitionTypes={['nav-filter']}
-          variant="leaf-outline"
-          size="lg"
-          className="border-white bg-white text-leaf-700 hover:border-white hover:bg-white/90"
-        >
-          Browse food for now
-        </ButtonLink>
-      </BrowseHero>
-    </div>
-  );
-}
-
-function EmptyRadius({ radiusKm }: { radiusKm: number }) {
+function EmptyRadius({ radiusKm, food }: { radiusKm: number; food: boolean }) {
   return (
     <div className="animate-rise mx-auto max-w-md rounded-[30px] bg-[var(--surface)] p-8 text-center shadow-sm ring-1 ring-[var(--line)]">
-      <h2 className="font-display text-xl font-extrabold tracking-[-0.035em]">Nothing within {radiusKm} km yet</h2>
+      <h2 className="font-display text-xl font-extrabold tracking-[-0.035em]">
+        No {food ? 'restaurants' : 'shops'} near you yet
+      </h2>
       <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
-        Localty never shows shops that cannot reach you. Widen your radius from the header, or check back as more shops
-        join your area.
+        There are no {food ? 'restaurants' : 'shops'} on Localty within {radiusKm} km of your location right now. Try a
+        wider radius from the header, or check back soon as more shops join.
       </p>
       <div className="mt-5 flex flex-wrap justify-center gap-2.5">
-        <SampleAreaButton />
         <ButtonLink href="/business/apply" variant="leaf-soft">
           Run a shop here? List it
         </ButtonLink>

@@ -226,7 +226,7 @@ export function CheckoutView() {
                   active={choice === 'cod'}
                   onPick={() => pick('cod')}
                   title="Cash on delivery"
-                  hint="Pay the rider in cash when your food arrives."
+                  hint="Pay the rider in cash when your order arrives."
                 />
               )}
             </div>
@@ -241,7 +241,7 @@ export function CheckoutView() {
           {choice === 'cod' && (
             <p className="mt-3 rounded-[18px] bg-[var(--leaf-soft)] px-4 py-3 text-xs leading-relaxed font-medium text-[var(--leaf-ink)] ring-1 ring-[var(--line)]">
               Keep {formatRupees(total)} ready{groups.length > 1 ? ' across your orders' : ''}. The shop confirms your order
-              before it starts cooking.
+              before it starts preparing it.
             </p>
           )}
         </section>

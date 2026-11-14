@@ -6,13 +6,12 @@ import { getNearbyProducts, getProductById, getSellerById } from '@/lib/data/mar
 import { LocationGate } from '@/components/shell/location-gate';
 import { ProductCard } from '@/components/marketplace/product-card';
 import { ProductBuy } from '@/components/marketplace/add-to-cart-panel';
-import { Dish } from '@/components/art/dish-photo';
-import { dishForProduct } from '@/components/art/dish-map';
 import { Badge, VegMark } from '@/components/ui/badge';
 import { SectionTitle } from '@/components/ui/card';
 import { ClockIcon, StarIcon } from '@/components/shell/icons';
 import { deliveryMinutes, discountPercent, formatRupees } from '@/lib/utils';
 import { describeDelivery } from '@/lib/shop-terms';
+import { NoPhoto } from '@/components/marketplace/no-photo';
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -68,7 +67,7 @@ async function ProductDetail({ id }: { id: string }) {
               className="object-cover"
             />
           ) : (
-            <Dish name={dishForProduct(product)} priority sizes="(max-width: 768px) 100vw, 480px" />
+            <NoPhoto name={product.name} />
           )}
           {off && (
             <span className="absolute top-4 left-4">
@@ -166,7 +165,7 @@ async function ProductDetail({ id }: { id: string }) {
       {others.length > 0 && (
         <section className="grid gap-4">
           <SectionTitle>More from {product.seller_name}</SectionTitle>
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {others.map((item) => (
               <ProductCard key={item.id} product={item} showShop={false} layout="row" />
             ))}

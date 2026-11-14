@@ -6,14 +6,13 @@ import Link from 'next/link';
 import type { NearbyProduct } from '@/lib/database.types';
 import { useCart } from '@/lib/state/cart';
 import { VegMark } from '@/components/ui/badge';
-import { Dish } from '@/components/art/dish-photo';
-import { dishForProduct } from '@/components/art/dish-map';
 import { cn, deliveryMinutes, discountPercent, formatDistance, formatRupees } from '@/lib/utils';
 import { comboSummary, variantCount } from '@/lib/menu';
 import { MinusIcon, PlusIcon, StarIcon } from '@/components/shell/icons';
 import { useChangePulse } from '@/components/motion/use-change-pulse';
 import { RollingNumber } from '@/components/motion/rolling-number';
 import { VariantSheet } from './variant-sheet';
+import { NoPhoto } from './no-photo';
 
 /** Opening a dish or its shop goes one level deeper: the page slides in from the right. */
 const FORWARD = ['nav-forward'];
@@ -50,7 +49,7 @@ export function ProductCard({ product, showShop = true, layout = 'card' }: Props
     product.images?.[0] ? (
       <Image src={product.images[0]} alt={product.name} fill sizes={sizes} className="object-cover" />
     ) : (
-      <Dish name={dishForProduct(product)} className="tile-art" sizes={sizes} />
+      <NoPhoto name={product.name} />
     );
 
   const price = (

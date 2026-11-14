@@ -13,10 +13,10 @@ import { Button, ButtonLink } from '@/components/ui/button';
 import { VegMark } from '@/components/ui/badge';
 import { Eyebrow } from '@/components/ui/card';
 import { Dish } from '@/components/art/dish-photo';
-import { dishForProduct } from '@/components/art/dish-map';
 import { MinusIcon, PlusIcon } from '@/components/shell/icons';
 import { RollingNumber } from '@/components/motion/rolling-number';
 import { cn, formatRupees } from '@/lib/utils';
+import { NoPhoto } from '@/components/marketplace/no-photo';
 
 const PAY_LABEL = { online: 'Pay online', cod: 'Cash on delivery' } as const;
 
@@ -143,7 +143,7 @@ export function CartView() {
                     {line.image ? (
                       <Image src={line.image} alt="" fill sizes="84px" className="object-cover" />
                     ) : (
-                      <Dish name={dishForProduct({ id: line.productId, name: line.name })} sizes="84px" />
+                      <NoPhoto name={line.name} />
                     )}
                   </span>
 

@@ -103,3 +103,73 @@ test.describe('admin', () => {
     await expect(customer.getByText('Paradise Corner Biryani').first()).toBeVisible({ timeout: 15_000 });
   });
 });
+
+test.describe('groceries and everyday fixes', () => {
+  const nearShops = { latitude: 17.3855, longitude: 78.488, accuracy: 20 };
+
+  test('a customer browses a grocery shop and places an order', async ({ browser }) => {
+    const context = await browser.newContext({ geolocation: nearShops, permissions: ['geolocation'] });
+    await signInAs(context, 'customer');
+    const page = await context.newPage();
+    await page.goto('/browse?mode=items');
+    await expect(page.getByText('Shops near you')).toBeVisible({ timeout: 15_000 });
+    await page.getByText('Balaji Kirana Store').first().click();
+    await page.waitForURL(/\/shop\//);
+    await page.getByRole('button', { name: /^add/i }).first().click();
+    await page.getByRole('link', { name: /view cart/i }).click();
+    await page.waitForURL(/\/cart/);
+    // Above the shop's minimum order.
+    await page.getByRole('button', { name: /^Add one/ }).first().click();
+    await page.getByRole('button', { name: /^Add one/ }).first().click();
+    // The cart places the order itself, to the saved address. This shop takes cash on delivery only.
+    await page.getByRole('button', { name: /^Place order/ }).click();
+    await page.waitForURL(/\/orders\//, { timeout: 20_000 });
+    await expect(page.getByText(/Waiting for Balaji Kirana Store/)).toBeVisible();
+    await context.close();
+  });
+
+  test('with no shops nearby, the customer is told so plainly', async ({ browser }) => {
+    const context = await browser.newContext({ geolocation: { latitude: 14.4426, longitude: 79.9865, accuracy: 20 }, permissions: ['geolocation'] });
+    const page = await context.newPage();
+    await page.goto('/browse');
+    await expect(page.getByText('No restaurants near you yet')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('See sample shops')).toHaveCount(0);
+    await context.close();
+  });
+
+  test('a customer adds an address from the account page', async ({ browser }) => {
+    const context = await browser.newContext({ geolocation: nearShops, permissions: ['geolocation'] });
+    await signInAs(context, 'customer');
+    const page = await context.newPage();
+    await page.goto('/account');
+    await page.getByRole('button', { name: '+ Add a new address' }).click();
+    await page.getByPlaceholder('Name of who will receive').fill('Asha Reddy');
+    await page.getByLabel('Mobile number').fill('12345');
+    await page.getByPlaceholder('Flat / house no., building, street').fill('22 Lake View Road');
+    await page.getByRole('button', { name: 'Save address' }).click();
+    await expect(page.getByText(/10-digit mobile number/)).toBeVisible();
+    await page.getByLabel('Mobile number').fill('+91 98765 43210');
+    await page.getByRole('button', { name: 'Save address' }).click();
+    await expect(page.getByText('22 Lake View Road')).toBeVisible({ timeout: 10_000 });
+    await context.close();
+  });
+
+  test('tapping Save several times on a slow connection makes one product', async ({ context, page }) => {
+    await signInAs(context, 'owner');
+    // Like the server waking up: each product save takes 3 seconds.
+    await page.route('**/v1/seller/products', async (route) => {
+      if (route.request().method() === 'POST') await new Promise((resolve) => setTimeout(resolve, 3_000));
+      await route.continue();
+    });
+    await page.goto('/business/products/new');
+    await page.getByLabel('Name').fill('Triple Tap Paneer');
+    await page.getByLabel('Price (₹)').fill('180');
+    await page.getByLabel('Category').selectOption({ index: 1 });
+    const save = page.locator('button[type="submit"]');
+    await save.click();
+    await save.click({ force: true, timeout: 2_000 }).catch(() => undefined);
+    await save.click({ force: true, timeout: 2_000 }).catch(() => undefined);
+    await page.waitForURL(/\/business\/products$/, { timeout: 20_000 });
+    await expect(page.getByText('Triple Tap Paneer')).toHaveCount(1);
+  });
+});

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useRef } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api/client';
@@ -58,6 +58,7 @@ export function ProductForm({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const submitting = useRef(false);
 
   const [mode, setMode] = useState<'food' | 'items'>(product?.listing_mode ?? defaultMode);
   const [name, setName] = useState(product?.name ?? '');
@@ -203,8 +204,16 @@ export function ProductForm({
       noValidate
       onSubmit={(event) => {
         event.preventDefault();
-        startTransition(() => {
-          void submit();
+        // One save at a time. The transition waits for the request, so the button stays busy until it is
+        // done: tapping Save again while a slow request runs used to create the product several times.
+        if (submitting.current) return;
+        submitting.current = true;
+        startTransition(async () => {
+          try {
+            await submit();
+          } finally {
+            submitting.current = false;
+          }
         });
       }}
     >
@@ -442,7 +451,7 @@ export function ProductForm({
       )}
 
       <div className="flex flex-wrap gap-3">
-        <Button type="submit" variant="leaf" loading={pending} disabled={uploading}>
+        <Button type="submit" variant="leaf" loading={pending} disabled={uploading || pending}>
           {product ? 'Save changes' : 'Add to menu'}
         </Button>
         <ButtonLink href="/business/products" variant="leaf-outline">

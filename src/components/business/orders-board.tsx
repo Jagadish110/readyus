@@ -8,12 +8,11 @@ import { Countdown, useSecondsLeft } from '@/components/orders/countdown';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
-import { Dish } from '@/components/art/dish-photo';
-import { dishForProduct } from '@/components/art/dish-map';
 import { cn, formatPaise } from '@/lib/utils';
 import { comboSummary, extrasSummary } from '@/lib/menu';
 import type { ComboItem, OrderedExtra } from '@/lib/database.types';
 import { CancelBox, FailBox, IssuesList, RefundForm } from './order-exits';
+import { NoPhoto } from '@/components/marketplace/no-photo';
 
 type SellerOrder = {
   id: string;
@@ -643,7 +642,7 @@ function OrderCard({
               {item.image_url ? (
                 <Image src={item.image_url} alt="" fill sizes="64px" className="object-cover" />
               ) : (
-                <Dish name={dishForProduct({ id: item.name, name: item.name })} sizes="64px" />
+                <NoPhoto name={item.name} />
               )}
             </span>
             <div className="flex min-w-0 flex-1 flex-col">

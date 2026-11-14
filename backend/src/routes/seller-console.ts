@@ -373,6 +373,20 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
     return asUser(user.id, async (q) => {
       const shop = await ownShop(q, user.id);
       const p = productFields(shop.id).parse(request.body);
+      // The same product sent again within a minute is a double tap or a retry on a slow connection, not a
+      // second product: answer with the one already made instead of adding a copy.
+      const repeat = await q.one<{ id: string }>(
+        `select id from products
+         where seller_id = $1 and lower(name) = lower($2) and price = $3 and unit = $4
+           -- Sizes compared as a set of (name, price): each save gives them new ids, and order does not matter.
+           and jsonb_array_length(variants) = jsonb_array_length($5::jsonb)
+           and coalesce((select jsonb_agg(jsonb_build_array(v ->> 'label', (v ->> 'price')::numeric))
+                         from jsonb_array_elements(variants) v), '[]'::jsonb) @> $5::jsonb
+           and created_at > now() - interval '1 minute'
+         order by created_at desc limit 1`,
+        [shop.id, p.name, p.price, p.unit, JSON.stringify(p.variants.map((v) => [v.label, v.price]))]
+      );
+      if (repeat) return { id: repeat.id };
       // New rows are approved by the column default (migration 0013); sellers have no grant on that column.
       const created = await q.one<{ id: string }>(
         `insert into products (seller_id, name, description, category_key, listing_mode, price, mrp, unit, stock,

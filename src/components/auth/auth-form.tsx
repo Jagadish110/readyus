@@ -182,8 +182,9 @@ export function AuthForm({ mode, audience = 'customer' }: { mode: Mode; audience
   }
 
   function run(action: () => Promise<unknown>) {
-    startTransition(() => {
-      void action();
+    // Waits for the request, so the button stays busy until it is done.
+    startTransition(async () => {
+      await action();
     });
   }
 

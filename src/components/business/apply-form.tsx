@@ -256,8 +256,9 @@ export function ApplyForm() {
       onSubmit={(event) => {
         event.preventDefault();
         if (step < lastStep) return next();
-        startTransition(() => {
-          void submit();
+        // The transition waits for the request, so the button stays busy and a second tap cannot apply twice.
+        startTransition(async () => {
+          await submit();
         });
       }}
     >

@@ -165,7 +165,7 @@ async function Results({ term }: { term: string }) {
           <Reveal>
             <SectionTitle>Dishes and items</SectionTitle>
           </Reveal>
-          <div className="grid gap-3 lg:grid-cols-2">
+          <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
             {products.map((product, index) => (
               <Reveal key={product.id} delay={(index % 4) * 55}>
                 <ProductCard product={product} layout="row" />
