@@ -3,10 +3,10 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { serverApi } from '@/lib/api/server';
-import { Button } from '@/components/ui/button';
 import { Eyebrow } from '@/components/ui/card';
 import { BikeIcon, ChevronIcon, HeartIcon, OrdersIcon, ShieldIcon, StoreIcon } from '@/components/shell/icons';
 import { signOut } from './actions';
+import { SignOutForm } from '@/components/account/sign-out-form';
 import { AddressBook } from '@/components/account/address-book';
 import { DataControls } from '@/components/account/data-controls';
 
@@ -135,11 +135,7 @@ export default async function AccountPage() {
 
       <DataControls />
 
-      <form action={signOut} className="animate-rise [animation-delay:160ms]">
-        <Button type="submit" variant="outline" size="lg" fullWidth>
-          Sign out
-        </Button>
-      </form>
+      <SignOutForm action={signOut} />
 
       <p className="flex justify-center gap-1 text-xs text-[var(--text-muted)]">
         {[

@@ -69,6 +69,42 @@ function readDevicePosition(waitMs = 10_000, { waitForAnswer = false } = {}): Pr
   });
 }
 
+/**
+ * The phone's position: GPS first, and if that fails for any reason but a refusal (indoors GPS often needs
+ * longer than we wait), the quicker Wi-Fi or mobile-network position, which can be a couple of minutes old.
+ * A refusal is passed on as is, so the message can say how to allow it.
+ */
+async function readLocation(waitMs = 10_000, options: { waitForAnswer?: boolean } = {}): Promise<GeolocationPosition> {
+  try {
+    return await readDevicePosition(waitMs, options);
+  } catch (error) {
+    if ((error as GeolocationPositionError).code === 1) throw error;
+    return new Promise((resolve, reject) =>
+      navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: false, maximumAge: 120_000, timeout: 15_000 })
+    );
+  }
+}
+
+const ON_IPHONE = () => typeof navigator !== 'undefined' && /iPhone|iPad|iPod/.test(navigator.userAgent);
+
+/** What went wrong, in words that say what to do about it. */
+function failureMessage(error: unknown): string {
+  const code = (error as GeolocationPositionError | undefined)?.code;
+  if (code === 1) {
+    return ON_IPHONE()
+      ? 'Location is blocked for localty.in. On your iPhone open Settings, then Privacy & Security, Location Services, ' +
+          'Safari Websites, and choose While Using the App. Then in Safari tap aA in the address bar, Website Settings, ' +
+          'Location, Allow, and reload this page.'
+      : 'Location is blocked for localty.in. Tap the icon at the left of the address bar, open Permissions (or Site ' +
+          'settings), set Location to Allow, and reload this page. Turning on location for the phone alone is not ' +
+          'enough while the site is blocked.';
+  }
+  if (code === 2) {
+    return 'Your phone could not find where it is. Turn on Location in your phone’s quick settings, then try again.';
+  }
+  return 'Finding your location took too long. Check that Location is on, move near a window or turn on Wi-Fi, and try again.';
+}
+
 function fromPosition(position: GeolocationPosition, radiusKm: number): DeliveryLocation {
   const accuracyM = Math.round(position.coords.accuracy);
   return {
@@ -99,6 +135,7 @@ async function locationPermission(): Promise<PermissionState> {
 export const RADIUS_OPTIONS = [1, 3, 5, 10] as const;
 
 const STORAGE_KEY = 'readyus-location';
+
 /** Set for the rest of a visit (this tab) once the location has been read, so it is asked once per visit. */
 const VISIT_KEY = 'localty-located-this-visit';
 export const LOCATION_COOKIE = 'readyus-loc';
@@ -117,6 +154,20 @@ function writeCookie(value: DeliveryLocation | null) {
   document.cookie = `${LOCATION_COOKIE}=${encoded}; path=/; max-age=31536000; samesite=lax`;
 }
 
+/**
+ * Forget the saved place on this device, so whoever signs in next starts from their own location
+ * instead of the last person's. Called when signing out.
+ */
+export function forgetSavedLocation() {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    sessionStorage.removeItem(VISIT_KEY);
+  } catch {
+    // Storage blocked: nothing was saved there.
+  }
+  writeCookie(null);
+}
+
 type LocationState = {
   location: DeliveryLocation | null;
   ready: boolean;
@@ -125,6 +176,8 @@ type LocationState = {
   detecting: boolean;
   /** Stop waiting and keep showing the saved area. */
   skipDetecting: () => void;
+  /** Set when this visit could not read the location and the shops shown are for a place saved earlier. */
+  staleNote: string;
   error: string;
   setRadius: (radiusKm: number) => void;
   /** Resolves true when a position was read and saved. */
@@ -140,6 +193,7 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [locating, setLocating] = useState(false);
   const [detecting, setDetecting] = useState(false);
+  const [staleNote, setStaleNote] = useState('');
   const skipped = useRef(false);
   const [error, setError] = useState('');
 
@@ -195,21 +249,31 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
     }
 
     let cancelled = false;
+    // Without a fresh reading the saved place stays, but the customer is told the shops are for that
+    // place and why, so they are not puzzled by shops from a town they left. With no saved place the
+    // picker shows the reason.
+    const fellBack = (error: unknown) => {
+      const reason = failureMessage(error);
+      if (location) setStaleNote(reason);
+      else setError(reason);
+    };
     void (async () => {
       const permission = await locationPermission();
-      // Blocked in the browser: it will not ask again, so keep the saved place (or let the picker explain).
-      if (permission === 'denied' || cancelled) return;
+      if (cancelled) return;
+      // Blocked in the browser: it will not ask again, so say how to allow it.
+      if (permission === 'denied') return fellBack({ code: 1 });
       setDetecting(true);
       try {
         const fresh = fromPosition(
-          await readDevicePosition(6_000, { waitForAnswer: permission === 'prompt' }),
+          await readLocation(6_000, { waitForAnswer: permission === 'prompt' }),
           location?.radiusKm ?? 5
         );
         if (cancelled || skipped.current) return;
         persist(fresh);
+        setStaleNote('');
         if ((fresh.accuracyM ?? 0) > ROUGH_ACCURACY_M) setError(roughWarning(fresh.accuracyM ?? 0));
-      } catch {
-        // Refused or no reading: the saved place stays, and with none the picker asks.
+      } catch (error) {
+        if (!cancelled && !skipped.current) fellBack(error);
       } finally {
         if (!cancelled) setDetecting(false);
       }
@@ -235,17 +299,20 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
 
     setLocating(true);
     try {
-      const next = fromPosition(await readDevicePosition(), radiusKm ?? location?.radiusKm ?? 5);
+      const next = fromPosition(await readLocation(), radiusKm ?? location?.radiusKm ?? 5);
       persist(next);
+      setStaleNote('');
       if ((next.accuracyM ?? 0) > ROUGH_ACCURACY_M) setError(roughWarning(next.accuracyM ?? 0));
       return true;
-    } catch {
-      setError('We could not read your location. Allow location for this site in your browser settings, then try again.');
+    } catch (error) {
+      const reason = failureMessage(error);
+      setError(reason);
+      if (location) setStaleNote(reason);
       return false;
     } finally {
       setLocating(false);
     }
-  }, [location?.radiusKm, persist]);
+  }, [location, persist]);
 
   const value = useMemo<LocationState>(
     () => ({
@@ -254,12 +321,13 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
       locating,
       detecting,
       skipDetecting,
+      staleNote,
       error,
       setRadius,
       useCurrentLocation,
       clear: () => persist(null)
     }),
-    [location, ready, locating, detecting, skipDetecting, error, setRadius, useCurrentLocation, persist]
+    [location, ready, locating, detecting, skipDetecting, staleNote, error, setRadius, useCurrentLocation, persist]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

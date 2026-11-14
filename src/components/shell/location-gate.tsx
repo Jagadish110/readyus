@@ -15,6 +15,7 @@ export function LocationGate({ children }: { children: React.ReactNode }) {
     locating,
     detecting,
     skipDetecting,
+    staleNote,
     error,
     useCurrentLocation: requestCurrentLocation
   } = useLocation();
@@ -49,6 +50,24 @@ export function LocationGate({ children }: { children: React.ReactNode }) {
           </Button>
         )}
       </section>
+    );
+  }
+
+  if (location && staleNote) {
+    // The location could not be read on this visit: say whose shops these are, why, and how to fix it.
+    return (
+      <div className="grid gap-5">
+        <section role="status" className="animate-rise grid gap-2.5 rounded-[22px] bg-warning/12 p-4 text-sm ring-1 ring-warning/35">
+          <p className="font-bold text-[var(--text)]">
+            We could not read your location, so these are shops near {location.label.split(',')[0]} from an earlier visit.
+          </p>
+          <p className="leading-relaxed text-[var(--text-muted)]">{error || staleNote}</p>
+          <Button size="sm" variant="leaf" className="w-fit" loading={locating} onClick={() => void requestCurrentLocation()}>
+            Try again
+          </Button>
+        </section>
+        {children}
+      </div>
     );
   }
 
