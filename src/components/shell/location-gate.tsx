@@ -16,8 +16,7 @@ export function LocationGate({ children }: { children: React.ReactNode }) {
     detecting,
     skipDetecting,
     error,
-    useCurrentLocation: requestCurrentLocation,
-    useSampleLocation: pickSampleLocation
+    useCurrentLocation: requestCurrentLocation
   } = useLocation();
 
   if (!ready) {
@@ -78,9 +77,6 @@ export function LocationGate({ children }: { children: React.ReactNode }) {
       <div className="mt-6 grid gap-3">
         <Button size="lg" variant="leaf" fullWidth loading={locating} onClick={() => void requestCurrentLocation()}>
           Use my current location
-        </Button>
-        <Button size="lg" fullWidth variant="leaf-outline" onClick={() => pickSampleLocation()}>
-          Browse a sample area
         </Button>
       </div>
 

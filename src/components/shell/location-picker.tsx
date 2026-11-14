@@ -18,8 +18,7 @@ export function LocationPicker() {
     location,
     locating,
     error,
-    useCurrentLocation: requestCurrentLocation,
-    useSampleLocation: pickSampleLocation
+    useCurrentLocation: requestCurrentLocation
   } = useLocation();
   const [radius, setRadius] = useState<number>(location?.radiusKm ?? 5);
 
@@ -27,10 +26,6 @@ export function LocationPicker() {
     if (await requestCurrentLocation(radius)) router.push('/browse');
   }
 
-  function chooseSample() {
-    pickSampleLocation(radius);
-    router.push('/browse');
-  }
 
   return (
     <section className="animate-rise mx-auto mt-6 max-w-md text-center">
@@ -82,9 +77,6 @@ export function LocationPicker() {
       <div className="mt-6 grid gap-3">
         <Button size="lg" variant="leaf" fullWidth loading={locating} onClick={() => void chooseCurrent()}>
           Use my current location
-        </Button>
-        <Button size="lg" fullWidth variant="leaf-outline" onClick={chooseSample}>
-          Browse a sample area
         </Button>
       </div>
     </section>

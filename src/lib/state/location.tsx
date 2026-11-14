@@ -2,7 +2,6 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { FIXTURE_ORIGIN } from '@/lib/data/fixtures';
 import { refreshWhenVisible } from '@/lib/refresh-when-visible';
 
 export type DeliveryLocation = {
@@ -130,7 +129,6 @@ type LocationState = {
   setRadius: (radiusKm: number) => void;
   /** Resolves true when a position was read and saved. */
   useCurrentLocation: (radiusKm?: number) => Promise<boolean>;
-  useSampleLocation: (radiusKm?: number) => void;
   clear: () => void;
 };
 
@@ -231,7 +229,7 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
   const useCurrentLocation = useCallback(async (radiusKm?: number) => {
     setError('');
     if (!('geolocation' in navigator)) {
-      setError('This device cannot share a location. Pick a sample area instead.');
+      setError('This device cannot share a location, so we cannot find shops near you.');
       return false;
     }
 
@@ -242,21 +240,11 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
       if ((next.accuracyM ?? 0) > ROUGH_ACCURACY_M) setError(roughWarning(next.accuracyM ?? 0));
       return true;
     } catch {
-      setError('We could not read your location. Allow access or pick a sample area.');
+      setError('We could not read your location. Allow location for this site in your browser settings, then try again.');
       return false;
     } finally {
       setLocating(false);
     }
-  }, [location?.radiusKm, persist]);
-
-  const useSampleLocation = useCallback((radiusKm?: number) => {
-    setError('');
-    persist({
-      lat: FIXTURE_ORIGIN.lat,
-      lng: FIXTURE_ORIGIN.lng,
-      label: FIXTURE_ORIGIN.label,
-      radiusKm: radiusKm ?? location?.radiusKm ?? 5
-    });
   }, [location?.radiusKm, persist]);
 
   const value = useMemo<LocationState>(
@@ -269,10 +257,9 @@ export function LocationProvider({ children }: { children: React.ReactNode }) {
       error,
       setRadius,
       useCurrentLocation,
-      useSampleLocation,
       clear: () => persist(null)
     }),
-    [location, ready, locating, detecting, skipDetecting, error, setRadius, useCurrentLocation, useSampleLocation, persist]
+    [location, ready, locating, detecting, skipDetecting, error, setRadius, useCurrentLocation, persist]
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
