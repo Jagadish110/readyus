@@ -13,6 +13,8 @@ import { comboSummary, extrasSummary } from '@/lib/menu';
 import type { ComboItem, OrderedExtra } from '@/lib/database.types';
 import { CancelBox, FailBox, IssuesList, RefundForm } from './order-exits';
 import { NoPhoto } from '@/components/marketplace/no-photo';
+import { chime, onSoundEnabledChange, playAccepted, playDeclined, setSoundEnabled, soundEnabled, unlockSound } from '@/lib/orders/order-sound';
+import { reportWaiting } from './order-alarm';
 
 type SellerOrder = {
   id: string;
@@ -53,26 +55,6 @@ type SellerOrder = {
 
 type Partner = { id: string; agent_id: string; agent: { full_name: string; phone: string; vehicle: string } | null };
 
-/** A short two-tone chime, made in the browser so no sound file is needed. */
-function chime() {
-  try {
-    const context = new AudioContext();
-    [880, 1175].forEach((frequency, index) => {
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      oscillator.frequency.value = frequency;
-      gain.gain.setValueAtTime(0.0001, context.currentTime + index * 0.18);
-      gain.gain.exponentialRampToValueAtTime(0.25, context.currentTime + index * 0.18 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + index * 0.18 + 0.4);
-      oscillator.connect(gain).connect(context.destination);
-      oscillator.start(context.currentTime + index * 0.18);
-      oscillator.stop(context.currentTime + index * 0.18 + 0.45);
-    });
-  } catch {
-    // No audio in this browser; the page title and the list still change.
-  }
-}
-
 export function OrdersBoard() {
   const [orders, setOrders] = useState<SellerOrder[] | null>(null);
   const [serverNow, setServerNow] = useState<string | null>(null);
@@ -81,38 +63,35 @@ export function OrdersBoard() {
   const [declining, setDeclining] = useState<string | null>(null);
   const [partners, setPartners] = useState<Partner[]>([]);
   const [now, setNow] = useState(() => Date.now());
-  const [sound, setSound] = useState(false);
-  const seen = useRef<Set<string> | null>(null);
+  const [sound, setSound] = useState(true);
   // Orders already known to be paid, so a payment that arrives while the board is open is announced once.
   const paidSeen = useRef<Set<string> | null>(null);
   const [justPaid, setJustPaid] = useState<string[]>([]);
 
   useEffect(() => {
-    try {
-      setSound(localStorage.getItem('localty-order-sound') === 'on');
-    } catch {
-      // Storage blocked; sound simply starts off.
-    }
+    setSound(soundEnabled());
+    const stopListening = onSoundEnabledChange(setSound);
     const clock = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(clock);
+    return () => {
+      stopListening();
+      window.clearInterval(clock);
+    };
   }, []);
 
   function toggleSound() {
     const next = !sound;
-    setSound(next);
-    try {
-      localStorage.setItem('localty-order-sound', next ? 'on' : 'off');
-    } catch {
-      // Not remembered across visits; still works for now.
-    }
-    // The click is what lets the browser play sound later, so confirm with a chime.
-    if (next) chime();
+    // Turning it off also stops a ring that is playing; turning it on lets the ring start again.
+    setSoundEnabled(next);
+    // The click is what lets the browser play sound, so confirm with a chime.
+    if (next) void unlockSound().then(() => chime());
   }
 
   const refresh = useCallback(async () => {
     const result = await api<{ orders: SellerOrder[]; server_now?: string }>('GET', '/v1/seller/orders');
     if (result.ok) {
       setOrders(result.data.orders);
+      // The console's order alarm keeps ringing for exactly these, and stops when the list is empty.
+      reportWaiting(result.data.orders.filter((o) => o.status === 'pending' || o.status === 'payment_confirmed'));
       setServerNow((current) => current ?? result.data.server_now ?? null);
     } else {
       setOrders((current) => current ?? []);
@@ -153,6 +132,11 @@ export function OrdersBoard() {
     const result = await api('POST', path, body);
     setBusy('');
     if (!result.ok) setError(friendlyError(result.error));
+    else if (path.endsWith('/decide')) {
+      // The owner hears the decision go through. The refresh below tells the ring whether any order is still waiting.
+      if (body.accept) playAccepted();
+      else playDeclined();
+    }
     await refresh();
   }
 
@@ -161,17 +145,15 @@ export function OrdersBoard() {
     .map((o) => o.id)
     .join(',');
 
-  // The tab title carries the count, so a shop with the page open in the background still sees it,
-  // and an order that arrives after the first load plays the chime if the owner turned sound on.
+  // The tab title carries the count, so a shop with the page open in the background still sees it.
+  // The ring for these orders is played by the console's order alarm, on every page, until each is decided.
   useEffect(() => {
     if (!orders) return;
     const ids = decideIds ? decideIds.split(',') : [];
     // A payment that just came in shows in the title too, for a board left open in a background tab.
     const paid = justPaid.length ? `Paid: ${justPaid.join(', ')} · ` : '';
     document.title = paid + (ids.length ? `(${ids.length}) New orders · Localty` : 'Orders · Localty');
-    if (seen.current && sound && ids.some((id) => !seen.current!.has(id))) chime();
-    seen.current = new Set(ids);
-  }, [orders, decideIds, sound, justPaid]);
+  }, [orders, decideIds, justPaid]);
 
   // Online orders whose payment has come in and that are still to be made or handed over.
   const paidIds = (orders ?? [])
@@ -216,7 +198,7 @@ export function OrdersBoard() {
         aria-pressed={sound}
         className="inline-flex h-11 items-center justify-self-start rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-bold text-[var(--leaf-ink)] shadow-xs transition-colors hover:bg-[var(--leaf-soft)]"
       >
-        {sound ? 'Sound alert on' : 'Turn on sound alert for new orders'}
+        {sound ? 'Order ring is on. Tap to mute' : 'Order ring is off. Tap to turn on'}
       </button>
       {error && (
         <p role="alert" className="rounded-[16px] bg-danger/10 px-4 py-3 text-sm font-medium ring-1 ring-danger/30">

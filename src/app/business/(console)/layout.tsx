@@ -3,6 +3,7 @@ import { Wordmark } from '@/components/brand/logo';
 import { BillingBanner } from '@/components/business/billing-banner';
 import { ComplianceBanner } from '@/components/business/compliance-banner';
 import { NotificationCenter } from '@/components/notifications/notification-center';
+import { OrderAlarm } from '@/components/business/order-alarm';
 import { BusinessNav, BusinessTabBar } from '@/components/business/business-nav';
 import { RouteTransition } from '@/components/motion/route-transition';
 
@@ -32,6 +33,7 @@ export default function ConsoleLayout({ children }: { children: React.ReactNode 
           </div>
         </div>
       </header>
+      <OrderAlarm />
       <BillingBanner />
       <ComplianceBanner />
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 pt-6 pb-28 sm:px-6 lg:pb-16">

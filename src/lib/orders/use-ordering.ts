@@ -1,5 +1,6 @@
 'use client';
 
+import { playOrderPlaced, unlockSound } from '@/lib/orders/order-sound';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api/client';
@@ -51,6 +52,8 @@ export function useOrdering() {
     picked === 'online' && onlineOk ? 'online' : picked === 'cod' && codOk ? 'cod' : onlineOk ? 'online' : codOk ? 'cod' : null;
 
   async function place(addressId: string, note = '') {
+    // Asked for during the tap itself: a browser only switches sound on from a tap, and the order is placed a moment later.
+    void unlockSound();
     if (!who || !addressId || !choice) return;
 
     setPlacing(true);
@@ -85,6 +88,7 @@ export function useOrdering() {
     }
 
     const { placed, failed } = result.data;
+    if (placed.length) playOrderPlaced();
     const nameOf = (sellerId: string) => groups.find((group) => group.sellerId === sellerId)?.sellerName ?? 'A shop';
     const reasons = failed.map((item) => nameOf(item.sellerId) + ': ' + friendlyError(item.message));
 

@@ -8,7 +8,11 @@
    browser "Web Push" feature: the same one used by email sites and chat apps. It needs no app install on Android or
    desktop, and costs nothing per message.
 3. **A banner inside the page** when an alert arrives while they are already looking at Localty (no double pop-up),
-   plus the optional order chime on the shop's orders page.
+   plus sound: on every page of the shop console a ring keeps playing while an order is waiting, and stops only when
+   every waiting order is accepted or declined (or cancelled, or timed out). Accepting and declining each play a short
+   tone, and the customer hears one when their order is placed. The shop can mute the ring from the Orders page.
+   A browser plays sound only after the page has been tapped once, so until then the console shows
+   "Tap anywhere to hear the ring". With the browser closed or the phone locked there is no ring, only the pop-up alert.
 
 The inbox is the dependable part. Pop-ups are a bonus that depends on the browser, so the interface never promises more than
 it can deliver ("Alerts are on for this device", or an honest reason why not).

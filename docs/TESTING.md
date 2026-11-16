@@ -82,7 +82,8 @@ See section 7 for exactly what is checked. To test:
 ## 4. Owner: accept and prepare
 
 1. Owner: `/business/orders` (open on a phone-size window too). **Check:** the new order is under
-   "Needs your decision" with "Waiting N min". Turn on the sound alert and place a second order to hear it.
+   "Needs your decision" with "Waiting N min". Tap the page once: the ring starts and keeps playing, on any console page,
+   until the order is accepted or declined.
 2. Tap **Accept**. Customer page updates to "Accepted" (the page refreshes by itself).
 3. **Start preparing**, then **Mark ready for pickup**.
 4. **Check:** the order moves to "Ready: choose who delivers".
@@ -184,7 +185,7 @@ Details in `docs/NOTIFICATIONS.md`. One-time: `cd backend && npm run vapid`, put
 3. Place an order as the customer (section 3) while the owner's browser is **closed or in the background**.
    **Check:** a pop-up "New order received" appears and stays until dismissed; tapping it opens `/business/orders`.
 4. With the owner page **open and in front**: place another order. **Check:** no system pop-up, but the bell count goes up, a banner slides in,
-   the new order appears, and (if "Sound alert" is on) the chime plays.
+   the new order appears, and the ring plays until the order is decided (unless the ring is muted).
 5. **Rider:** sign in at `/delivery/login`, turn on alerts. The owner assigns an order. **Check:** the rider gets "New delivery for you".
    Reassign it to someone else: the first rider gets "Delivery given to someone else".
 6. **Customer:** turn on alerts. Check pop-ups for accepted, assigned, out for delivery, delivered, and "Refund started" (decline an online-paid order, then run the refund job).

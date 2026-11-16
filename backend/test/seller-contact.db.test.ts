@@ -46,6 +46,29 @@ describe.skipIf(!HAS_DB)('shop can call the customer (database)', () => {
     expect(ended.customer_pin).toBeNull();
   });
 
+  it('lists an order as waiting until the shop accepts or declines it, and only to its own shop', async () => {
+    const server = await app();
+    const shop = await makeShop();
+    const other = await makeShop();
+    const customer = await makeCustomer();
+    const first = await placeOrder(customer, shop);
+    const second = await placeOrder(customer, shop);
+    const waiting = async () =>
+      ((await server.inject({ method: 'GET', url: '/v1/seller/orders/waiting' })).json().waiting as Array<{ id: string }>).map((o) => o.id);
+
+    caller = other.userId;
+    expect(await waiting()).toEqual([]);
+
+    caller = shop.userId;
+    expect(await waiting()).toEqual([first, second]);
+
+    await asUser(shop.userId, (q) => q.rows('select seller_decide_order($1, true, $2)', [first, '']));
+    expect(await waiting()).toEqual([second]);
+
+    await asUser(shop.userId, (q) => q.rows('select seller_decide_order($1, false, $2)', [second, 'Closed early']));
+    expect(await waiting()).toEqual([]);
+  });
+
   it('never shows one shop the customers of another', async () => {
     const server = await app();
     const shop = await makeShop();

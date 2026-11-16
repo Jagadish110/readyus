@@ -512,6 +512,25 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
     };
   });
 
+  /**
+   * Orders still waiting for the shop to accept or decline. Small on purpose: every console page asks
+   * this every few seconds to decide whether the order ring should keep playing.
+   */
+  app.get('/orders/waiting', async (request) => {
+    const user = await requireUser(request);
+    return asUser(user.id, async (q) => {
+      const shop = await ownShop(q, user.id);
+      return {
+        waiting: await q.rows<{ id: string; order_code: string }>(
+          `select id, order_code from orders
+           where seller_id = $1 and status in ('pending', 'payment_confirmed')
+           order by created_at`,
+          [shop.id]
+        )
+      };
+    });
+  });
+
   /** Order and money lines for the Payouts page. */
   app.get('/payout-orders', async (request) => {
     const user = await requireUser(request);
