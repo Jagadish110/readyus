@@ -22,6 +22,7 @@ import {
 } from '@/lib/orders/status';
 import { payForOrder } from '@/lib/payments/checkout';
 import { Countdown, useSecondsLeft } from './countdown';
+import { AcceptTimer } from './accept-timer';
 import { LiveMap } from '@/components/maps/live-map';
 import { ReviewForm } from './review-form';
 import { Button, ButtonLink } from '@/components/ui/button';
@@ -194,6 +195,9 @@ export function OrderTracker({ orderId, initial }: { orderId: string; initial: O
                   {hero.title}
                 </h1>
               </div>
+              {(status === 'pending' || (status === 'payment_confirmed' && !order.accepted_at)) && (
+                <AcceptTimer deadline={order.accept_deadline_at} placedAt={order.created_at} serverNow={view.server_now} />
+              )}
               {showEta && (
                 <p className="shrink-0 rounded-[18px] bg-[var(--surface)] px-4 py-2.5 text-center shadow-sm ring-1 ring-[var(--line)]">
                   <span className="block font-display text-2xl leading-none font-extrabold tracking-[-0.04em] whitespace-nowrap tabular-nums">

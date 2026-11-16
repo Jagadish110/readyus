@@ -26,6 +26,8 @@ export type OrderCore = {
   customer_note: string;
   accepted_at: string | null;
   /** When the time to pay runs out; null until the shop accepts an order that still has to be paid. */
+  /** When the shop's time to accept runs out; shown as a countdown while the order is waiting for the shop. */
+  accept_deadline_at?: string | null;
   pay_deadline_at: string | null;
   delivered_at: string | null;
   cancel_reason: string;

@@ -5,6 +5,7 @@ import { cn, formatPaise } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { NoPhoto } from '@/components/marketplace/no-photo';
 import { PayNow } from './pay-now';
+import { AcceptTimer } from './accept-timer';
 
 export type ListedOrder = {
   id: string;
@@ -16,6 +17,7 @@ export type ListedOrder = {
   total_paise: number;
   cancel_reason?: string;
   accepted_at?: string | null;
+  accept_deadline_at?: string | null;
   pay_deadline_at?: string | null;
   created_at: string;
   seller: { shop_name: string } | null;
@@ -110,10 +112,17 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 function LiveCard({ order, serverNow }: { order: ListedOrder; serverNow?: string }) {
   // A shop that accepted stays accepted while the customer pays, as on the order page.
   const step = Math.max(stepOf(order.status), order.accepted_at ? 1 : 0);
+  // While the shop has not answered, the customer sees how long it still has.
+  const waiting = order.status === 'pending' || (order.status === 'payment_confirmed' && !order.accepted_at);
   const summary = (
     <>
-      <p className="truncate text-sm font-bold text-[var(--leaf-ink)]">{order.seller?.shop_name ?? 'Shop'}</p>
-      <p className="mt-1 font-display text-2xl leading-[1.15] font-extrabold tracking-[-0.035em]">{STATUS_LABEL[order.status]}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-bold text-[var(--leaf-ink)]">{order.seller?.shop_name ?? 'Shop'}</p>
+          <p className="mt-1 font-display text-2xl leading-[1.15] font-extrabold tracking-[-0.035em]">{STATUS_LABEL[order.status]}</p>
+        </div>
+        {waiting && <AcceptTimer deadline={order.accept_deadline_at} placedAt={order.created_at} serverNow={serverNow} />}
+      </div>
 
       <div aria-hidden className="mt-3.5 grid grid-cols-6 gap-1">
         {TIMELINE.map((entry, index) => (

@@ -340,7 +340,7 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
     return asUser(user.id, async (q) => ({
       orders: await q.rows(
         `select o.id, o.order_code, o.status, o.payment_mode, o.subtotal_paise, o.delivery_fee_paise, o.total_paise,
-                o.cancel_reason, o.accepted_at, o.pay_deadline_at, o.created_at,
+                o.cancel_reason, o.accepted_at, o.accept_deadline_at, o.pay_deadline_at, o.created_at,
                 jsonb_build_object('shop_name', s.shop_name) as seller,
                 -- Enough to show each line as the cart does: photo, size, price and quantity.
                 coalesce((select jsonb_agg(jsonb_build_object('name', i.name, 'quantity', i.quantity,
@@ -369,7 +369,7 @@ export const customerRoutes: FastifyPluginAsync = async (app) => {
       const order = await q.one(
         `select o.id, o.order_code, o.status, o.payment_mode, o.required_online_paise, o.verified_prepaid_paise,
                 o.subtotal_paise, o.delivery_fee_paise, o.platform_fee_paise, o.total_paise, o.delivery_address,
-                o.distance_km, o.customer_note, o.accepted_at, o.pay_deadline_at, o.delivered_at,
+                o.distance_km, o.customer_note, o.accepted_at, o.accept_deadline_at, o.pay_deadline_at, o.delivered_at,
                 o.cancel_reason, o.created_at,
                 jsonb_build_object('id', s.id, 'shop_name', s.shop_name, 'phone', s.phone,
                                    'eta_minutes', s.eta_minutes, 'upi_id', s.upi_id, 'address', s.address) as seller
