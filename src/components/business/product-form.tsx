@@ -87,12 +87,14 @@ export function ProductForm({
   const [error, setError] = useState('');
 
   const modeCategories = categories.filter((category) => category.mode === mode);
+  // A dish listed under an older category keeps it in the list until the seller picks another.
+  const keptCategory = product?.category_key && !modeCategories.some((category) => category.key === product.category_key) ? product.category_key : null;
 
   function toggleCombo(on: boolean) {
     setIsCombo(on);
     // With a menu to pick from, the list starts empty; otherwise two blank lines to type into.
     if (on && comboItems.length === 0 && menu.length === 0) setComboItems([{ name: '', qty: '1' }, { name: '', qty: '1' }]);
-    if (on && !categoryKey && modeCategories.some((category) => category.key === 'combos')) setCategoryKey('combos');
+    if (on && !categoryKey && modeCategories.some((category) => category.key === 'thali-meal-combos')) setCategoryKey('thali-meal-combos');
   }
 
   async function addImages(files: FileList | null) {
@@ -300,6 +302,7 @@ export function ProductForm({
         <Field label="Category">
           <select className={fieldClass} value={categoryKey} onChange={(e) => setCategoryKey(e.target.value)}>
             <option value="">Choose…</option>
+            {keptCategory && <option value={keptCategory}>{keptCategory.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase())} (current)</option>}
             {modeCategories.map((category) => (
               <option key={category.key} value={category.key}>
                 {category.name}
