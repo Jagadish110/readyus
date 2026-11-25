@@ -64,6 +64,9 @@ export type ShopRow = {
   lng: number | null;
   /** Extras like Extra cheese, set up once and ticked per dish. */
   extras: ShopExtra[];
+  /** The round profile icon and the wide banner; null until uploaded (older backends leave them out). */
+  photo_url?: string | null;
+  banner_url?: string | null;
 };
 
 /** A size or portion of a product, with its own price (see the variants field in the backend). */
