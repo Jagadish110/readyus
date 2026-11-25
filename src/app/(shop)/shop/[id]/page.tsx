@@ -8,7 +8,7 @@ import { SectionTitle } from '@/components/ui/card';
 import { ShopArt } from '@/components/marketplace/shop-art';
 import { FavouriteButton } from '@/components/shop/favourite-button';
 import { ClockIcon, PinIcon, StarIcon } from '@/components/shell/icons';
-import { deliveryMinutes, formatDistance, formatRupees, opensAt } from '@/lib/utils';
+import { cn, deliveryMinutes, formatDistance, formatRupees, opensAt } from '@/lib/utils';
 import { FOOD_CATEGORIES } from '@/lib/data/food-categories';
 import { describeDelivery } from '@/lib/shop-terms';
 import { categoryLabel } from '@/lib/menu';
@@ -44,15 +44,18 @@ async function ShopDetail({ id }: { id: string }) {
     sections.set(key, [...(sections.get(key) ?? []), product]);
   }
 
+  const ownBanner = !!shop.banner_url && shop.banner_url !== shop.photo_url;
+
   return (
     <div className="grid gap-8">
       <header className="animate-rise overflow-hidden rounded-[30px] bg-[var(--surface)] shadow-sm ring-1 ring-[var(--line)]">
-        <div className="tile relative h-24 bg-[var(--tile)] sm:h-32">
+        {/* A banner of its own is shown sharp and taller; without one, the profile photo is a soft backdrop. */}
+        <div className={cn('tile relative bg-[var(--tile)]', ownBanner ? 'h-36 sm:h-52' : 'h-24 sm:h-32')}>
           <ShopArt
             shop={shop}
             priority
             sizes="(max-width: 768px) 100vw, 960px"
-            className={shop.business_open ? 'scale-110 blur-[2px]' : 'scale-110 blur-[2px] grayscale'}
+            className={cn(!ownBanner && 'scale-110 blur-[2px]', !shop.business_open && 'grayscale')}
           />
           <div aria-hidden className="absolute inset-0 bg-linear-to-b from-ink-900/30 to-ink-900/55" />
           <span
@@ -69,7 +72,7 @@ async function ShopDetail({ id }: { id: string }) {
         <div className="px-5 pb-6 sm:px-7">
           <div className="-mt-10 flex items-end justify-between gap-3">
             <span className="tile relative block size-20 shrink-0 overflow-hidden rounded-[22px] bg-[var(--tile)] shadow-md ring-4 ring-[var(--surface)] sm:size-24">
-              <ShopArt shop={shop} sizes="96px" />
+              <ShopArt shop={shop} kind="photo" sizes="96px" />
             </span>
             <span className="mb-1 flex items-center gap-2">
               <FavouriteButton shopId={shop.id} />

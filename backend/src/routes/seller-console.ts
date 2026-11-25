@@ -15,7 +15,7 @@ const IMAGE_TYPES: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 
 
 const SHOP_SQL = `select id, shop_name, listing_mode, status, public_visible, review_note, business_open, auto_accept,
                          service_radius_km, open_time, close_time, min_order_amount, delivery_fee, free_delivery_above,
-                         cod_available, prepaid_available, address, city, pincode, extras,
+                         cod_available, prepaid_available, address, city, pincode, extras, photo_url, banner_url,
                          st_y(location::geometry) as lat, st_x(location::geometry) as lng
                   from sellers`;
 
@@ -321,14 +321,26 @@ export const sellerConsoleRoutes: FastifyPluginAsync = async (app) => {
     };
   });
 
+  /**
+   * Sets the shop's pictures. `slot` picks which: the profile photo (the round icon), the banner
+   * (the wide picture on the shop page and its card), or both, as the application does with its one photo.
+   */
   app.post('/shop/photo', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (request) => {
     const user = await requireUser(request);
-    const body = z.object({ url: z.string().url() }).parse(request.body);
+    const body = z
+      .object({ url: z.string().url(), slot: z.enum(['photo', 'banner', 'both']).default('both') })
+      .parse(request.body);
 
     return asUser(user.id, async (q) => {
       const shop = await ownShop(q, user.id);
       imageUrl(shop.id).parse(body.url);
-      await q.rows('update sellers set photo_url = $2, banner_url = $2 where id = $1', [shop.id, body.url]);
+      // Fixed statements chosen by slot, never built from input.
+      const sql = {
+        photo: 'update sellers set photo_url = $2 where id = $1',
+        banner: 'update sellers set banner_url = $2 where id = $1',
+        both: 'update sellers set photo_url = $2, banner_url = $2 where id = $1'
+      }[body.slot];
+      await q.rows(sql, [shop.id, body.url]);
       return { ok: true };
     });
   });

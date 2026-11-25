@@ -8,6 +8,7 @@ import { ButtonLink } from '@/components/ui/button';
 import { ShopControls } from '@/components/business/shop-controls';
 import { DeliverySettings } from '@/components/business/delivery-settings';
 import { ShopLocation } from '@/components/business/shop-location';
+import { ShopPhotos } from '@/components/business/shop-photos';
 import { fssaiAttention, loadDocuments } from '@/lib/business/documents';
 
 export const metadata: Metadata = { title: 'Seller dashboard' };
@@ -116,6 +117,8 @@ export default async function DashboardPage() {
       )}
 
       <ShopControls shop={shop} />
+
+      <ShopPhotos shop={shop} />
 
       {/* With online payment switched off the shop is not "accepting online" by choice, not for lack of payout details. */}
       <DeliverySettings shop={shop} onlineReady={acceptsOnline || !shop.prepaid_available} />
