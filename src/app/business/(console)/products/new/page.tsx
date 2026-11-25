@@ -5,6 +5,7 @@ import type { ProductRow } from '@/lib/business/db';
 import { serverApi } from '@/lib/api/server';
 import { Eyebrow } from '@/components/ui/card';
 import { ProductForm } from '@/components/business/product-form';
+import { isOwnCategory } from '@/lib/menu';
 
 export const metadata: Metadata = { title: 'Add product' };
 
@@ -16,6 +17,10 @@ export default async function NewProductPage() {
   ]);
   // The shop's own products, to pick from when building a combo. Without them a combo is typed in.
   const menu = listed.ok ? listed.data.products.map((item) => ({ id: item.id, name: item.name })) : [];
+  // Category names this shop typed itself, offered again in the category list.
+  const ownCategories = listed.ok
+    ? listed.data.products.filter((item) => isOwnCategory(item.category_key)).map((item) => ({ mode: item.listing_mode, key: item.category_key }))
+    : [];
 
   return (
     <div className="animate-rise grid gap-5">
@@ -28,7 +33,7 @@ export default async function NewProductPage() {
           New products are reviewed by our team before customers can see them.
         </p>
       </div>
-      <ProductForm defaultMode={shop.listing_mode} categories={categories} menu={menu} />
+      <ProductForm defaultMode={shop.listing_mode} categories={categories} menu={menu} ownCategories={ownCategories} />
     </div>
   );
 }

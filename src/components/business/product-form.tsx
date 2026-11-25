@@ -9,10 +9,12 @@ import type { ProductRow } from '@/lib/business/db';
 import type { Category } from '@/lib/business/categories';
 import { Button, ButtonLink } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { comboSummary, variantNoun } from '@/lib/menu';
+import { comboSummary, isOwnCategory, variantNoun } from '@/lib/menu';
 import { cn } from '@/lib/utils';
 
 const MAX_IMAGES = 4;
+/** The category list's last option, which opens a box to type the shop's own category. */
+const NEW_CATEGORY = '__new__';
 
 const fieldClass =
   'h-12 w-full rounded-[16px] border-[1.5px] border-[var(--line)] bg-[var(--surface)] px-3.5 text-base outline-none transition-all placeholder:text-ink-400 focus:border-leaf-500 focus:ring-4 focus:ring-leaf-500/20';
@@ -48,13 +50,16 @@ export function ProductForm({
   defaultMode,
   categories,
   product,
-  menu = []
+  menu = [],
+  ownCategories = []
 }: {
   defaultMode: 'food' | 'items';
   categories: Category[];
   product?: ProductRow;
   /** The shop's other products, to pick from when this one is a combo. */
   menu?: Array<{ id: string; name: string }>;
+  /** Categories this shop named itself on earlier products, offered again so they are typed once. */
+  ownCategories?: Array<{ mode: 'food' | 'items'; key: string }>;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -64,6 +69,9 @@ export function ProductForm({
   const [name, setName] = useState(product?.name ?? '');
   const [description, setDescription] = useState(product?.description ?? '');
   const [categoryKey, setCategoryKey] = useState(product?.category_key ?? '');
+  // True while the seller is typing a category of their own instead of picking one.
+  const [typingCategory, setTypingCategory] = useState(false);
+  const [newCategory, setNewCategory] = useState('');
   const [price, setPrice] = useState(product ? String(Number(product.price)) : '');
   const [mrp, setMrp] = useState(product?.mrp != null ? String(Number(product.mrp)) : '');
   const [unit, setUnit] = useState(product?.unit ?? '');
@@ -88,13 +96,34 @@ export function ProductForm({
 
   const modeCategories = categories.filter((category) => category.mode === mode);
   // A dish listed under an older category keeps it in the list until the seller picks another.
-  const keptCategory = product?.category_key && !modeCategories.some((category) => category.key === product.category_key) ? product.category_key : null;
+  const keptCategory =
+    product?.category_key && !isOwnCategory(product.category_key) && !modeCategories.some((category) => category.key === product.category_key)
+      ? product.category_key
+      : null;
+  // The shop's own categories for this kind of listing, this product's own one included, in A to Z order.
+  const shopCategories = [
+    ...new Set([
+      ...ownCategories.filter((category) => category.mode === mode).map((category) => category.key),
+      ...(product?.listing_mode === mode && isOwnCategory(product.category_key) ? [product.category_key] : [])
+    ])
+  ]
+    .filter(isOwnCategory)
+    .sort((a, b) => a.localeCompare(b));
+
+  /** What gets saved: a typed name matching a listed category (any case) uses that category instead. */
+  function chosenCategory() {
+    if (!typingCategory) return categoryKey;
+    const typed = newCategory.trim().replace(/\s+/g, ' ');
+    const listed = modeCategories.find((category) => category.name.toLowerCase() === typed.toLowerCase());
+    const own = shopCategories.find((key) => key.toLowerCase() === typed.toLowerCase());
+    return listed?.key ?? own ?? typed;
+  }
 
   function toggleCombo(on: boolean) {
     setIsCombo(on);
     // With a menu to pick from, the list starts empty; otherwise two blank lines to type into.
     if (on && comboItems.length === 0 && menu.length === 0) setComboItems([{ name: '', qty: '1' }, { name: '', qty: '1' }]);
-    if (on && !categoryKey && modeCategories.some((category) => category.key === 'thali-meal-combos')) setCategoryKey('thali-meal-combos');
+    if (on && !categoryKey && !typingCategory && modeCategories.some((category) => category.key === 'thali-meal-combos')) setCategoryKey('thali-meal-combos');
   }
 
   async function addImages(files: FileList | null) {
@@ -123,7 +152,12 @@ export function ProductForm({
   /** First problem with the form, or null. */
   function problem() {
     if (name.trim().length < 2) return 'Enter the product name.';
-    if (!categoryKey) return 'Choose a category.';
+    if (typingCategory) {
+      const typed = newCategory.trim();
+      if (typed.length < 2) return 'Type a name for your category, like Chef’s Specials.';
+      if (typed.length > 40) return 'Keep the category name under 40 characters.';
+      if (!/\p{L}/u.test(typed)) return 'The category name needs at least one letter.';
+    } else if (!categoryKey) return 'Choose a category.';
     if (isCombo) {
       if (comboItems.length === 0) return 'Add what is in the combo, like 1 Pizza Mania and 1 Coke.';
       if (comboItems.some((item) => !item.name.trim())) return 'Name each item in the combo.';
@@ -167,7 +201,7 @@ export function ProductForm({
     const values = {
       name: name.trim(),
       description: description.trim(),
-      category_key: categoryKey,
+      category_key: chosenCategory(),
       listing_mode: mode,
       // With sizes, the backend lists the cheapest size as the price.
       price: variants.length ? Math.min(...variants.map((variant) => Number(variant.price))) : Number(price),
@@ -275,6 +309,8 @@ export function ProductForm({
               onClick={() => {
                 setMode(value);
                 setCategoryKey('');
+                setTypingCategory(false);
+                setNewCategory('');
               }}
               className={cn(
                 'h-10 rounded-full text-sm font-bold transition-all duration-200',
@@ -299,17 +335,55 @@ export function ProductForm({
             onChange={(e) => setDescription(e.target.value)}
           />
         </Field>
-        <Field label="Category">
-          <select className={fieldClass} value={categoryKey} onChange={(e) => setCategoryKey(e.target.value)}>
+        <Field
+          label="Category"
+          hint={typingCategory ? 'Your own menu section, like Chef’s Specials or Monsoon Menu. Customers see it on your shop page.' : undefined}
+        >
+          <select
+            className={fieldClass}
+            value={typingCategory ? NEW_CATEGORY : categoryKey}
+            onChange={(e) => {
+              if (e.target.value === NEW_CATEGORY) {
+                setTypingCategory(true);
+              } else {
+                setTypingCategory(false);
+                setCategoryKey(e.target.value);
+              }
+            }}
+          >
             <option value="">Choose…</option>
             {keptCategory && <option value={keptCategory}>{keptCategory.replace(/-/g, ' ').replace(/^./, (c) => c.toUpperCase())} (current)</option>}
-            {modeCategories.map((category) => (
-              <option key={category.key} value={category.key}>
-                {category.name}
-              </option>
-            ))}
+            {shopCategories.length > 0 && (
+              <optgroup label="Your categories">
+                {shopCategories.map((key) => (
+                  <option key={key} value={key}>
+                    {key}
+                  </option>
+                ))}
+              </optgroup>
+            )}
+            <optgroup label="All categories">
+              {modeCategories.map((category) => (
+                <option key={category.key} value={category.key}>
+                  {category.name}
+                </option>
+              ))}
+            </optgroup>
+            <option value={NEW_CATEGORY}>+ Add my own category…</option>
           </select>
         </Field>
+        {typingCategory && (
+          <Field label="Your category name">
+            <input
+              className={fieldClass}
+              value={newCategory}
+              maxLength={40}
+              autoFocus
+              placeholder="Chef’s Specials"
+              onChange={(e) => setNewCategory(e.target.value)}
+            />
+          </Field>
+        )}
       </Card>
 
       <Card className="grid gap-4 p-5 sm:p-6">

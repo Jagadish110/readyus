@@ -11,11 +11,11 @@ import { ClockIcon, PinIcon, StarIcon } from '@/components/shell/icons';
 import { deliveryMinutes, formatDistance, formatRupees, opensAt } from '@/lib/utils';
 import { FOOD_CATEGORIES } from '@/lib/data/food-categories';
 import { describeDelivery } from '@/lib/shop-terms';
+import { categoryLabel } from '@/lib/menu';
 
 /** The menu heading for a category key: the name customers know it by, not the database key. */
 function sectionName(key: string) {
-  const known = FOOD_CATEGORIES.find((category) => category.key === key);
-  return known ? known.name : key.charAt(0).toUpperCase() + key.slice(1).replace(/[_-]/g, ' ');
+  return categoryLabel(key, FOOD_CATEGORIES.find((category) => category.key === key)?.name);
 }
 
 export default async function ShopPage({ params }: { params: Promise<{ id: string }> }) {
@@ -138,10 +138,10 @@ async function ShopDetail({ id }: { id: string }) {
               aria-label="Menu sections"
               className="no-scrollbar sticky top-[72px] z-20 -mx-4 -my-4 flex gap-2 overflow-x-auto bg-[var(--page)]/90 px-4 py-2.5 backdrop-blur sm:mx-0 sm:px-0"
             >
-              {[...sections.entries()].map(([key, items]) => (
+              {[...sections.entries()].map(([key, items], index) => (
                 <a
                   key={key}
-                  href={`#menu-${key}`}
+                  href={`#menu-${index}`}
                   className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-[var(--line)] bg-[var(--surface)] px-4 text-sm font-bold whitespace-nowrap text-[var(--text-muted)] hover:border-leaf-400 hover:text-[var(--leaf-ink)]"
                 >
                   {sectionName(key)}
@@ -151,8 +151,9 @@ async function ShopDetail({ id }: { id: string }) {
             </nav>
           )}
 
-          {[...sections.entries()].map(([key, items]) => (
-            <section key={key} id={`menu-${key}`} className="grid scroll-mt-36 gap-3">
+          {/* Sections are anchored by position: a shop's own category name can hold spaces and apostrophes. */}
+          {[...sections.entries()].map(([key, items], index) => (
+            <section key={key} id={`menu-${index}`} className="grid scroll-mt-36 gap-3">
               <SectionTitle>
                 {sectionName(key)} <span className="text-base font-bold text-[var(--text-muted)]">({items.length})</span>
               </SectionTitle>

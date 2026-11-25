@@ -34,3 +34,19 @@ export function extraPrice(extra: ShopExtra, size: string | null | undefined) {
 export function extrasSummary(extras: Array<{ label: string }> | null | undefined) {
   return extras?.length ? `+ ${extras.map((extra) => extra.label).join(', ')}` : '';
 }
+
+/**
+ * A category the shop named itself ("Chef's Specials"), as opposed to a key from
+ * `public.categories` ("rice-biryani"). Keys are lower-case slugs; a shop's own name is
+ * stored as typed, so anything that is not a slug is the shop's own.
+ */
+export function isOwnCategory(key: string | null | undefined) {
+  return !!key && !/^[a-z0-9_-]+$/.test(key);
+}
+
+/** The heading for a menu section: a shop's own name as typed, a key made readable. */
+export function categoryLabel(key: string, known?: string) {
+  if (known) return known;
+  if (isOwnCategory(key)) return key;
+  return key.charAt(0).toUpperCase() + key.slice(1).replace(/[_-]/g, ' ');
+}

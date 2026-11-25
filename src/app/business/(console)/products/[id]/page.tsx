@@ -7,6 +7,7 @@ import { serverApi } from '@/lib/api/server';
 import { Badge } from '@/components/ui/badge';
 import { Eyebrow } from '@/components/ui/card';
 import { ProductForm } from '@/components/business/product-form';
+import { isOwnCategory } from '@/lib/menu';
 import { DeleteProduct } from '@/components/business/delete-product';
 
 export const metadata: Metadata = { title: 'Edit product' };
@@ -32,6 +33,10 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
   const menu = listed.ok
     ? listed.data.products.filter((item) => item.id !== product.id).map((item) => ({ id: item.id, name: item.name }))
     : [];
+  // Category names this shop typed itself, offered again in the category list.
+  const ownCategories = listed.ok
+    ? listed.data.products.filter((item) => isOwnCategory(item.category_key)).map((item) => ({ mode: item.listing_mode, key: item.category_key }))
+    : [];
 
   return (
     <div className="animate-rise grid gap-5">
@@ -52,7 +57,7 @@ export default async function EditProductPage({ params }: { params: Promise<{ id
           </p>
         )}
       </div>
-      <ProductForm defaultMode={shop.listing_mode} categories={categories} product={product} menu={menu} />
+      <ProductForm defaultMode={shop.listing_mode} categories={categories} product={product} menu={menu} ownCategories={ownCategories} />
       <DeleteProduct productId={product.id} name={product.name} />
     </div>
   );
