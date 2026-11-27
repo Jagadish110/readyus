@@ -65,7 +65,11 @@ export const riderRoutes: FastifyPluginAsync = async (app) => {
                   jsonb_build_object(
                     'order_code', o.order_code,
                     'delivery_address', o.delivery_address,
-                    'seller', jsonb_build_object('shop_name', s.shop_name, 'address', s.address, 'phone', s.phone)
+                    'seller', jsonb_build_object('shop_name', s.shop_name, 'address', s.address, 'phone', s.phone),
+                    'items', (select coalesce(jsonb_agg(jsonb_build_object(
+                                'name', oi.name, 'variant', oi.variant_label, 'quantity', oi.quantity, 'image', oi.image_url
+                              ) order by oi.id), '[]'::jsonb)
+                              from order_items oi where oi.order_id = o.id)
                   ) as "order"
            from delivery_assignments da
            join orders o on o.id = da.order_id
