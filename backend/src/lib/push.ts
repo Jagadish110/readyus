@@ -2,6 +2,7 @@ import webpush from 'web-push';
 import { z } from 'zod';
 import { config, isProduction } from '../config.js';
 import { asService } from './db.js';
+import { fcmConfigured, fcmTokenOf, isFcmEndpoint, sendFcm, type PhoneAlert } from './fcm.js';
 
 /**
  * Browser notifications (Web Push).
@@ -12,6 +13,9 @@ import { asService } from './db.js';
  */
 
 export const pushConfigured = () => Boolean(config.VAPID_PUBLIC_KEY && config.VAPID_PRIVATE_KEY);
+
+/** True when either kind of alert (browser or phone app) can be sent. */
+export const anyPushConfigured = () => pushConfigured() || fcmConfigured();
 
 // ---------------------------------------------------------------- what a browser may register
 
@@ -95,6 +99,15 @@ export const sendWebPush: Sender = async (target, payload, options) => {
   await webpush.sendNotification(target, payload, { TTL: options.ttl, urgency: options.urgency, timeout: 10_000 });
 };
 
+/**
+ * Sends to a phone (FCM) when the device was registered by the app, otherwise to a browser. The payload is the same
+ * JSON buildPayload makes, so both kinds of device show the same words.
+ */
+export const sendToDevice: Sender = async (target, payload, options) => {
+  if (!isFcmEndpoint(target.endpoint)) return sendWebPush(target, payload, options);
+  await sendFcm(fcmTokenOf(target.endpoint), JSON.parse(payload) as PhoneAlert, options.urgency === 'high');
+};
+
 type Subscription = { id: string; endpoint: string; p256dh: string; auth: string; failures: number };
 const statusOf = (error: unknown) => (error as { statusCode?: number } | null)?.statusCode;
 
@@ -105,7 +118,7 @@ export type DrainResult = { claimed: number; sent: number; removed: number; retr
  * again after a crash (a notification is marked done only after the sends have been attempted).
  */
 export async function drainPushQueue(
-  send: Sender = sendWebPush,
+  send: Sender = sendToDevice,
   limit = 50,
   log?: { warn: (obj: object, message: string) => void }
 ): Promise<DrainResult> {
@@ -168,12 +181,12 @@ export async function drainPushQueue(
 
 /** Runs the queue every few seconds inside the server process. Returns a function that stops it. */
 export function startPushWorker(log: { warn: (obj: object, message: string) => void; error: (obj: object, message: string) => void }) {
-  if (!pushConfigured() || !config.DATABASE_URL) return () => undefined;
+  if (!anyPushConfigured() || !config.DATABASE_URL) return () => undefined;
   let running = false;
   const timer = setInterval(() => {
     if (running) return;
     running = true;
-    drainPushQueue(sendWebPush, 50, log)
+    drainPushQueue(sendToDevice, 50, log)
       .catch((cause) => log.error({ cause }, 'push worker failed'))
       .finally(() => {
         running = false;

@@ -87,6 +87,10 @@ const schema = z.object({
     .string()
     .regex(/^(mailto:[^\s@]+@[^\s@]+|https:\/\/\S+)$/, 'must look like mailto:you@example.com')
     .default('mailto:support@localty.in'),
+  // Phone alerts (the Android app) through Firebase Cloud Messaging: the text of a Firebase service account
+  // key (Project settings -> Service accounts -> Generate new private key), or that JSON in base64. Optional:
+  // without it the phone app still works, only alerts while the app is closed are off.
+  FCM_SERVICE_ACCOUNT: z.string().min(50).optional(),
   // For automated tests and local fakes only: accept push addresses on any host. Ignored in production.
   PUSH_ALLOW_ANY_HOST: z
     .enum(['true', 'false'])

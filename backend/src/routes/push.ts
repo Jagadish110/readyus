@@ -4,7 +4,8 @@ import { config } from '../config.js';
 import { requireUser } from '../lib/auth.js';
 import { asService, asUser } from '../lib/db.js';
 import { AppError } from '../lib/errors.js';
-import { pushConfigured, subscriptionSchema } from '../lib/push.js';
+import { FCM_PREFIX } from '../lib/fcm.js';
+import { anyPushConfigured, pushConfigured, subscriptionSchema } from '../lib/push.js';
 
 const MAX_DEVICES = 10;
 
@@ -37,6 +38,38 @@ export const pushRoutes: FastifyPluginAsync = async (app) => {
         [user.id]
       );
     });
+    return { ok: true };
+  });
+
+  /**
+   * The phone app registers its Firebase token here. It is kept in the same table as browsers, marked by a prefix,
+   * so alerts to a person reach every device they use. Calling it again for the same phone is harmless.
+   */
+  app.post('/push/devices', { config: { rateLimit: { max: 30, timeWindow: '1 hour' } } }, async (request) => {
+    const user = await requireUser(request);
+    if (!anyPushConfigured()) throw new AppError(503, 'Phone alerts are not set up on the server yet.', 'PUSH_NOT_CONFIGURED');
+    const { token } = z.object({ token: z.string().min(20).max(512).regex(/^[A-Za-z0-9_:.-]+$/, 'That device token is not valid.') }).parse(request.body);
+    await asService(async (q) => {
+      // A phone signed in as someone else moves to this person: alerts must never follow the phone to the wrong account.
+      await q.rows(
+        `insert into push_subscriptions (user_id, endpoint, p256dh, auth, user_agent)
+         values ($1, $2, 'phone', 'phone', 'Localty app (Android)')
+         on conflict (endpoint) do update set user_id = excluded.user_id, failures = 0`,
+        [user.id, `${FCM_PREFIX}${token}`]
+      );
+      await q.rows(
+        `delete from push_subscriptions where user_id = $1 and id not in
+           (select id from push_subscriptions where user_id = $1 order by created_at desc limit ${MAX_DEVICES})`,
+        [user.id]
+      );
+    });
+    return { ok: true };
+  });
+
+  app.post('/push/devices/remove', { config: { rateLimit: { max: 30, timeWindow: '1 hour' } } }, async (request) => {
+    const user = await requireUser(request);
+    const { token } = z.object({ token: z.string().max(512) }).parse(request.body);
+    await asService((q) => q.rows('delete from push_subscriptions where user_id = $1 and endpoint = $2', [user.id, `${FCM_PREFIX}${token}`]));
     return { ok: true };
   });
 
